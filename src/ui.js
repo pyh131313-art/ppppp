@@ -124,14 +124,25 @@ function buildHudBlock(playerInput, mineLines) {
   return [...mineLines, "", ...buildQuickStatus(playerInput), "", "包包", ...bag].join("\n");
 }
 
-function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇下方按鈕開始挖礦。") {
+function getDisplayName(user) {
+  return user ? user.displayName || user.globalName || user.username : null;
+}
+
+function addActorFooter(embed, user) {
+  const name = getDisplayName(user);
+  if (!name) return embed;
+  return embed.setFooter({ text: `玩家：${name}` });
+}
+
+function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇下方按鈕開始挖礦。", user = null) {
   const player = getPlayer(playerInput);
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${title}`)
     .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。`)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildIdleMineScene()) });
+  return addActorFooter(embed, user);
 }
 
 function buildHudFiles(playerInput, outcome = null) {
@@ -151,14 +162,15 @@ function buildCollectionFiles(playerInput) {
   ];
 }
 
-function buildMiningEmbed(outcome) {
+function buildMiningEmbed(outcome, user = null) {
   const player = getPlayer(outcome.player);
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${outcome.title}`)
     .setDescription(outcome.message)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildMineEmojiScene(outcome)) });
+  return addActorFooter(embed, user);
 }
 
 function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念幣圖鑑。") {

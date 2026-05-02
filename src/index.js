@@ -60,10 +60,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const name = interaction.commandName;
 
     if (name === "礦場") {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply();
       const player = await updatePlayer(interaction.user.id, (current) => getPlayer(current));
       await interaction.editReply({
-        embeds: [buildPanelEmbed(player)],
+        embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
         files: buildHudFiles(player),
         components: buildPanelComponents()
       });
@@ -224,7 +224,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.mine) {
     await updatePlayer(interaction.user.id, (player) => {
       const outcome = mine(player);
-      embed = buildMiningEmbed(outcome);
+      embed = buildMiningEmbed(outcome, interaction.user);
       files = buildHudFiles(outcome.player, outcome);
       return outcome.player;
     });
@@ -242,7 +242,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.exchangeOne) {
     await updatePlayer(interaction.user.id, (player) => {
       const result = exchange(player, 1);
-      embed = buildPanelEmbed(result.player, "兌換", result.message);
+      embed = buildPanelEmbed(result.player, "兌換", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -263,7 +263,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.rustOne) {
     await updatePlayer(interaction.user.id, (player) => {
       const result = removeRust(player, 1);
-      embed = buildPanelEmbed(result.player, "除鏽", result.message);
+      embed = buildPanelEmbed(result.player, "除鏽", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -272,7 +272,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.discardRustOne) {
     await updatePlayer(interaction.user.id, (player) => {
       const result = discardItem(player, "rusty", 1);
-      embed = buildPanelEmbed(result.player, "丟棄", result.message);
+      embed = buildPanelEmbed(result.player, "丟棄", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -281,7 +281,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.returnSurface) {
     await updatePlayer(interaction.user.id, (player) => {
       const result = returnToSurface(player);
-      embed = buildPanelEmbed(result.player, "返回地面", result.message);
+      embed = buildPanelEmbed(result.player, "返回地面", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -290,7 +290,7 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.revive) {
     await updatePlayer(interaction.user.id, (player) => {
       const result = revive(player);
-      embed = buildPanelEmbed(result.player, "復活", result.message);
+      embed = buildPanelEmbed(result.player, "復活", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
