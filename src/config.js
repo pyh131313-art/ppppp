@@ -82,6 +82,86 @@ const CONFIG = {
       image: "assets/collectibles/rose-04.png"
     },
     {
+      id: "rose_rust_annoyed",
+      name: "不悅 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 18,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-01.png"
+    },
+    {
+      id: "rose_rust_tuba",
+      name: "大號 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 14,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-02.png"
+    },
+    {
+      id: "rose_rust_builder",
+      name: "砌牆 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 14,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-03.png"
+    },
+    {
+      id: "rose_rust_drink",
+      name: "飲料 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 18,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-04.png"
+    },
+    {
+      id: "rose_rust_blank",
+      name: "冷淡 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 16,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-05.png"
+    },
+    {
+      id: "rose_rust_laugh",
+      name: "偷笑 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 12,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-06.png"
+    },
+    {
+      id: "rose_rust_pickup",
+      name: "撿金幣 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 10,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-07.png"
+    },
+    {
+      id: "rose_rust_bird",
+      name: "抱鳥 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 8,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-08.png"
+    },
+    {
+      id: "rose_rust_idea",
+      name: "靈光 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 12,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-09.png"
+    },
+    {
+      id: "rose_rust_scratch",
+      name: "抓頭 Rose 紀念幣",
+      rarity: "除鏽限定",
+      weight: 10,
+      rustOnly: true,
+      image: "assets/collectibles/rose-rust-10.png"
+    },
+    {
       id: "zhongkui_peace",
       name: "鍾葵限定紀念幣",
       rarity: "商店限定",

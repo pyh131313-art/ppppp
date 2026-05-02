@@ -79,6 +79,10 @@ function getCollectibles() {
 }
 
 function getAwardCollectibles() {
+  return CONFIG.collectibles.filter((item) => !item.shopOnly && !item.rustOnly);
+}
+
+function getRustCollectibles() {
   return CONFIG.collectibles.filter((item) => !item.shopOnly);
 }
 
@@ -114,13 +118,21 @@ function getBagFreeSlots(playerInput) {
   return Math.max(0, BAG_CAPACITY - getBagUsedSlots(playerInput));
 }
 
-function awardCollectible(player, random = Math.random) {
-  const weights = Object.fromEntries(getAwardCollectibles().map((item) => [item.id, item.weight]));
+function awardFromPool(player, pool, random = Math.random) {
+  const weights = Object.fromEntries(pool.map((item) => [item.id, item.weight]));
   const id = rollWeighted(weights, random);
   const collectible = getCollectible(id);
   if ((player.collection[id] || 0) === 0 && getBagFreeSlots(player) <= 0) return null;
   player.collection[id] = (player.collection[id] || 0) + 1;
   return collectible;
+}
+
+function awardCollectible(player, random = Math.random) {
+  return awardFromPool(player, getAwardCollectibles(), random);
+}
+
+function awardRustCollectible(player, random = Math.random) {
+  return awardFromPool(player, getRustCollectibles(), random);
 }
 
 function mine(playerInput, random = Math.random, now = Date.now()) {
@@ -325,7 +337,7 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
   const awards = [];
   for (let i = 0; i < safeAmount; i += 1) {
     if (random() < option.successRate) {
-      const award = awardCollectible(player, random);
+      const award = awardRustCollectible(player, random);
       if (award) {
         success += 1;
         awards.push(award);
@@ -571,6 +583,7 @@ function formatCollection(playerInput) {
 
 module.exports = {
   awardCollectible,
+  awardRustCollectible,
   buyShopItem,
   createPlayer,
   discardItem,
@@ -587,6 +600,7 @@ module.exports = {
   getCollectionUniqueCount,
   getDepthLabel,
   getPlayer,
+  getRustCollectibles,
   getShopItems,
   mine,
   removeRust,

@@ -62,6 +62,14 @@ test("金幣可以兌換收藏紀念幣", () => {
   assert.equal(result.player.collection.nina_hot_water, 2);
 });
 
+test("金幣鑄造不會抽到除鏽限定紀念幣", () => {
+  const result = exchange({ ...createPlayer(), gold: 20 }, 2, () => 0.99);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.collection.rose_smirk, 2);
+  assert.equal(result.player.collection.rose_rust_scratch, undefined);
+});
+
 test("商店限定紀念幣只能用金幣購買", () => {
   const result = buyShopItem({ ...createPlayer(), gold: 80 }, "zhongkui_peace", 1);
 
@@ -80,6 +88,18 @@ test("除鏽成功會增加收藏紀念幣", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.rusty, 0);
   assert.equal(getCollectionTotal(result.player), 2);
+});
+
+test("除鏽成功可以抽到除鏽限定紀念幣", () => {
+  const rolls = [0, 0.99];
+  const result = removeRust(
+    { ...createPlayer(), gold: 5, rusty: 1 },
+    1,
+    () => rolls.shift() ?? 0
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.collection.rose_rust_scratch, 1);
 });
 
 test("可以把正式紀念幣交易給其他玩家", () => {
