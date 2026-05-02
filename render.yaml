@@ -1,0 +1,23 @@
+services:
+  - type: worker
+    name: mining-discord-game
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DATA_FILE
+        value: /var/data/players.json
+    disk:
+      name: game-data
+      mountPath: /var/data
+      sizeGB: 1

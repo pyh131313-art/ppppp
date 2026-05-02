@@ -1,0 +1,20 @@
+{
+  "name": "mining-discord-game",
+  "version": "1.0.0",
+  "description": "A Discord mining game with gold coins, rusty coins, commemorative coins, and bombs.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "start": "node src/index.js",
+    "register": "node src/register-commands.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
