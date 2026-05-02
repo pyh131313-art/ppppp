@@ -413,13 +413,23 @@ function discardItem(playerInput, itemId, amount = 1) {
   };
 }
 
-function transferCollectible(fromInput, toInput, itemId, amount = 1) {
+function transferCollectible(fromInput, toInput, itemId, amount = 1, gold = 0) {
   const from = getPlayer(fromInput);
   const to = getPlayer(toInput);
-  const safeAmount = Math.max(1, Math.floor(amount));
-  const collectible = getCollectible(itemId);
+  const safeAmount = Math.max(0, Math.floor(amount || 0));
+  const safeGold = Math.max(0, Math.floor(gold || 0));
+  const collectible = itemId ? getCollectible(itemId) : null;
 
-  if (!collectible) {
+  if (safeAmount <= 0 && safeGold <= 0) {
+    return {
+      ok: false,
+      from,
+      to,
+      message: "交易內容不能是空的，請至少送出 1 枚紀念幣或 1 枚金幣。"
+    };
+  }
+
+  if (safeAmount > 0 && !collectible) {
     return {
       ok: false,
       from,
@@ -428,34 +438,57 @@ function transferCollectible(fromInput, toInput, itemId, amount = 1) {
     };
   }
 
-  const current = from.collection[itemId] || 0;
-  if (current < safeAmount) {
+  if (from.gold < safeGold) {
     return {
       ok: false,
       from,
       to,
-      message: `你的${collectible.name}不足，目前只有 ${current} 枚。`
+      message: `你的金幣不足，目前只有 ${from.gold} 枚。`
     };
   }
 
-  if ((to.collection[itemId] || 0) === 0 && getBagFreeSlots(to) <= 0) {
-    return {
-      ok: false,
-      from,
-      to,
-      message: "對方包包已滿，沒有空格接收新的紀念幣。"
-    };
+  let current = 0;
+  if (safeAmount > 0) {
+    current = from.collection[itemId] || 0;
+    if (current < safeAmount) {
+      return {
+        ok: false,
+        from,
+        to,
+        message: `你的${collectible.name}不足，目前只有 ${current} 枚。`
+      };
+    }
+
+    if ((to.collection[itemId] || 0) === 0 && getBagFreeSlots(to) <= 0) {
+      return {
+        ok: false,
+        from,
+        to,
+        message: "對方包包已滿，沒有空格接收新的紀念幣。"
+      };
+    }
   }
 
-  from.collection[itemId] = current - safeAmount;
-  if (from.collection[itemId] <= 0) delete from.collection[itemId];
-  to.collection[itemId] = (to.collection[itemId] || 0) + safeAmount;
+  if (safeAmount > 0) {
+    from.collection[itemId] = current - safeAmount;
+    if (from.collection[itemId] <= 0) delete from.collection[itemId];
+    to.collection[itemId] = (to.collection[itemId] || 0) + safeAmount;
+  }
+
+  if (safeGold > 0) {
+    from.gold -= safeGold;
+    to.gold += safeGold;
+  }
+
+  const parts = [];
+  if (safeAmount > 0) parts.push(`${safeAmount} 枚${collectible.name}`);
+  if (safeGold > 0) parts.push(`${safeGold} 枚金幣`);
 
   return {
     ok: true,
     from,
     to,
-    message: `交易完成：送出 ${safeAmount} 枚${collectible.name}。`
+    message: `交易完成：送出 ${parts.join("、")}。`
   };
 }
 

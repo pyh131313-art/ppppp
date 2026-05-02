@@ -96,7 +96,7 @@ const commands = [
     ),
   new SlashCommandBuilder()
     .setName("交易")
-    .setDescription("把正式紀念幣轉讓給其他用戶。")
+    .setDescription("把正式紀念幣或金幣轉讓給其他用戶。")
     .addUserOption((option) =>
       option
         .setName("對象")
@@ -106,15 +106,22 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("紀念幣")
-        .setDescription("要送出的正式紀念幣。")
-        .setRequired(true)
+        .setDescription("要送出的正式紀念幣，不送紀念幣可以不填。")
+        .setRequired(false)
         .addChoices(...collectibleChoices)
     )
     .addIntegerOption((option) =>
       option
         .setName("數量")
-        .setDescription("要送出幾枚。")
-        .setMinValue(1)
+        .setDescription("要送出幾枚紀念幣，不送紀念幣可填 0 或不填。")
+        .setMinValue(0)
+        .setRequired(false)
+    )
+    .addIntegerOption((option) =>
+      option
+        .setName("金幣")
+        .setDescription("要送出幾枚金幣。")
+        .setMinValue(0)
         .setRequired(false)
     ),
   new SlashCommandBuilder()

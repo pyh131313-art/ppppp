@@ -161,8 +161,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "交易") {
       const target = interaction.options.getUser("對象", true);
-      const itemId = interaction.options.getString("紀念幣", true);
+      const itemId = interaction.options.getString("紀念幣", false);
       const amount = interaction.options.getInteger("數量") || 1;
+      const gold = interaction.options.getInteger("金幣") || 0;
 
       if (target.id === interaction.user.id) {
         await interaction.reply({ content: "不能交易給自己。", ephemeral: true });
@@ -179,7 +180,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
           players[interaction.user.id],
           players[target.id],
           itemId,
-          amount
+          itemId ? amount : 0,
+          gold
         );
         players[interaction.user.id] = trade.from;
         players[target.id] = trade.to;

@@ -95,6 +95,36 @@ test("可以把正式紀念幣交易給其他玩家", () => {
   assert.equal(result.to.collection.nina_hot_water, 1);
 });
 
+test("可以交易金幣給其他玩家", () => {
+  const result = transferCollectible(
+    { ...createPlayer(), gold: 30 },
+    { ...createPlayer(), gold: 5 },
+    null,
+    0,
+    12
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.from.gold, 18);
+  assert.equal(result.to.gold, 17);
+});
+
+test("可以同時交易紀念幣和金幣", () => {
+  const result = transferCollectible(
+    { ...createPlayer(), gold: 30, collection: { nina_hot_water: 2 } },
+    createPlayer(),
+    "nina_hot_water",
+    1,
+    12
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.from.gold, 18);
+  assert.equal(result.to.gold, 12);
+  assert.equal(result.from.collection.nina_hot_water, 1);
+  assert.equal(result.to.collection.nina_hot_water, 1);
+});
+
 test("返回地面會清除本次生鏽幣、深度與炸彈", () => {
   const result = returnToSurface({
     ...createPlayer(),
