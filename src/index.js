@@ -35,6 +35,7 @@ const {
   buildMiningEmbed,
   buildPanelComponents,
   buildPanelEmbed,
+  buildShopComponents,
   buildShopEmbed,
   isMiningUiButton
 } = require("./ui");
@@ -404,6 +405,21 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.shopOpen) {
+    const progress = getCommunityProgress(await loadPlayers());
+    const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
+    componentPlayer = player;
+    embed = buildShopEmbed(player, "選擇下方商品購買。", progress);
+    files = buildHudFiles(player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(progress)
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {

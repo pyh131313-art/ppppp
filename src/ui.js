@@ -43,6 +43,7 @@ const CUSTOM_IDS = {
   eventSafe: "mine_ui:event:safe",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyOne: "mine_ui:shop_buy_one",
+  shopOpen: "mine_ui:shop_open",
   shopBuyPotion: "mine_ui:shop_buy_potion",
   shopBuyTotem: "mine_ui:shop_buy_totem",
   drinkPotion: "mine_ui:drink_potion",
@@ -551,13 +552,9 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     addRow(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
       makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"),
-      makeButton(CUSTOM_IDS.shopBuyOne, "商店購買", ButtonStyle.Success, "🏪"),
+      makeButton(CUSTOM_IDS.shopOpen, "商店購買", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦"),
       makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
-    );
-    addRow(
-      progress.healingPotionUnlocked ? makeButton(CUSTOM_IDS.shopBuyPotion, "買治療藥水", ButtonStyle.Success, "🧪") : null,
-      progress.undyingTotemUnlocked ? makeButton(CUSTOM_IDS.shopBuyTotem, "買不死圖騰", ButtonStyle.Success, "🗿") : null
     );
     addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
     return rows;
@@ -582,6 +579,26 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   return rows;
 }
 
+function buildShopComponents(progressInput = {}) {
+  const progress = {
+    healingPotionUnlocked: false,
+    undyingTotemUnlocked: false,
+    ...progressInput
+  };
+  const rows = [];
+  const firstRow = [
+    makeButton(CUSTOM_IDS.shopBuyOne, "購買商店紀念幣", ButtonStyle.Success, "🪙")
+  ];
+  if (progress.healingPotionUnlocked) {
+    firstRow.push(makeButton(CUSTOM_IDS.shopBuyPotion, "購買治療藥水", ButtonStyle.Success, "🧪"));
+  }
+  if (progress.undyingTotemUnlocked) {
+    firstRow.push(makeButton(CUSTOM_IDS.shopBuyTotem, "購買不死圖騰", ButtonStyle.Success, "🗿"));
+  }
+  rows.push(new ActionRowBuilder().addComponents(...firstRow));
+  return rows;
+}
+
 function isMiningUiButton(customId) {
   return customId.startsWith("mine_ui:");
 }
@@ -595,6 +612,7 @@ module.exports = {
   buildLeaderboardEmbed,
   buildHudFiles,
   buildPanelComponents,
+  buildShopComponents,
   buildPanelEmbed,
   buildShopEmbed,
   isMiningUiButton
