@@ -87,6 +87,25 @@ function getBagSlots(playerInput) {
   return [...collectibleSlots, ...rustySlots].slice(0, 12);
 }
 
+function buildBagGrid(playerInput) {
+  const slots = getBagSlots(playerInput);
+  const cells = Array.from({ length: 12 }, (_, index) => {
+    const slot = slots[index];
+    return `${String(index + 1).padStart(2, "0")} ${slot ? slot.icon : "⬛"}`;
+  });
+  return [
+    cells.slice(0, 4).join("　"),
+    cells.slice(4, 8).join("　"),
+    cells.slice(8, 12).join("　")
+  ].join("\n");
+}
+
+function buildBagList(playerInput) {
+  const slots = getBagSlots(playerInput);
+  if (slots.length === 0) return "目前包包是空的。";
+  return slots.map((slot, index) => `${index + 1}. ${slot.icon} ${slot.label}`).join("\n");
+}
+
 function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
@@ -168,6 +187,7 @@ function buildHudFiles(playerInput, outcome = null) {
 }
 
 function buildCollectionFiles(playerInput) {
+  if (FAST_MODE) return [];
   return [
     new AttachmentBuilder(buildInventoryPng(playerInput), {
       name: "coin-bag.png"
@@ -202,8 +222,13 @@ function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念�
       `格數：${slots}/12`,
       `種類：${unique}/${all} ${progressBar(unique, all, 12)}`
     ].join("\n"))
-    .setImage("attachment://coin-bag.png")
+    .addFields(
+      { name: "12 格物品欄", value: buildBagGrid(player) },
+      { name: "內容", value: buildBagList(player).slice(0, 1024) }
+    )
     .setFooter({ text: `目前開放：${all} 種紀念幣。` });
+
+  if (!FAST_MODE) embed.setImage("attachment://coin-bag.png");
 
   return embed;
 }
