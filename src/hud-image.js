@@ -39,6 +39,8 @@ function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
     ore: "⛏️",
+    goldOre: "🟨",
+    platinumOre: "◻️",
     junk: "🧱",
     rusty: "🟤",
     bomb: "💣",
@@ -82,6 +84,20 @@ function getBagSlots(playerInput) {
     },
     count: 1
   }));
+  const goldOreSlots = Array.from({ length: player.goldOre }, () => ({
+    item: {
+      type: "goldOre",
+      name: "金礦石"
+    },
+    count: 1
+  }));
+  const platinumOreSlots = Array.from({ length: player.platinumOre }, () => ({
+    item: {
+      type: "platinumOre",
+      name: "鉑金礦石"
+    },
+    count: 1
+  }));
   const redGemSlots = Array.from({ length: player.redGem }, () => ({
     item: {
       type: "redGem",
@@ -121,6 +137,8 @@ function getBagSlots(playerInput) {
   return [
     ...rustySlots,
     ...oreSlots,
+    ...goldOreSlots,
+    ...platinumOreSlots,
     ...redGemSlots,
     ...blueGemSlots,
     ...greenGemSlots,
@@ -133,6 +151,8 @@ function buildBagSlot({ bagSlot, index, x, y }) {
   const slot = 42;
   const rusty = bagSlot && bagSlot.item.type === "rusty";
   const ore = bagSlot && bagSlot.item.type === "ore";
+  const goldOre = bagSlot && bagSlot.item.type === "goldOre";
+  const platinumOre = bagSlot && bagSlot.item.type === "platinumOre";
   const junk = bagSlot && bagSlot.item.type === "junk";
   const redGem = bagSlot && bagSlot.item.type === "redGem";
   const blueGem = bagSlot && bagSlot.item.type === "blueGem";
@@ -150,6 +170,12 @@ function buildBagSlot({ bagSlot, index, x, y }) {
     : "";
   const oreIcon = ore
     ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">⛏️</text>`
+    : "";
+  const goldOreIcon = goldOre
+    ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">🟨</text>`
+    : "";
+  const platinumOreIcon = platinumOre
+    ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">◻️</text>`
     : "";
   const junkIcon = junk
     ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">🧱</text>`
@@ -171,6 +197,8 @@ function buildBagSlot({ bagSlot, index, x, y }) {
       ${image}
       ${rustyIcon}
       ${oreIcon}
+      ${goldOreIcon}
+      ${platinumOreIcon}
       ${junkIcon}
       ${gemIcon}
       ${platinumJunkIcon}
@@ -216,8 +244,8 @@ function buildHudSvg(playerInput, outcome = null) {
 
   <rect x="68" y="420" width="410" height="52" rx="12" fill="#27272a"/>
   <text x="92" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#fde68a">金幣 ${player.gold}</text>
-  <text x="220" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#cbd5e1">礦石 ${player.ore}</text>
-  <text x="340" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#d4d4d8">破爛 ${player.junk}</text>
+  <text x="220" y="454" font-family="Arial, sans-serif" font-size="19" font-weight="900" fill="#cbd5e1">礦石 ${player.ore}/${player.goldOre}/${player.platinumOre}</text>
+  <text x="350" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#d4d4d8">破爛 ${player.junk}</text>
   <text x="438" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#fecaca">生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}</text>
 
   <rect x="562" y="42" width="150" height="650" rx="18" fill="#334155" stroke="#64748b" stroke-width="3"/>

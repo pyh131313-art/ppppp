@@ -178,6 +178,36 @@ test("礦石返回地面會自動換成金幣", () => {
   assert.equal(result.player.gold, 16);
 });
 
+test("15 層後會掉金礦石並返回地面換高價金幣", () => {
+  const start = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 14
+  };
+  const mined = mine(start, () => 0.56);
+  const amount = mined.player.goldOre;
+  const result = returnToSurface(mined.player);
+
+  assert.equal(mined.kind, "goldOre");
+  assert.equal(amount, 4);
+  assert.equal(result.player.goldOre, 0);
+  assert.equal(result.player.gold, amount * 120);
+});
+
+test("30 層後會掉鉑金礦石並返回地面換更高價金幣", () => {
+  const start = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 29
+  };
+  const mined = mine(start, () => 0.62);
+  const amount = mined.player.platinumOre;
+  const result = returnToSurface(mined.player);
+
+  assert.equal(mined.kind, "platinumOre");
+  assert.equal(amount, 7);
+  assert.equal(result.player.platinumOre, 0);
+  assert.equal(result.player.gold, amount * 260);
+});
+
 test("寶石礦洞只會挖到寶石並返回地面換高價金幣", () => {
   const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
   const mined = mine(start, () => 0);
@@ -211,10 +241,12 @@ test("寶石礦洞的白金破爛佔五格包包", () => {
 test("礦石會佔用包包格子", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    ore: 2
+    ore: 2,
+    goldOre: 1,
+    platinumOre: 1
   };
 
-  assert.equal(getBagUsedSlots(player), 2);
+  assert.equal(getBagUsedSlots(player), 4);
 });
 
 test("正式紀念幣放在集幣冊不佔包包", () => {
@@ -402,6 +434,47 @@ test("可以同時交易紀念幣和金幣", () => {
   assert.equal(result.to.gold, 12);
   assert.equal(result.from.collection.nina_hot_water, 1);
   assert.equal(result.to.collection.nina_hot_water, 1);
+});
+
+test("好地精會收購身上的所有礦石並給錢", () => {
+  const result = resolveRandomEvent(
+    {
+      ...chooseRunMode(createPlayer(), "safe").player,
+      pendingEvent: "goblin_purchase",
+      ore: 2,
+      goldOre: 1,
+      platinumOre: 1
+    },
+    "risk",
+    () => 0
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.goldOre, 0);
+  assert.equal(result.player.platinumOre, 0);
+  assert.equal(result.player.gold, 483);
+  assert.match(result.message, /好地精/);
+});
+
+test("壞地精會拿走礦石且可能造成傷害", () => {
+  const rolls = [0.9, 0];
+  const result = resolveRandomEvent(
+    {
+      ...chooseRunMode(createPlayer(), "safe").player,
+      pendingEvent: "goblin_purchase",
+      ore: 2
+    },
+    "risk",
+    () => rolls.shift() ?? 0,
+    1000
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.gold, 0);
+  assert.equal(result.player.bombs, 1);
+  assert.match(result.message, /壞地精/);
 });
 
 test("返回地面會清除本次生鏽幣、深度與炸彈", () => {

@@ -17,6 +17,8 @@ function createPlayer() {
     mines: 0,
     depth: 0,
     ore: 0,
+    goldOre: 0,
+    platinumOre: 0,
     junk: 0,
     redGem: 0,
     blueGem: 0,
@@ -78,6 +80,8 @@ function getMiningWeights(playerInput) {
   const weights = { ...CONFIG.mining.weights };
   weights.gold = Math.max(32, weights.gold - dangerTier * 2);
   weights.ore += dangerTier * 3;
+  if (player.depth >= 15) weights.goldOre = 8 + Math.min(6, Math.floor((player.depth - 15) / 5));
+  if (player.depth >= 30) weights.platinumOre = 5 + Math.min(5, Math.floor((player.depth - 30) / 5));
   weights.rusty += dangerTier;
   weights.bomb += dangerTier * 4;
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
@@ -128,6 +132,8 @@ function isInMine(playerInput) {
   return Boolean(
     player.depth > 0 ||
     player.ore > 0 ||
+    player.goldOre > 0 ||
+    player.platinumOre > 0 ||
     player.redGem > 0 ||
     player.blueGem > 0 ||
     player.greenGem > 0 ||
@@ -143,6 +149,8 @@ function isInMine(playerInput) {
 function resetRunState(player) {
   player.rusty = 0;
   player.ore = 0;
+  player.goldOre = 0;
+  player.platinumOre = 0;
   player.junk = 0;
   player.redGem = 0;
   player.blueGem = 0;
@@ -336,6 +344,8 @@ function getBagUsedSlots(playerInput) {
   const player = getPlayer(playerInput);
   return player.rusty
     + player.ore
+    + player.goldOre
+    + player.platinumOre
     + player.redGem
     + player.blueGem
     + player.greenGem
@@ -384,6 +394,10 @@ const RANDOM_EVENTS = {
   lost_backpack: {
     title: "遺失的背包",
     description: "地上有一個被丟下的背包，裡面可能有補給，也可能有破爛。"
+  },
+  goblin_purchase: {
+    title: "地精收購",
+    description: "一個地精說想收購你的礦石，但你看不出牠是好是壞。"
   }
 };
 
@@ -593,6 +607,31 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       player,
       "挖到礦石",
       `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      recordMessage,
+      random
+    );
+  }
+
+  if (result === "goldOre" || result === "platinumOre") {
+    const amount = getOreAmount(player.depth, random) * gatherMultiplier;
+    const freeSlots = getBagFreeSlots(player);
+    const name = result === "goldOre" ? "金礦石" : "鉑金礦石";
+    if (freeSlots <= 0) {
+      return {
+        kind: "full",
+        player,
+        title: "包包已滿",
+        message: `你挖到${name}，但包包已滿，放不下。`
+      };
+    }
+
+    const gained = Math.min(amount, freeSlots);
+    player[result] += gained;
+    return buildOutcome(
+      result,
+      player,
+      `挖到${name}`,
+      `你挖到了 ${gained} 塊${name}。返回地面時會自動換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
@@ -844,6 +883,57 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     };
   }
 
+  if (eventId === "goblin_purchase") {
+    if (choice !== "risk") {
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "你拒絕地精的收購，牠嘀咕幾句後離開了。"
+      };
+    }
+
+    const ore = player.ore;
+    const goldOre = player.goldOre;
+    const platinumOre = player.platinumOre;
+    const totalOre = ore + goldOre + platinumOre;
+    if (totalOre <= 0) {
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "地精翻了翻你的包包，發現沒有礦石可以收購。"
+      };
+    }
+
+    player.ore = 0;
+    player.goldOre = 0;
+    player.platinumOre = 0;
+
+    if (random() < 0.55) {
+      const payout = Math.floor(
+        ore * CONFIG.ore.goldPerOre * 1.35
+        + goldOre * CONFIG.ore.goldPerGoldOre * 1.25
+        + platinumOre * CONFIG.ore.goldPerPlatinumOre * 1.2
+      );
+      player.gold += payout;
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `這次是好地精。牠收走 ${totalOre} 塊礦石，付給你 ${payout} 金幣。`
+      };
+    }
+
+    const damageMessage = random() < 0.35 ? addBombDamage(player, now).message : "";
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `這次是壞地精。牠把 ${totalOre} 塊礦石全拿走，沒有付錢。${damageMessage ? `還順手敲了你一下，${damageMessage}` : ""}`
+    };
+  }
+
   return {
     ok: false,
     player,
@@ -982,7 +1072,11 @@ function returnToSurface(playerInput) {
   const player = getPlayer(playerInput);
   const lostRusty = player.rusty;
   const soldOre = player.ore;
+  const soldGoldOre = player.goldOre;
+  const soldPlatinumOre = player.platinumOre;
   const oreGold = soldOre * CONFIG.ore.goldPerOre;
+  const goldOreGold = soldGoldOre * CONFIG.ore.goldPerGoldOre;
+  const platinumOreGold = soldPlatinumOre * CONFIG.ore.goldPerPlatinumOre;
   const soldRedGem = player.redGem;
   const soldBlueGem = player.blueGem;
   const soldGreenGem = player.greenGem;
@@ -996,16 +1090,18 @@ function returnToSurface(playerInput) {
 
   player.rusty = 0;
   player.ore = 0;
+  player.goldOre = 0;
+  player.platinumOre = 0;
   player.redGem = 0;
   player.blueGem = 0;
   player.greenGem = 0;
-  player.gold += oreGold + gemGold;
+  player.gold += oreGold + goldOreGold + platinumOreGold + gemGold;
   resetRunState(player);
 
   return {
     ok: true,
     player,
-    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
   };
 }
 
@@ -1213,7 +1309,7 @@ function formatInventory(playerInput) {
   return [
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
-    `礦石：${player.ore}`,
+    `礦石：普通 ${player.ore}｜金 ${player.goldOre}｜鉑金 ${player.platinumOre}`,
     `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
     `超級破爛：${player.junk}`,
     `白金破爛：${player.platinumJunk}`,

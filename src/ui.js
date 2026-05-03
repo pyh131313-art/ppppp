@@ -72,7 +72,7 @@ function buildQuickStatus(playerInput) {
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   return [
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
-    `礦石 ${player.ore}`,
+    `礦石 ⛏️${player.ore} 🟨${player.goldOre} ◻️${player.platinumOre}`,
     `寶石 🔴${player.redGem} 🔵${player.blueGem} 🟢${player.greenGem}`,
     `破爛 ${player.junk}｜白金 ${player.platinumJunk}`,
     `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
@@ -95,6 +95,14 @@ function getBagSlots(playerInput) {
   const oreSlots = Array.from({ length: player.ore }, () => ({
     icon: "⛏️",
     label: "礦石"
+  }));
+  const goldOreSlots = Array.from({ length: player.goldOre }, () => ({
+    icon: "🟨",
+    label: "金礦石"
+  }));
+  const platinumOreSlots = Array.from({ length: player.platinumOre }, () => ({
+    icon: "◻️",
+    label: "鉑金礦石"
   }));
   const redGemSlots = Array.from({ length: player.redGem }, () => ({
     icon: "🔴",
@@ -120,6 +128,8 @@ function getBagSlots(playerInput) {
   return [
     ...rustySlots,
     ...oreSlots,
+    ...goldOreSlots,
+    ...platinumOreSlots,
     ...redGemSlots,
     ...blueGemSlots,
     ...greenGemSlots,
@@ -161,6 +171,8 @@ function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
     ore: "⛏️",
+    goldOre: "🟨",
+    platinumOre: "◻️",
     junk: "🧱",
     redGem: "🔴",
     blueGem: "🔵",
@@ -181,6 +193,8 @@ function getResultLabel(kind) {
   const map = {
     gold: "金幣",
     ore: "礦石",
+    goldOre: "金礦石",
+    platinumOre: "鉑金礦石",
     junk: "超級破爛",
     redGem: "紅寶石",
     blueGem: "藍寶石",
@@ -419,6 +433,12 @@ function getEventButtonLabels(eventId) {
     return {
       risk: "翻找背包",
       safe: "只拿背帶"
+    };
+  }
+  if (eventId === "goblin_purchase") {
+    return {
+      risk: "接受收購",
+      safe: "拒絕收購"
     };
   }
   return {

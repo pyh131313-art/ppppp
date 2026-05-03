@@ -7,6 +7,8 @@ const CONFIG = {
     weights: {
       gold: 48,
       ore: 14,
+      goldOre: 0,
+      platinumOre: 0,
       rusty: 6,
       junk: 6,
       empty: 16,
@@ -44,6 +46,8 @@ const CONFIG = {
   },
   ore: {
     goldPerOre: 8,
+    goldPerGoldOre: 120,
+    goldPerPlatinumOre: 260,
     redGemGold: 35,
     blueGemGold: 50,
     greenGemGold: 75
