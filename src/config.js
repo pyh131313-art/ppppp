@@ -90,7 +90,20 @@ const CONFIG = {
         id: "zhongkui_peace",
         priceGold: 800
       }
-    ]
+    ],
+    consumables: {
+      healingPotion: {
+        label: "治療藥水",
+        priceGold: 100,
+        unlockBestDepth: 70,
+        healBombs: 1
+      },
+      undyingTotem: {
+        label: "不死圖騰",
+        priceGold: 500,
+        unlockDeaths: 100
+      }
+    }
   },
   rustRemoval: {
     default: {

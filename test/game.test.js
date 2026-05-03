@@ -16,8 +16,10 @@ const {
   getBagCapacity,
   getCollectionTotal,
   getBagUsedSlots,
+  getCommunityProgress,
   getRunModeOptions,
   mine,
+  drinkHealingPotion,
   removeRust,
   resolveRandomEvent,
   rescuePlayer,
@@ -453,6 +455,57 @@ test("商店限定紀念幣只能用金幣購買", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 0);
   assert.equal(result.player.collection.zhongkui_peace, 1);
+});
+
+test("共同任務達到 70 層後商店解鎖治療藥水", () => {
+  const progress = getCommunityProgress({
+    a: { ...createPlayer(), stats: { ...createPlayer().stats, bestDepth: 70 } }
+  });
+  const result = buyShopItem({ ...createPlayer(), gold: 100 }, "healingPotion", 1, progress);
+
+  assert.equal(progress.healingPotionUnlocked, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.player.healingPotion, 1);
+  assert.equal(result.player.gold, 0);
+});
+
+test("治療藥水只能下礦後使用並恢復一滴血", () => {
+  const player = {
+    ...chooseRunMode({ ...createPlayer(), runModeOptions: ["safe", "double"], healingPotion: 1 }, "safe").player,
+    bombs: 2
+  };
+  const result = drinkHealingPotion(player);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.healingPotion, 0);
+  assert.equal(result.player.bombs, 1);
+});
+
+test("共同死亡達到 100 次後商店解鎖不死圖騰", () => {
+  const progress = getCommunityProgress({
+    a: { ...createPlayer(), stats: { ...createPlayer().stats, deaths: 60 } },
+    b: { ...createPlayer(), stats: { ...createPlayer().stats, deaths: 40 } }
+  });
+  const result = buyShopItem({ ...createPlayer(), gold: 500 }, "undyingTotem", 1, progress);
+
+  assert.equal(progress.undyingTotemUnlocked, true);
+  assert.equal(result.ok, true);
+  assert.equal(result.player.undyingTotem, 1);
+  assert.equal(result.player.gold, 0);
+});
+
+test("不死圖騰會在死亡時原地復活並繼續挖礦", () => {
+  const start = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["safe", "double"], undyingTotem: 1 },
+    "safe"
+  ).player;
+  const result = mine({ ...start, bombs: 3 }, () => 0.95, 1000);
+
+  assert.equal(result.kind, "bomb");
+  assert.equal(result.player.dead, false);
+  assert.equal(result.player.undyingTotem, 0);
+  assert.equal(result.player.depth, 1);
+  assert.equal(result.player.bombs, 3);
 });
 
 test("除鏽成功會增加收藏紀念幣", () => {

@@ -8,6 +8,8 @@ function createPlayer() {
   return {
     gold: 0,
     bankGold: 0,
+    healingPotion: 0,
+    undyingTotem: 0,
     rusty: 0,
     collection: {},
     bombs: 0,
@@ -419,6 +421,34 @@ function getShopItems() {
     .filter((shopItem) => shopItem.collectible);
 }
 
+function getCommunityProgress(playersInput = {}) {
+  const players = Object.values(playersInput || {}).map((playerInput) => getPlayer(playerInput));
+  const bestDepth = players.reduce((best, player) => Math.max(best, player.stats.bestDepth || 0), 0);
+  const deaths = players.reduce((sum, player) => sum + (player.stats.deaths || 0), 0);
+  return {
+    bestDepth,
+    deaths,
+    healingPotionUnlocked: bestDepth >= CONFIG.shop.consumables.healingPotion.unlockBestDepth,
+    undyingTotemUnlocked: deaths >= CONFIG.shop.consumables.undyingTotem.unlockDeaths
+  };
+}
+
+function getShopConsumables(progressInput = {}) {
+  const progress = {
+    healingPotionUnlocked: false,
+    undyingTotemUnlocked: false,
+    ...progressInput
+  };
+  return [
+    progress.healingPotionUnlocked
+      ? { id: "healingPotion", ...CONFIG.shop.consumables.healingPotion }
+      : null,
+    progress.undyingTotemUnlocked
+      ? { id: "undyingTotem", ...CONFIG.shop.consumables.undyingTotem }
+      : null
+  ].filter(Boolean);
+}
+
 function getCollectionTotal(playerInput) {
   const player = getPlayer(playerInput);
   return Object.values(player.collection).reduce((sum, count) => sum + count, 0);
@@ -532,6 +562,15 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     return {
       dead: false,
       message: `受到傷害，生命損傷 ${player.bombs}/${maxBombs}。`
+    };
+  }
+
+  if (player.undyingTotem > 0) {
+    player.undyingTotem -= 1;
+    player.bombs = Math.max(0, maxBombs - 1);
+    return {
+      dead: false,
+      message: `不死圖騰發光碎裂，替你擋下死亡。你原地復活，生命剩 1/${maxBombs}。`
     };
   }
 
@@ -1164,35 +1203,81 @@ function exchange(playerInput, amount = 1, random = Math.random) {
   };
 }
 
-function buyShopItem(playerInput, itemId, amount = 1) {
+function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const player = getPlayer(playerInput);
   const safeAmount = Math.max(1, Math.floor(amount));
   const shopItem = getShopItems().find((item) => item.id === itemId);
+  const consumable = getShopConsumables(progressInput).find((item) => item.id === itemId);
 
-  if (!shopItem) {
+  if (isInMine(player)) {
     return {
       ok: false,
       player,
-      message: "商店沒有這個商品。"
+      message: "商店只能在地表使用。"
     };
   }
 
-  const cost = shopItem.priceGold * safeAmount;
+  if (!shopItem && !consumable) {
+    return {
+      ok: false,
+      player,
+      message: "商店沒有這個商品，或共同任務尚未解鎖。"
+    };
+  }
+
+  const label = shopItem ? shopItem.collectible.name : consumable.label;
+  const priceGold = shopItem ? shopItem.priceGold : consumable.priceGold;
+  const cost = priceGold * safeAmount;
   if (player.gold < cost) {
     return {
       ok: false,
       player,
-      message: `金幣不足。購買 ${safeAmount} 枚${shopItem.collectible.name}需要 ${cost} 金幣。`
+      message: `金幣不足。購買 ${safeAmount} 個${label}需要 ${cost} 金幣。`
     };
   }
 
   player.gold -= cost;
-  player.collection[itemId] = (player.collection[itemId] || 0) + safeAmount;
+  if (shopItem) player.collection[itemId] = (player.collection[itemId] || 0) + safeAmount;
+  else player[itemId] = (player[itemId] || 0) + safeAmount;
 
   return {
     ok: true,
     player,
-    message: `成功花費 ${cost} 金幣購買 ${safeAmount} 枚${shopItem.collectible.name}。`
+    message: `成功花費 ${cost} 金幣購買 ${safeAmount} 個${label}。`
+  };
+}
+
+function drinkHealingPotion(playerInput) {
+  const player = getPlayer(playerInput);
+  if (!player.runMode || player.dead) {
+    return {
+      ok: false,
+      player,
+      message: "治療藥水只能在礦坑內存活時使用。"
+    };
+  }
+  if (player.healingPotion <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "你沒有治療藥水。"
+    };
+  }
+  if (player.bombs <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "你目前生命值是滿的，先不要浪費藥水。"
+    };
+  }
+
+  const healed = Math.min(player.bombs, CONFIG.shop.consumables.healingPotion.healBombs);
+  player.healingPotion -= 1;
+  player.bombs -= healed;
+  return {
+    ok: true,
+    player,
+    message: `喝下治療藥水，恢復 ${healed} 滴血。`
   };
 }
 
@@ -1502,6 +1587,7 @@ function formatInventory(playerInput) {
   return [
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
+    `攜帶道具：治療藥水 ${player.healingPotion}｜不死圖騰 ${player.undyingTotem}`,
     `礦石：普通 ${player.ore}｜金 ${player.goldOre}｜鉑金 ${player.platinumOre}`,
     `加工物：金塊 ${player.goldBlock}｜礦錠 ${player.oreIngot}｜金錠 ${player.goldOreIngot}｜鉑金錠 ${player.platinumOreIngot}｜完整炸彈 ${player.bombItem}`,
     `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
@@ -1523,9 +1609,12 @@ function formatInventory(playerInput) {
   ].join("\n");
 }
 
-function formatShop() {
+function formatShop(progressInput = {}) {
   const shopLines = getShopItems().map(
     (item) => `${item.collectible.name}｜${item.collectible.rarity}｜${item.priceGold} 金幣｜只能在商店購買`
+  );
+  const consumableLines = getShopConsumables(progressInput).map(
+    (item) => `${item.label}｜${item.priceGold} 金幣`
   );
   return [
     `金幣鑄造：${CONFIG.exchange.goldPerCommemorative} 金幣 = 1 枚隨機收藏紀念幣，使用 \`/兌換\`。`,
@@ -1533,8 +1622,9 @@ function formatShop() {
     "",
     "商店限定：",
     ...shopLines,
+    ...(consumableLines.length ? ["", "共同任務商品：", ...consumableLines] : []),
     "",
-    "使用 `/購買` 購買商店限定紀念幣。"
+    "使用 `/購買` 購買商店商品。"
   ].join("\n");
 }
 
@@ -1559,6 +1649,7 @@ module.exports = {
   createPlayer,
   depositBank,
   discardItem,
+  drinkHealingPotion,
   ensureRunModeOptions,
   exchange,
   formatCollection,
@@ -1572,6 +1663,7 @@ module.exports = {
   getCollectibles,
   getCollectionTotal,
   getCollectionUniqueCount,
+  getCommunityProgress,
   getDepthLabel,
   getCaveLabel,
   getMaxBombs,
@@ -1582,6 +1674,7 @@ module.exports = {
   getRunModeOptions,
   getRunModeLabel,
   getShopItems,
+  getShopConsumables,
   mine,
   removeRust,
   resolveRandomEvent,

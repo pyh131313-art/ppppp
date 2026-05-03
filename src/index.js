@@ -9,10 +9,12 @@ const {
   chooseRunMode,
   depositBank,
   discardItem,
+  drinkHealingPotion,
   exchange,
   formatShop,
   formatInventory,
   ensureRunModeOptions,
+  getCommunityProgress,
   getPlayer,
   getShopItems,
   mine,
@@ -107,10 +109,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (name === "礦場") {
       await interaction.deferReply();
       const player = await updatePlayer(interaction.user.id, (current) => ensureRunModeOptions(current, Math.random));
+      const progress = getCommunityProgress(await loadPlayers());
       await interaction.editReply({
         embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
         files: buildHudFiles(player),
-        components: buildPanelComponents(interaction.user.id, player)
+        components: buildPanelComponents(interaction.user.id, player, progress)
       });
       return;
     }
@@ -137,8 +140,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "商店") {
       const result = await updatePlayer(interaction.user.id, (player) => getPlayer(player));
+      const progress = getCommunityProgress(await loadPlayers());
       await interaction.reply({
-        embeds: [buildShopEmbed(result, formatShop())],
+        embeds: [buildShopEmbed(result, formatShop(progress), progress)],
         ephemeral: true
       });
       return;
@@ -148,8 +152,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const itemId = interaction.options.getString("商品", true);
       const amount = interaction.options.getInteger("數量") || 1;
       let message = "";
+      const progress = getCommunityProgress(await loadPlayers());
       await updatePlayer(interaction.user.id, (player) => {
-        const result = buyShopItem(player, itemId, amount);
+        const result = buyShopItem(player, itemId, amount, progress);
         message = result.message;
         return result.player;
       });
@@ -334,11 +339,12 @@ async function handleMiningButton(interaction) {
       return next;
     });
     const collectionResponse = await buildCollectionResponse(componentPlayer);
+    const progress = getCommunityProgress(await loadPlayers());
     await interaction.editReply({
       embeds: collectionResponse.embeds,
       files: collectionResponse.files,
       attachments: [],
-      components: buildPanelComponents(componentTargetId, componentPlayer)
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress)
     });
     return;
   }
@@ -401,13 +407,36 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
+    const progress = getCommunityProgress(await loadPlayers());
     await updatePlayer(panelTargetUserId, (player) => {
       const shopItem = getShopItems()[0];
       const result = shopItem
-        ? buyShopItem(player, shopItem.id, 1)
+        ? buyShopItem(player, shopItem.id, 1, progress)
         : { player: getPlayer(player), message: "商店目前沒有商品。" };
       componentPlayer = result.player;
-      embed = buildShopEmbed(result.player, result.message);
+      embed = buildShopEmbed(result.player, result.message, progress);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.shopBuyPotion || interaction.customId === CUSTOM_IDS.shopBuyTotem) {
+    const itemId = interaction.customId === CUSTOM_IDS.shopBuyPotion ? "healingPotion" : "undyingTotem";
+    const progress = getCommunityProgress(await loadPlayers());
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = buyShopItem(player, itemId, 1, progress);
+      componentPlayer = result.player;
+      embed = buildShopEmbed(result.player, result.message, progress);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.drinkPotion) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = drinkHealingPotion(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "治療藥水", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -475,11 +504,12 @@ async function handleMiningButton(interaction) {
     }
   }
 
+  const progress = getCommunityProgress(await loadPlayers());
   await interaction.editReply({
     embeds: [embed || buildPanelEmbed(null)],
     files,
     attachments: [],
-    components: buildPanelComponents(componentTargetId, componentPlayer)
+    components: buildPanelComponents(componentTargetId, componentPlayer, progress)
   });
 }
 
