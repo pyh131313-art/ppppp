@@ -398,6 +398,10 @@ const RANDOM_EVENTS = {
   goblin_purchase: {
     title: "地精收購",
     description: "一個地精說想收購你的礦石，但你看不出牠是好是壞。"
+  },
+  cave_roach: {
+    title: "超大洞穴蟑螂",
+    description: "一隻超大洞穴蟑螂趴在路邊，牠看起來很餓，而且很想被摸頭。"
   }
 };
 
@@ -931,6 +935,39 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       player,
       title: event.title,
       message: `這次是壞地精。牠把 ${totalOre} 塊礦石全拿走，沒有付錢。${damageMessage ? `還順手敲了你一下，${damageMessage}` : ""}`
+    };
+  }
+
+  if (eventId === "cave_roach") {
+    if (choice !== "risk") {
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "你慢慢退開，超大洞穴蟑螂抬頭看了你一眼，沒有追上來。"
+      };
+    }
+
+    const eatenJunk = player.junk;
+    const eatenPlatinumJunk = player.platinumJunk;
+    const freedSlots = eatenJunk * 3 + eatenPlatinumJunk * 5;
+    player.junk = 0;
+    player.platinumJunk = 0;
+
+    if (freedSlots <= 0) {
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "你摸了摸超大洞穴蟑螂的頭，但身上沒有破爛可以餵。牠看起來有點失望。"
+      };
+    }
+
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `你先摸了摸超大洞穴蟑螂的頭，再把破爛餵給牠。牠吃掉 ${eatenJunk} 個超級破爛和 ${eatenPlatinumJunk} 個白金破爛，包包空出 ${freedSlots} 格。`
     };
   }
 

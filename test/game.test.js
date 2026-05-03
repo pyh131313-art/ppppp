@@ -477,6 +477,25 @@ test("壞地精會拿走礦石且可能造成傷害", () => {
   assert.match(result.message, /壞地精/);
 });
 
+test("超大洞穴蟑螂會吃掉身上的所有破爛", () => {
+  const result = resolveRandomEvent(
+    {
+      ...chooseRunMode(createPlayer(), "safe").player,
+      pendingEvent: "cave_roach",
+      junk: 2,
+      platinumJunk: 1
+    },
+    "risk"
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.junk, 0);
+  assert.equal(result.player.platinumJunk, 0);
+  assert.equal(getBagUsedSlots(result.player), 0);
+  assert.match(result.message, /摸了摸超大洞穴蟑螂的頭/);
+  assert.match(result.message, /空出 11 格/);
+});
+
 test("返回地面會清除本次生鏽幣、深度與炸彈", () => {
   const result = returnToSurface({
     ...createPlayer(),

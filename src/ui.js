@@ -439,6 +439,12 @@ function getEventButtonLabels(eventId) {
       safe: "拒絕收購"
     };
   }
+  if (eventId === "cave_roach") {
+    return {
+      risk: "摸頭餵食",
+      safe: "慢慢退開"
+    };
+  }
   return {
     risk: "冒險選項",
     safe: "保守選項"
