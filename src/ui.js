@@ -262,7 +262,8 @@ function buildIdleMineScene() {
 
 function buildHudBlock(playerInput, mineLines) {
   const slots = getBagSlots(playerInput);
-  const bagCells = Array.from({ length: 12 }, (_, index) => {
+  const capacity = getBagCapacity(playerInput);
+  const bagCells = Array.from({ length: capacity }, (_, index) => {
     const slot = slots[index];
     return `背包${index + 1}:${slot ? slot.icon : "⬛"}`;
   });
