@@ -69,6 +69,25 @@ function attachGlobalRecordMessage(outcome, previousBestDepth, user) {
   };
 }
 
+function getButtonCustomId(component) {
+  return component.customId || (component.data && component.data.custom_id) || "";
+}
+
+function getPanelTargetUserId(interaction) {
+  const rows = interaction.message && interaction.message.components ? interaction.message.components : [];
+  for (const row of rows) {
+    const components = row.components || [];
+    for (const component of components) {
+      const customId = getButtonCustomId(component);
+      if (customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`)) {
+        const targetUserId = customId.split(":")[2];
+        return targetUserId && targetUserId !== "none" ? targetUserId : null;
+      }
+    }
+  }
+  return null;
+}
+
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`已登入：${readyClient.user.tag}`);
 });
@@ -239,14 +258,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 async function handleMiningButton(interaction) {
+  const panelTargetUserId = getPanelTargetUserId(interaction) || interaction.user.id;
+  const isRescueButton = interaction.customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`);
+  if (panelTargetUserId !== interaction.user.id && !isRescueButton) {
+    await interaction.reply({
+      content: "這是別人的礦場面板。請使用 `/礦場` 打開自己的面板。",
+      ephemeral: true
+    });
+    return;
+  }
+
   await interaction.deferUpdate();
   let embed = null;
   let files = [];
-  let componentTargetId = interaction.user.id;
+  let componentTargetId = panelTargetUserId;
   let componentPlayer = null;
 
   if (interaction.customId === CUSTOM_IDS.modeDouble) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseRunMode(player, "double", Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
@@ -256,7 +285,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.modeSafe) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseRunMode(player, "safe", Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
@@ -269,11 +298,11 @@ async function handleMiningButton(interaction) {
     await updatePlayers((players) => {
       const previousBestDepth = getGlobalBestDepth(players);
       const outcome = attachGlobalRecordMessage(
-        mine(players[interaction.user.id]),
+        mine(players[panelTargetUserId]),
         previousBestDepth,
         interaction.user
       );
-      players[interaction.user.id] = outcome.player;
+      players[panelTargetUserId] = outcome.player;
       componentPlayer = outcome.player;
       embed = buildMiningEmbed(outcome, interaction.user);
       files = buildHudFiles(outcome.player, outcome);
@@ -282,7 +311,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.buffGold) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseMinorBuff(player, "gold");
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user);
@@ -292,7 +321,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.buffBomb) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseMinorBuff(player, "bomb");
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user);
@@ -302,7 +331,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.bag) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const next = getPlayer(player);
       componentPlayer = next;
       embed = null;
@@ -325,7 +354,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.bankDeposit) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = depositBank(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
@@ -335,7 +364,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.bankWithdraw) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = withdrawBank(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
@@ -348,7 +377,7 @@ async function handleMiningButton(interaction) {
     const choice = interaction.customId === CUSTOM_IDS.eventRisk ? "risk" : "safe";
     await updatePlayers((players) => {
       const previousBestDepth = getGlobalBestDepth(players);
-      const result = resolveRandomEvent(players[interaction.user.id], choice);
+      const result = resolveRandomEvent(players[panelTargetUserId], choice);
       const next = attachGlobalRecordMessage(
         { player: result.player },
         previousBestDepth,
@@ -357,7 +386,7 @@ async function handleMiningButton(interaction) {
       const message = next.globalRecordMessage
         ? `${result.message}\n\n${next.globalRecordMessage}`
         : result.message;
-      players[interaction.user.id] = result.player;
+      players[panelTargetUserId] = result.player;
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, result.title, message, interaction.user);
       files = buildHudFiles(result.player);
@@ -366,7 +395,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.exchangeOne) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = exchange(player, 1);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "兌換", result.message, interaction.user);
@@ -376,7 +405,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const shopItem = getShopItems()[0];
       const result = shopItem
         ? buyShopItem(player, shopItem.id, 1)
@@ -389,7 +418,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.rustOne) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = removeRust(player, 1);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "除鏽", result.message, interaction.user);
@@ -399,7 +428,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.discardRustOne) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = discardItem(player, "rusty", 1);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "丟棄", result.message, interaction.user);
@@ -409,7 +438,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.returnSurface) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = returnToSurface(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "返回地面", result.message, interaction.user);
@@ -419,7 +448,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.revive) {
-    await updatePlayer(interaction.user.id, (player) => {
+    await updatePlayer(panelTargetUserId, (player) => {
       const result = revive(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "復活", result.message, interaction.user);
