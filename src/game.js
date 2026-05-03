@@ -354,21 +354,23 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   }
 
   if (result === "junk") {
-    if (getBagFreeSlots(player) < 3) {
+    const amount = gatherMultiplier;
+    const requiredSlots = amount * 3;
+    if (getBagFreeSlots(player) < requiredSlots) {
       return {
         kind: "full",
         player,
         title: "包包已滿",
-        message: "你挖到超級破爛，但它需要 3 格包包，放不下。"
+        message: `你挖到 ${amount} 個超級破爛，但它需要 ${requiredSlots} 格包包，放不下。`
       };
     }
 
-    player.junk += 1;
+    player.junk += amount;
     return {
       kind: "junk",
       player,
       title: "挖到超級破爛",
-      message: "你挖到了超級破爛，佔 3 格包包，只能返回地面時丟掉。"
+      message: `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。`
     };
   }
 

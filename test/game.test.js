@@ -108,6 +108,14 @@ test("超級破爛需要三格空間", () => {
   assert.equal(result.player.junk, 0);
 });
 
+test("雙倍採集會讓超級破爛也掉雙倍", () => {
+  const mined = mine(chooseRunMode(createPlayer(), "double").player, () => 0.7);
+
+  assert.equal(mined.kind, "junk");
+  assert.equal(mined.player.junk, 2);
+  assert.equal(getBagUsedSlots(mined.player), 6);
+});
+
 test("下礦前需要先二選一", () => {
   const result = mine(createPlayer(), () => 0);
 
