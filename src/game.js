@@ -25,6 +25,7 @@ function createPlayer() {
     nextBuffDepth: 5,
     pendingEvent: null,
     nextEventDepth: 4,
+    bagBonusSlots: 0,
     stats: {
       bestDepth: 0,
       totalMines: 0,
@@ -140,6 +141,7 @@ function resetRunState(player) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
+  player.bagBonusSlots = 0;
 }
 
 function getRunModeLabel(playerInput) {
@@ -226,6 +228,7 @@ function chooseRunMode(playerInput, mode) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
+  player.bagBonusSlots = 0;
 
   return {
     ok: true,
@@ -309,8 +312,13 @@ function getBagUsedSlots(playerInput) {
   return player.rusty + player.ore + player.junk * 3;
 }
 
+function getBagCapacity(playerInput) {
+  const player = getPlayer(playerInput);
+  return BAG_CAPACITY + Math.max(0, player.bagBonusSlots || 0);
+}
+
 function getBagFreeSlots(playerInput) {
-  return Math.max(0, BAG_CAPACITY - getBagUsedSlots(playerInput));
+  return Math.max(0, getBagCapacity(playerInput) - getBagUsedSlots(playerInput));
 }
 
 function awardFromPool(player, pool, random = Math.random) {
@@ -341,6 +349,10 @@ const RANDOM_EVENTS = {
   ancient_rust: {
     title: "古老除鏽機",
     description: "角落有一台舊機器，似乎可以處理生鏽紀念幣。"
+  },
+  lost_backpack: {
+    title: "遺失的背包",
+    description: "地上有一個被丟下的背包，裡面可能有補給，也可能有破爛。"
   }
 };
 
@@ -481,7 +493,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "full",
         player,
         title: "包包已滿",
-        message: "你挖到生鏽紀念幣，但 12 格包包已滿，放不下。"
+        message: `你挖到生鏽紀念幣，但 ${getBagCapacity(player)} 格包包已滿，放不下。`
       };
     }
 
@@ -663,6 +675,59 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       player,
       title: event.title,
       message: `你花 ${cost} 金幣，但除鏽失敗，生鏽紀念幣損壞了。`
+    };
+  }
+
+  if (eventId === "lost_backpack") {
+    if (choice === "risk") {
+      const roll = random();
+      if (roll < 0.35) {
+        player.bagBonusSlots += 4;
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: `你翻到可用背包，本次礦坑包包容量 +4，目前 ${getBagCapacity(player)} 格。`
+        };
+      }
+
+      if (roll < 0.65) {
+        const gold = 20 + getDepthBonus(player.depth) * 5;
+        const ore = Math.min(2, getBagFreeSlots(player));
+        player.gold += gold;
+        player.ore += ore;
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: `你翻到補給，獲得 ${gold} 金幣和 ${ore} 塊礦石。`
+        };
+      }
+
+      if (getBagFreeSlots(player) < 3) {
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: "你翻出一堆超級破爛，但包包已經塞不下，直接丟回原地。"
+        };
+      }
+
+      player.junk += 1;
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "你翻到一包超級破爛，佔用 3 格包包。"
+      };
+    }
+
+    player.bagBonusSlots += 2;
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `你只拿走能用的背帶，本次礦坑包包容量 +2，目前 ${getBagCapacity(player)} 格。`
     };
   }
 
@@ -1022,7 +1087,7 @@ function formatInventory(playerInput) {
     `超級破爛：${player.junk}`,
     `生鏽紀念幣：${player.rusty}`,
     `收藏紀念幣：${getCollectionTotal(player)} 枚`,
-    `包包格數：${getBagUsedSlots(player)}/${BAG_CAPACITY}`,
+    `包包格數：${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
     `深度：${player.depth}（${getDepthLabel(player.depth)}）`,
     `下礦方式：${getRunModeLabel(player)}`,
     `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
@@ -1076,6 +1141,7 @@ module.exports = {
   formatInventory,
   formatShop,
   getBagFreeSlots,
+  getBagCapacity,
   getBagUsedSlots,
   getAwardCollectibles,
   getCollectible,

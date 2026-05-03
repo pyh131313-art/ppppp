@@ -13,6 +13,7 @@ const {
   getCollectibles,
   getCollectionTotal,
   getCollectionUniqueCount,
+  getBagCapacity,
   getBagUsedSlots,
   getDepthLabel,
   getMaxBombs,
@@ -71,6 +72,7 @@ function buildQuickStatus(playerInput) {
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `礦石 ${player.ore}`,
     `破爛 ${player.junk}`,
+    `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
@@ -81,6 +83,7 @@ function buildQuickStatus(playerInput) {
 
 function getBagSlots(playerInput) {
   const player = getPlayer(playerInput);
+  const capacity = getBagCapacity(player);
   const rustySlots = Array.from({ length: player.rusty }, () => ({
     icon: "🟤",
     label: "生鏽紀念幣"
@@ -94,20 +97,21 @@ function getBagSlots(playerInput) {
     label: `超級破爛 ${Math.floor(index / 3) + 1}/佔3格`
   }));
 
-  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, 12);
+  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, capacity);
 }
 
 function buildBagGrid(playerInput) {
   const slots = getBagSlots(playerInput);
-  const cells = Array.from({ length: 12 }, (_, index) => {
+  const capacity = getBagCapacity(playerInput);
+  const cells = Array.from({ length: capacity }, (_, index) => {
     const slot = slots[index];
     return `${String(index + 1).padStart(2, "0")} ${slot ? slot.icon : "⬛"}`;
   });
-  return [
-    cells.slice(0, 4).join("　"),
-    cells.slice(4, 8).join("　"),
-    cells.slice(8, 12).join("　")
-  ].join("\n");
+  const rows = [];
+  for (let index = 0; index < cells.length; index += 4) {
+    rows.push(cells.slice(index, index + 4).join("　"));
+  }
+  return rows.join("\n");
 }
 
 function buildBagList(playerInput) {
@@ -270,6 +274,7 @@ function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念�
   const all = getCollectibles().length;
   const total = getCollectionTotal(player);
   const slots = getBagUsedSlots(player);
+  const capacity = getBagCapacity(player);
   const embed = new EmbedBuilder()
     .setColor(0x8b5cf6)
     .setTitle("紀念幣包包")
@@ -277,11 +282,11 @@ function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念�
       message,
       "",
       `總數：${total}`,
-      `包包格數：${slots}/12`,
+      `包包格數：${slots}/${capacity}`,
       `種類：${unique}/${all} ${progressBar(unique, all, 12)}`
     ].join("\n"))
     .addFields(
-      { name: "12 格物品欄", value: buildBagGrid(player) },
+      { name: `${capacity} 格物品欄`, value: buildBagGrid(player) },
       { name: "包包內容", value: buildBagList(player).slice(0, 1024) },
       { name: "集幣冊", value: buildCoinBookList(player).slice(0, 1024) }
     )
@@ -331,6 +336,12 @@ function getEventButtonLabels(eventId) {
     return {
       risk: "免費除鏽",
       safe: "穩定除鏽"
+    };
+  }
+  if (eventId === "lost_backpack") {
+    return {
+      risk: "翻找背包",
+      safe: "只拿背帶"
     };
   }
   return {

@@ -11,6 +11,7 @@ const {
   depositBank,
   discardItem,
   exchange,
+  getBagCapacity,
   getCollectionTotal,
   getBagUsedSlots,
   mine,
@@ -131,6 +132,30 @@ test("事件選項會清除事件並套用結果", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.pendingEvent, null);
   assert.equal(result.player.ore, 2);
+});
+
+test("遺失的背包可以本次擴大包包容量", () => {
+  const result = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_backpack" },
+    "safe"
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.pendingEvent, null);
+  assert.equal(result.player.bagBonusSlots, 2);
+  assert.equal(getBagCapacity(result.player), 14);
+});
+
+test("本次包包擴容返回地面後重置", () => {
+  const result = returnToSurface({
+    ...createPlayer(),
+    runMode: "safe",
+    depth: 3,
+    bagBonusSlots: 4
+  });
+
+  assert.equal(result.player.bagBonusSlots, 0);
+  assert.equal(getBagCapacity(result.player), 12);
 });
 
 test("礦石返回地面會自動換成金幣", () => {

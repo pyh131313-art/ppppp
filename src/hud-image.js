@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const {
+  getBagCapacity,
   getBagUsedSlots,
   getMaxBombs,
   getPlayer
@@ -12,7 +13,7 @@ const {
 
 const WIDTH = 760;
 const HEIGHT = 760;
-const SLOT_COUNT = 12;
+const VISIBLE_SLOT_COUNT = 12;
 const imageCache = new Map();
 
 function escapeXml(value) {
@@ -89,7 +90,7 @@ function getBagSlots(playerInput) {
     count: 1
   }));
 
-  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, SLOT_COUNT);
+  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, getBagCapacity(player));
 }
 
 function buildBagSlot({ bagSlot, index, x, y }) {
@@ -135,6 +136,7 @@ function buildHudSvg(playerInput, outcome = null) {
   const maxHp = getMaxBombs(player);
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   const used = getBagUsedSlots(player);
+  const capacity = getBagCapacity(player);
   const bagSlots = getBagSlots(player);
   const mineLines = buildMineLines(outcome);
   const title = outcome ? outcome.title : "礦場面板";
@@ -148,7 +150,7 @@ function buildHudSvg(playerInput, outcome = null) {
     `;
   }).join("\n");
 
-  const slotsSvg = Array.from({ length: SLOT_COUNT }, (_, index) => {
+  const slotsSvg = Array.from({ length: VISIBLE_SLOT_COUNT }, (_, index) => {
     const y = 98 + index * 48;
     return buildBagSlot({ bagSlot: bagSlots[index] || null, index, x: 598, y });
   }).join("\n");
@@ -171,7 +173,7 @@ function buildHudSvg(playerInput, outcome = null) {
   <text x="438" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#fecaca">生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}</text>
 
   <rect x="562" y="42" width="150" height="650" rx="18" fill="#334155" stroke="#64748b" stroke-width="3"/>
-  <text x="637" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#f8fafc">包包 ${used}/12</text>
+  <text x="637" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#f8fafc">包包 ${used}/${capacity}</text>
   ${slotsSvg}
 
   <text x="48" y="720" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#a1a1aa">/包包 可看大圖，生鏽紀念幣一枚佔一格。</text>
