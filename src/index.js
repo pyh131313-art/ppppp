@@ -247,7 +247,7 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.modeDouble) {
     await updatePlayer(interaction.user.id, (player) => {
-      const result = chooseRunMode(player, "double");
+      const result = chooseRunMode(player, "double", Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
       files = buildHudFiles(result.player);
@@ -257,7 +257,7 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.modeSafe) {
     await updatePlayer(interaction.user.id, (player) => {
-      const result = chooseRunMode(player, "safe");
+      const result = chooseRunMode(player, "safe", Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
       files = buildHudFiles(result.player);

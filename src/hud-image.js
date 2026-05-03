@@ -82,6 +82,27 @@ function getBagSlots(playerInput) {
     },
     count: 1
   }));
+  const redGemSlots = Array.from({ length: player.redGem }, () => ({
+    item: {
+      type: "redGem",
+      name: "紅寶石"
+    },
+    count: 1
+  }));
+  const blueGemSlots = Array.from({ length: player.blueGem }, () => ({
+    item: {
+      type: "blueGem",
+      name: "藍寶石"
+    },
+    count: 1
+  }));
+  const greenGemSlots = Array.from({ length: player.greenGem }, () => ({
+    item: {
+      type: "greenGem",
+      name: "綠寶石"
+    },
+    count: 1
+  }));
   const junkSlots = Array.from({ length: player.junk * 3 }, () => ({
     item: {
       type: "junk",
@@ -89,8 +110,23 @@ function getBagSlots(playerInput) {
     },
     count: 1
   }));
+  const platinumJunkSlots = Array.from({ length: player.platinumJunk * 5 }, () => ({
+    item: {
+      type: "platinumJunk",
+      name: "白金破爛"
+    },
+    count: 1
+  }));
 
-  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, getBagCapacity(player));
+  return [
+    ...rustySlots,
+    ...oreSlots,
+    ...redGemSlots,
+    ...blueGemSlots,
+    ...greenGemSlots,
+    ...junkSlots,
+    ...platinumJunkSlots
+  ].slice(0, getBagCapacity(player));
 }
 
 function buildBagSlot({ bagSlot, index, x, y }) {
@@ -98,6 +134,10 @@ function buildBagSlot({ bagSlot, index, x, y }) {
   const rusty = bagSlot && bagSlot.item.type === "rusty";
   const ore = bagSlot && bagSlot.item.type === "ore";
   const junk = bagSlot && bagSlot.item.type === "junk";
+  const redGem = bagSlot && bagSlot.item.type === "redGem";
+  const blueGem = bagSlot && bagSlot.item.type === "blueGem";
+  const greenGem = bagSlot && bagSlot.item.type === "greenGem";
+  const platinumJunk = bagSlot && bagSlot.item.type === "platinumJunk";
   const filled = Boolean(bagSlot);
   const fill = filled ? "#f8fafc" : "#dbe3eb";
   const stroke = filled ? "#f59e0b" : "#94a3b8";
@@ -114,6 +154,12 @@ function buildBagSlot({ bagSlot, index, x, y }) {
   const junkIcon = junk
     ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">🧱</text>`
     : "";
+  const gemIcon = redGem || blueGem || greenGem
+    ? `<circle cx="${x + 21}" cy="${y + 21}" r="13" fill="${redGem ? "#ef4444" : blueGem ? "#3b82f6" : "#22c55e"}" stroke="#f8fafc" stroke-width="3"/>`
+    : "";
+  const platinumJunkIcon = platinumJunk
+    ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">⬜</text>`
+    : "";
   const count = filled && !rusty && bagSlot.count > 1
     ? `<text x="${x + 60}" y="${y + 27}" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#fde68a">x${bagSlot.count}</text>`
     : "";
@@ -126,6 +172,8 @@ function buildBagSlot({ bagSlot, index, x, y }) {
       ${rustyIcon}
       ${oreIcon}
       ${junkIcon}
+      ${gemIcon}
+      ${platinumJunkIcon}
       ${count}
     </g>
   `;

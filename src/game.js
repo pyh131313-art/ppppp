@@ -17,7 +17,12 @@ function createPlayer() {
     depth: 0,
     ore: 0,
     junk: 0,
+    redGem: 0,
+    blueGem: 0,
+    greenGem: 0,
+    platinumJunk: 0,
     runMode: null,
+    caveType: null,
     minorBuffs: {
       gold: 0,
       bomb: 0
@@ -122,8 +127,12 @@ function isInMine(playerInput) {
   return Boolean(
     player.depth > 0 ||
     player.ore > 0 ||
+    player.redGem > 0 ||
+    player.blueGem > 0 ||
+    player.greenGem > 0 ||
     player.rusty > 0 ||
     player.junk > 0 ||
+    player.platinumJunk > 0 ||
     player.bombs > 0 ||
     player.runMode ||
     player.pendingEvent
@@ -134,9 +143,14 @@ function resetRunState(player) {
   player.rusty = 0;
   player.ore = 0;
   player.junk = 0;
+  player.redGem = 0;
+  player.blueGem = 0;
+  player.greenGem = 0;
+  player.platinumJunk = 0;
   player.bombs = 0;
   player.depth = 0;
   player.runMode = null;
+  player.caveType = null;
   player.minorBuffs = { gold: 0, bomb: 0 };
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
@@ -149,6 +163,13 @@ function getRunModeLabel(playerInput) {
   return player.runMode && CONFIG.runModes[player.runMode]
     ? CONFIG.runModes[player.runMode].label
     : "尚未選擇";
+}
+
+function getCaveLabel(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.caveType === "gem") return "寶石礦洞";
+  if (player.caveType === "normal") return "普通礦洞";
+  return "尚未進洞";
 }
 
 function depositBank(playerInput) {
@@ -203,7 +224,7 @@ function withdrawBank(playerInput) {
   };
 }
 
-function chooseRunMode(playerInput, mode) {
+function chooseRunMode(playerInput, mode, random = null) {
   const player = getPlayer(playerInput);
   const config = CONFIG.runModes[mode];
 
@@ -215,7 +236,7 @@ function chooseRunMode(playerInput, mode) {
     };
   }
 
-  if (player.depth > 0 || player.ore > 0 || player.rusty > 0 || player.junk > 0 || player.bombs > 0) {
+  if (isInMine(player)) {
     return {
       ok: false,
       player,
@@ -224,6 +245,7 @@ function chooseRunMode(playerInput, mode) {
   }
 
   player.runMode = mode;
+  player.caveType = random && random() < CONFIG.mining.gemCaveChance ? "gem" : "normal";
   player.minorBuffs = { gold: 0, bomb: 0 };
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
@@ -233,7 +255,9 @@ function chooseRunMode(playerInput, mode) {
   return {
     ok: true,
     player,
-    message: `已選擇 ${config.label}。可以開始深入挖礦。`
+    message: player.caveType === "gem"
+      ? `已選擇 ${config.label}。你腳下一空，掉進了寶石礦洞。這裡只會挖到寶石、鐘乳石和白金破爛。`
+      : `已選擇 ${config.label}。可以開始深入挖礦。`
   };
 }
 
@@ -309,7 +333,13 @@ function getCollectionUniqueCount(playerInput) {
 
 function getBagUsedSlots(playerInput) {
   const player = getPlayer(playerInput);
-  return player.rusty + player.ore + player.junk * 3;
+  return player.rusty
+    + player.ore
+    + player.redGem
+    + player.blueGem
+    + player.greenGem
+    + player.junk * 3
+    + player.platinumJunk * 5;
 }
 
 function getBagCapacity(playerInput) {
@@ -382,13 +412,13 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   return `\n\n事件出現：${event.title}。\n${event.description}`;
 }
 
-function addBombDamage(player, now = Date.now()) {
-  player.bombs += 1;
+function addBombDamage(player, now = Date.now(), amount = 1) {
+  player.bombs += amount;
   const maxBombs = getMaxBombs(player);
   if (player.bombs < maxBombs) {
     return {
       dead: false,
-      message: `受到爆炸傷害，炸彈次數 ${player.bombs}/${maxBombs}。`
+      message: `受到傷害，生命損傷 ${player.bombs}/${maxBombs}。`
     };
   }
 
@@ -398,12 +428,12 @@ function addBombDamage(player, now = Date.now()) {
   player.stats.deaths += 1;
   return {
     dead: true,
-    message: `爆炸死亡，損失 ${lostGold} 枚金幣。`
+    message: `死亡，損失 ${lostGold} 枚金幣。`
   };
 }
 
 function buildOutcome(kind, player, title, message, recordMessage = "", random = Math.random) {
-  const eventMessage = kind === "blocked" || kind === "full" || player.dead
+  const eventMessage = kind === "blocked" || kind === "full" || player.dead || player.caveType === "gem"
     ? ""
     : maybeTriggerRandomEvent(player, random);
   return {
@@ -413,6 +443,84 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     message: `${message}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
     recordMessage
   };
+}
+
+function getGemAmount(depth, random = Math.random) {
+  const bonus = Math.min(3, Math.floor(depth / 4));
+  return 1 + Math.floor(random() * (2 + bonus));
+}
+
+function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "") {
+  const result = rollWeighted(CONFIG.mining.gemWeights, random);
+  const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
+
+  if (result === "redGem" || result === "blueGem" || result === "greenGem") {
+    const amount = getGemAmount(player.depth, random) * gatherMultiplier;
+    const freeSlots = getBagFreeSlots(player);
+    if (freeSlots <= 0) {
+      return {
+        kind: "full",
+        player,
+        title: "包包已滿",
+        message: "你挖到寶石，但包包已滿，放不下。"
+      };
+    }
+
+    const gained = Math.min(amount, freeSlots);
+    player[result] += gained;
+    const name = result === "redGem" ? "紅寶石" : result === "blueGem" ? "藍寶石" : "綠寶石";
+    return buildOutcome(
+      result,
+      player,
+      `挖到${name}`,
+      `你挖到了 ${gained} 顆${name}。返回地面時會換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      recordMessage,
+      random
+    );
+  }
+
+  if (result === "stalactite") {
+    const damage = addBombDamage(player, now, 2);
+    if (damage.dead) {
+      return {
+        kind: "dead",
+        player,
+        title: "鐘乳石砸落",
+        message: `鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
+      };
+    }
+
+    return buildOutcome(
+      "stalactite",
+      player,
+      "鐘乳石砸落",
+      `鐘乳石砸中你，扣 2 滴血。炸彈次數 ${player.bombs}/${getMaxBombs(player)}。`,
+      recordMessage,
+      random
+    );
+  }
+
+  const amount = gatherMultiplier;
+  const requiredSlots = amount * 5;
+  if (getBagFreeSlots(player) < requiredSlots) {
+    return {
+      kind: "full",
+      player,
+      title: "包包已滿",
+      message: `你挖到 ${amount} 個白金破爛，但它需要 ${requiredSlots} 格包包，放不下。`
+    };
+  }
+
+  player.platinumJunk += amount;
+  return buildOutcome(
+    "platinumJunk",
+    player,
+    "挖到白金破爛",
+    `你挖到了 ${amount} 個白金破爛，共佔 ${requiredSlots} 格包包，只能返回地面時清掉。`,
+    recordMessage,
+    random
+  );
 }
 
 function mine(playerInput, random = Math.random, now = Date.now()) {
@@ -451,6 +559,9 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   player.stats.totalMines += 1;
   player.depth += 1;
   const recordMessage = setDepthRecord(player);
+  if (player.caveType === "gem") {
+    return mineGemCave(player, random, now, recordMessage);
+  }
   const result = rollWeighted(getMiningWeights(player), random);
   const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
   const goldMultiplier = 1 + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus;
@@ -870,19 +981,29 @@ function returnToSurface(playerInput) {
   const lostRusty = player.rusty;
   const soldOre = player.ore;
   const oreGold = soldOre * CONFIG.ore.goldPerOre;
+  const soldRedGem = player.redGem;
+  const soldBlueGem = player.blueGem;
+  const soldGreenGem = player.greenGem;
+  const gemGold = soldRedGem * CONFIG.ore.redGemGold
+    + soldBlueGem * CONFIG.ore.blueGemGold
+    + soldGreenGem * CONFIG.ore.greenGemGold;
   const clearedJunk = player.junk;
+  const clearedPlatinumJunk = player.platinumJunk;
   const clearedBombs = player.bombs;
   const depth = player.depth;
 
   player.rusty = 0;
   player.ore = 0;
-  player.gold += oreGold;
+  player.redGem = 0;
+  player.blueGem = 0;
+  player.greenGem = 0;
+  player.gold += oreGold + gemGold;
   resetRunState(player);
 
   return {
     ok: true,
     player,
-    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
   };
 }
 
@@ -1084,12 +1205,15 @@ function formatInventory(playerInput) {
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
     `礦石：${player.ore}`,
+    `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
     `超級破爛：${player.junk}`,
+    `白金破爛：${player.platinumJunk}`,
     `生鏽紀念幣：${player.rusty}`,
     `收藏紀念幣：${getCollectionTotal(player)} 枚`,
     `包包格數：${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
     `深度：${player.depth}（${getDepthLabel(player.depth)}）`,
     `下礦方式：${getRunModeLabel(player)}`,
+    `礦洞：${getCaveLabel(player)}`,
     `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
     `事件：${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
     `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
@@ -1149,6 +1273,7 @@ module.exports = {
   getCollectionTotal,
   getCollectionUniqueCount,
   getDepthLabel,
+  getCaveLabel,
   getMaxBombs,
   getPlayer,
   getRandomEvent,

@@ -16,6 +16,7 @@ const {
   getCollectionUniqueCount,
   getBagCapacity,
   getBagUsedSlots,
+  getCaveLabel,
   getDepthLabel,
   getMaxBombs,
   getPlayer,
@@ -72,12 +73,14 @@ function buildQuickStatus(playerInput) {
   return [
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `礦石 ${player.ore}`,
-    `破爛 ${player.junk}`,
+    `寶石 🔴${player.redGem} 🔵${player.blueGem} 🟢${player.greenGem}`,
+    `破爛 ${player.junk}｜白金 ${player.platinumJunk}`,
     `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
     `事件 ${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
+    `礦洞 ${getCaveLabel(player)}`,
     `深度 ${player.depth}｜最深 ${player.stats.bestDepth}｜${getDepthLabel(player.depth)}`
   ];
 }
@@ -93,12 +96,36 @@ function getBagSlots(playerInput) {
     icon: "⛏️",
     label: "礦石"
   }));
+  const redGemSlots = Array.from({ length: player.redGem }, () => ({
+    icon: "🔴",
+    label: "紅寶石"
+  }));
+  const blueGemSlots = Array.from({ length: player.blueGem }, () => ({
+    icon: "🔵",
+    label: "藍寶石"
+  }));
+  const greenGemSlots = Array.from({ length: player.greenGem }, () => ({
+    icon: "🟢",
+    label: "綠寶石"
+  }));
   const junkSlots = Array.from({ length: player.junk * 3 }, (_, index) => ({
     icon: "🧱",
     label: `超級破爛 ${Math.floor(index / 3) + 1}/佔3格`
   }));
+  const platinumJunkSlots = Array.from({ length: player.platinumJunk * 5 }, (_, index) => ({
+    icon: "⬜",
+    label: `白金破爛 ${Math.floor(index / 5) + 1}/佔5格`
+  }));
 
-  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, capacity);
+  return [
+    ...rustySlots,
+    ...oreSlots,
+    ...redGemSlots,
+    ...blueGemSlots,
+    ...greenGemSlots,
+    ...junkSlots,
+    ...platinumJunkSlots
+  ].slice(0, capacity);
 }
 
 function buildBagGrid(playerInput) {
@@ -135,6 +162,11 @@ function getResultEmoji(kind) {
     gold: "🟡",
     ore: "⛏️",
     junk: "🧱",
+    redGem: "🔴",
+    blueGem: "🔵",
+    greenGem: "🟢",
+    stalactite: "🪨",
+    platinumJunk: "⬜",
     rusty: "🟤",
     bomb: "💣",
     dead: "💥",
@@ -150,6 +182,11 @@ function getResultLabel(kind) {
     gold: "金幣",
     ore: "礦石",
     junk: "超級破爛",
+    redGem: "紅寶石",
+    blueGem: "藍寶石",
+    greenGem: "綠寶石",
+    stalactite: "鐘乳石",
+    platinumJunk: "白金破爛",
     rusty: "生鏽紀念幣",
     bomb: "炸彈",
     dead: "爆炸",

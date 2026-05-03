@@ -74,6 +74,14 @@ test("銀行只能在地面存入並可以領出", () => {
   assert.equal(withdrawn.player.bankGold, 0);
 });
 
+test("進入礦洞有小機率掉進寶石礦洞", () => {
+  const result = chooseRunMode(createPlayer(), "safe", () => 0);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.caveType, "gem");
+  assert.match(result.message, /寶石礦洞/);
+});
+
 test("可以丟棄生鏽紀念幣和正式紀念幣", () => {
   const first = discardItem(
     { ...createPlayer(), rusty: 2, collection: { nina_hot_water: 2 } },
@@ -168,6 +176,36 @@ test("礦石返回地面會自動換成金幣", () => {
   assert.equal(mined.player.ore, 2);
   assert.equal(result.player.ore, 0);
   assert.equal(result.player.gold, 16);
+});
+
+test("寶石礦洞只會挖到寶石並返回地面換高價金幣", () => {
+  const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
+  const mined = mine(start, () => 0);
+  const result = returnToSurface(mined.player);
+
+  assert.equal(mined.kind, "redGem");
+  assert.equal(mined.player.redGem, 1);
+  assert.equal(mined.player.ore, 0);
+  assert.equal(result.player.redGem, 0);
+  assert.equal(result.player.gold, 35);
+});
+
+test("寶石礦洞的鐘乳石會扣兩滴血", () => {
+  const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
+  const result = mine(start, () => 0.75, 1000);
+
+  assert.equal(result.kind, "stalactite");
+  assert.equal(result.player.bombs, 2);
+  assert.equal(result.player.dead, false);
+});
+
+test("寶石礦洞的白金破爛佔五格包包", () => {
+  const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
+  const result = mine(start, () => 0.95);
+
+  assert.equal(result.kind, "platinumJunk");
+  assert.equal(result.player.platinumJunk, 1);
+  assert.equal(getBagUsedSlots(result.player), 5);
 });
 
 test("礦石會佔用包包格子", () => {

@@ -3,6 +3,7 @@
 const CONFIG = {
   mining: {
     baseHp: 2,
+    gemCaveChance: 0.08,
     weights: {
       gold: 48,
       ore: 14,
@@ -10,6 +11,13 @@ const CONFIG = {
       junk: 6,
       empty: 16,
       bomb: 10
+    },
+    gemWeights: {
+      redGem: 32,
+      blueGem: 24,
+      greenGem: 14,
+      stalactite: 18,
+      platinumJunk: 12
     }
   },
   runModes: {
@@ -35,7 +43,10 @@ const CONFIG = {
     }
   },
   ore: {
-    goldPerOre: 8
+    goldPerOre: 8,
+    redGemGold: 35,
+    blueGemGold: 50,
+    greenGemGold: 75
   },
   exchange: {
     goldPerCommemorative: 100
