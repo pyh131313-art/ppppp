@@ -21,7 +21,12 @@ function createPlayer() {
       gold: 0,
       bomb: 0
     },
-    nextBuffDepth: 5
+    nextBuffDepth: 5,
+    stats: {
+      bestDepth: 0,
+      totalMines: 0,
+      deaths: 0
+    }
   };
 }
 
@@ -36,6 +41,10 @@ function getPlayer(player) {
   next.minorBuffs = {
     ...createPlayer().minorBuffs,
     ...(player && player.minorBuffs ? player.minorBuffs : {})
+  };
+  next.stats = {
+    ...createPlayer().stats,
+    ...(player && player.stats ? player.stats : {})
   };
   return next;
 }
@@ -269,7 +278,13 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   }
 
   player.mines += 1;
+  player.stats.totalMines += 1;
   player.depth += 1;
+  let recordMessage = "";
+  if (player.depth > player.stats.bestDepth) {
+    player.stats.bestDepth = player.depth;
+    recordMessage = `突破個人最深紀錄：第 ${player.depth} 層！`;
+  }
   const result = rollWeighted(getMiningWeights(player), random);
   const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
   const goldMultiplier = 1 + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus;
@@ -281,7 +296,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "gold",
       player,
       title: "挖到金幣",
-      message: `你挖到了 ${amount} 枚金幣。`
+      message: `你挖到了 ${amount} 枚金幣。${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
     };
   }
 
@@ -303,7 +319,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "ore",
       player,
       title: "挖到礦石",
-      message: `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`
+      message: `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
     };
   }
 
@@ -325,7 +342,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "rusty",
       player,
       title: "挖到生鏽紀念幣",
-      message: `你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`
+      message: `你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
     };
   }
 
@@ -336,11 +354,13 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       const lostGold = applyDeathPenalty(player);
       player.dead = true;
       player.deathAt = now;
+      player.stats.deaths += 1;
       return {
         kind: "dead",
         player,
         title: "爆炸",
-        message: `你第 ${player.bombs} 次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。`
+        message: `你第 ${player.bombs} 次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
       };
     }
 
@@ -348,7 +368,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "bomb",
       player,
       title: "挖到炸彈",
-      message: `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。`
+      message: `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
     };
   }
 
@@ -369,7 +390,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "junk",
       player,
       title: "挖到超級破爛",
-      message: `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。`
+      message: `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
     };
   }
 
@@ -377,7 +399,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     kind: "empty",
     player,
     title: "什麼都沒有",
-    message: "這一鏟只有碎石。"
+    message: `這一鏟只有碎石。${recordMessage ? `\n${recordMessage}` : ""}`,
+    recordMessage
   };
 }
 
@@ -734,6 +757,8 @@ function formatInventory(playerInput) {
     `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
     `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
     `狀態：${player.dead ? "死亡" : "存活"}`,
+    `最深紀錄：${player.stats.bestDepth}`,
+    `死亡次數：${player.stats.deaths}`,
     `挖礦次數：${player.mines}`
   ].join("\n");
 }

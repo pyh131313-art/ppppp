@@ -40,6 +40,7 @@ test("炸彈死亡會損失三分之一金幣", () => {
 
   assert.equal(result.player.dead, true);
   assert.equal(result.player.gold, 20);
+  assert.equal(result.player.stats.deaths, 1);
   assert.match(result.message, /損失 10 枚金幣/);
 });
 
@@ -64,6 +65,17 @@ test("生鏽紀念幣一次只會掉一枚", () => {
 
   assert.equal(result.kind, "rusty");
   assert.equal(result.player.rusty, 1);
+});
+
+test("挖礦會更新最深紀錄和總挖掘次數", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const first = mine(start, () => 0);
+  const second = mine(first.player, () => 0);
+
+  assert.equal(second.player.depth, 2);
+  assert.equal(second.player.stats.bestDepth, 2);
+  assert.equal(second.player.stats.totalMines, 2);
+  assert.match(second.recordMessage, /第 2 層/);
 });
 
 test("礦石返回地面會自動換成金幣", () => {

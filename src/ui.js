@@ -28,6 +28,7 @@ const CUSTOM_IDS = {
   buffGold: "mine_ui:buff_gold",
   buffBomb: "mine_ui:buff_bomb",
   bag: "mine_ui:bag",
+  leaderboard: "mine_ui:leaderboard",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyOne: "mine_ui:shop_buy_one",
   rustOne: "mine_ui:rust_one",
@@ -68,7 +69,7 @@ function buildQuickStatus(playerInput) {
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
-    `深度 ${player.depth}｜${getDepthLabel(player.depth)}`
+    `深度 ${player.depth}｜最深 ${player.stats.bestDepth}｜${getDepthLabel(player.depth)}`
   ];
 }
 
@@ -212,12 +213,47 @@ function buildCollectionFiles(playerInput) {
 function buildMiningEmbed(outcome, user = null) {
   const player = getPlayer(outcome.player);
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
+  const description = [
+    outcome.message,
+    outcome.globalRecordMessage ? `\n${outcome.globalRecordMessage}` : ""
+  ].join("");
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${outcome.title}`)
-    .setDescription(outcome.message)
+    .setDescription(description)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildMineEmojiScene(outcome)) });
   return addActorFooter(embed, user);
+}
+
+function buildLeaderboardEmbed(playersInput = {}) {
+  const rows = Object.entries(playersInput)
+    .map(([userId, playerInput]) => {
+      const player = getPlayer(playerInput);
+      return {
+        userId,
+        player,
+        bestDepth: player.stats.bestDepth || 0,
+        totalMines: player.stats.totalMines || player.mines || 0,
+        collectionTotal: getCollectionTotal(player)
+      };
+    })
+    .filter((row) => row.bestDepth > 0 || row.totalMines > 0 || row.player.gold > 0 || row.collectionTotal > 0)
+    .sort((a, b) => {
+      if (b.bestDepth !== a.bestDepth) return b.bestDepth - a.bestDepth;
+      if (b.collectionTotal !== a.collectionTotal) return b.collectionTotal - a.collectionTotal;
+      return b.player.gold - a.player.gold;
+    })
+    .slice(0, 10);
+
+  const lines = rows.map((row, index) => (
+    `${index + 1}. <@${row.userId}>｜最深 ${row.bestDepth}｜金幣 ${row.player.gold}｜集幣冊 ${row.collectionTotal}｜死亡 ${row.player.stats.deaths}`
+  ));
+
+  return new EmbedBuilder()
+    .setColor(0xfacc15)
+    .setTitle("礦井排行榜")
+    .setDescription(lines.length ? lines.join("\n").slice(0, 4096) : "目前還沒有排行榜紀錄。")
+    .setFooter({ text: "排序：最深層優先，其次集幣冊數量與金幣。" });
 }
 
 function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念幣圖鑑。") {
@@ -285,7 +321,8 @@ function buildPanelComponents(targetUserId = null) {
       makeButton(CUSTOM_IDS.buffGold, "金幣磁條", ButtonStyle.Secondary, "🧲"),
       makeButton(CUSTOM_IDS.buffBomb, "防爆磁條", ButtonStyle.Secondary, "🧲"),
       makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
-      makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚")
+      makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚"),
+      makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆")
     ),
     new ActionRowBuilder().addComponents(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
@@ -306,6 +343,7 @@ module.exports = {
   buildCollectionEmbed,
   buildCollectionFiles,
   buildMiningEmbed,
+  buildLeaderboardEmbed,
   buildHudFiles,
   buildPanelComponents,
   buildPanelEmbed,

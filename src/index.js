@@ -20,12 +20,13 @@ const {
   revive,
   transferCollectible
 } = require("./game");
-const { updatePlayer, updatePlayers } = require("./storage");
+const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
   CUSTOM_IDS,
   buildCollectionEmbed,
   buildCollectionFiles,
   buildHudFiles,
+  buildLeaderboardEmbed,
   buildMiningEmbed,
   buildPanelComponents,
   buildPanelEmbed,
@@ -45,6 +46,25 @@ const client = new Client({
 
 function makeReply(title, body) {
   return `**${title}**\n${body}`;
+}
+
+function getGlobalBestDepth(players) {
+  return Object.values(players).reduce((best, player) => {
+    const normalized = getPlayer(player);
+    return Math.max(best, normalized.stats.bestDepth || 0);
+  }, 0);
+}
+
+function attachGlobalRecordMessage(outcome, previousBestDepth, user) {
+  const bestDepth = outcome && outcome.player && outcome.player.stats
+    ? outcome.player.stats.bestDepth || 0
+    : 0;
+  if (bestDepth <= previousBestDepth) return outcome;
+
+  return {
+    ...outcome,
+    globalRecordMessage: `🏆 全服新紀錄！${user} 挖到第 ${bestDepth} 層，超過原本的第 ${previousBestDepth} 層。`
+  };
 }
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -244,11 +264,17 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.mine) {
-    await updatePlayer(interaction.user.id, (player) => {
-      const outcome = mine(player);
+    await updatePlayers((players) => {
+      const previousBestDepth = getGlobalBestDepth(players);
+      const outcome = attachGlobalRecordMessage(
+        mine(players[interaction.user.id]),
+        previousBestDepth,
+        interaction.user
+      );
+      players[interaction.user.id] = outcome.player;
       embed = buildMiningEmbed(outcome, interaction.user);
       files = buildHudFiles(outcome.player, outcome);
-      return outcome.player;
+      return outcome;
     });
   }
 
@@ -277,6 +303,12 @@ async function handleMiningButton(interaction) {
       files = buildCollectionFiles(next);
       return next;
     });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.leaderboard) {
+    const players = await loadPlayers();
+    embed = buildLeaderboardEmbed(players);
+    files = [];
   }
 
   if (interaction.customId === CUSTOM_IDS.exchangeOne) {
