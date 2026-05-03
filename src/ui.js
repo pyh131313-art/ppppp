@@ -8,7 +8,6 @@ const {
   ButtonStyle,
   EmbedBuilder
 } = require("discord.js");
-const { buildHudPng } = require("./hud-image");
 const { buildCoinBookPng } = require("./inventory-image");
 const {
   getCollectibles,
@@ -45,8 +44,6 @@ const CUSTOM_IDS = {
   revive: "mine_ui:revive",
   rescuePrefix: "mine_ui:rescue"
 };
-
-const FAST_MODE = process.env.FAST_MODE !== "false";
 
 function progressBar(value, max, width = 10) {
   const safeValue = Math.max(0, Math.min(value, max));
@@ -226,11 +223,15 @@ function buildIdleMineScene() {
 
 function buildHudBlock(playerInput, mineLines) {
   const slots = getBagSlots(playerInput);
-  const bag = Array.from({ length: 12 }, (_, index) => {
+  const bagCells = Array.from({ length: 12 }, (_, index) => {
     const slot = slots[index];
-    return `${String(index + 1).padStart(2, "0")} ${slot ? slot.icon : "⬛"}`;
+    return `背包${index + 1}:${slot ? slot.icon : "⬛"}`;
   });
-  return [...mineLines, "", ...buildQuickStatus(playerInput), "", "包包", ...bag].join("\n");
+  const bagRows = [];
+  for (let index = 0; index < bagCells.length; index += 4) {
+    bagRows.push(bagCells.slice(index, index + 4).join("　"));
+  }
+  return [...mineLines, "", ...buildQuickStatus(playerInput), "", "包包", ...bagRows].join("\n");
 }
 
 function getDisplayName(user) {
@@ -257,12 +258,9 @@ function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇�
 }
 
 function buildHudFiles(playerInput, outcome = null) {
-  if (FAST_MODE) return [];
-  return [
-    new AttachmentBuilder(buildHudPng(playerInput, outcome), {
-      name: "mine-hud.png"
-    })
-  ];
+  void playerInput;
+  void outcome;
+  return [];
 }
 
 function getCollectionImageCards(playerInput, limit = 9) {
