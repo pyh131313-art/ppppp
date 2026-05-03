@@ -264,11 +264,66 @@ function getResultLabel(kind) {
   return map[kind] || "碎石";
 }
 
+function getResultFace(kind) {
+  const map = {
+    gold: "(ﾉ>ω<)ﾉ",
+    ore: "(ง •̀_•́)ง",
+    goldOre: "(ง •̀_•́)ง",
+    platinumOre: "(ง •̀_•́)ง",
+    goldBlock: "(ﾉ>ω<)ﾉ",
+    oreIngot: "(ง •̀_•́)ง",
+    goldOreIngot: "(ง •̀_•́)ง",
+    platinumOreIngot: "(ง •̀_•́)ง",
+    bombItem: "(๑•̀ㅂ•́)و",
+    junk: "(´･_･`)",
+    redGem: "( ✧Д✧)",
+    blueGem: "( ✧Д✧)",
+    greenGem: "( ✧Д✧)",
+    stalactite: "(；ﾟДﾟ)",
+    platinumJunk: "(´･_･`)",
+    rusty: "(｡･ω･｡)",
+    bomb: "(；ﾟДﾟ)",
+    dead: "(×﹏×)",
+    full: "(；´д｀)",
+    empty: "(´-ω-`)",
+    blocked: "(；一_一)"
+  };
+  return map[kind] || "(´-ω-`)";
+}
+
+function getResultAction(kind) {
+  const map = {
+    gold: "眼前閃了一下",
+    ore: "石壁裂開了",
+    goldOre: "深處露出金光",
+    platinumOre: "冷白色礦脈浮現",
+    goldBlock: "火焰把金幣燒成塊",
+    oreIngot: "礦石被燒成錠",
+    goldOreIngot: "金礦被燒成錠",
+    platinumOreIngot: "鉑金礦被燒成錠",
+    bombItem: "完整拆下一顆炸彈",
+    junk: "挖出一大團破爛",
+    redGem: "寶石在黑暗中發光",
+    blueGem: "寶石在黑暗中發光",
+    greenGem: "寶石在黑暗中發光",
+    stalactite: "頭頂突然崩落",
+    platinumJunk: "沉重破爛卡住包包",
+    rusty: "泥土裡露出鏽光",
+    bomb: "腳邊傳來滴答聲",
+    dead: "整個礦道炸開",
+    full: "包包塞不下了",
+    empty: "只有碎石滾下來",
+    blocked: "現在不能繼續挖"
+  };
+  return map[kind] || "只有碎石滾下來";
+}
+
 function buildMineEmojiScene(outcome) {
   const result = getResultEmoji(outcome.kind);
+  const face = getResultFace(outcome.kind);
   return [
-    "🔎 掃描礦脈",
-    "⛏️ 揮鎬開採",
+    `⛏️ ${face}`,
+    `⌞ ${getResultAction(outcome.kind)}`,
     `${result} 掉落：${getResultLabel(outcome.kind)}`
   ];
 }
