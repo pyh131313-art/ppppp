@@ -33,6 +33,7 @@ function createPlayer() {
     platinumJunk: 0,
     runMode: null,
     runModeOptions: [],
+    digPathOptions: {},
     caveType: null,
     minorBuffs: {
       gold: 0,
@@ -65,6 +66,9 @@ function getPlayer(player) {
   next.runModeOptions = Array.isArray(player && player.runModeOptions)
     ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
     : [];
+  next.digPathOptions = {
+    ...(player && player.digPathOptions ? player.digPathOptions : {})
+  };
   next.stats = {
     ...createPlayer().stats,
     ...(player && player.stats ? player.stats : {})
@@ -85,19 +89,57 @@ function rollWeighted(weights, random = Math.random) {
   return entries[entries.length - 1][0];
 }
 
-function getDigPath(digPath) {
-  return CONFIG.mining.digPaths && CONFIG.mining.digPaths[digPath]
-    ? CONFIG.mining.digPaths[digPath]
+function getDigPathIds() {
+  return Object.keys(CONFIG.mining.digPathTypes);
+}
+
+function refreshDigPathOptions(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const pool = getDigPathIds();
+  const options = [];
+  while (options.length < 2 && pool.length > 0) {
+    const index = Math.floor(random() * pool.length);
+    options.push(pool.splice(index, 1)[0]);
+  }
+  player.digPathOptions = {
+    left: options[0] || "steady",
+    right: options[1] || "greedy"
+  };
+  return player;
+}
+
+function getDigPath(playerInput, sideOrPath) {
+  const player = getPlayer(playerInput);
+  const pathId = player.digPathOptions[sideOrPath] || sideOrPath;
+  return CONFIG.mining.digPathTypes && CONFIG.mining.digPathTypes[pathId]
+    ? CONFIG.mining.digPathTypes[pathId]
     : null;
 }
 
-function getDigPathPrefix(digPath) {
-  const path = getDigPath(digPath);
+function getDigPathOptions(playerInput) {
+  const player = getPlayer(playerInput);
+  const normalized = player.digPathOptions.left && player.digPathOptions.right
+    ? player
+    : refreshDigPathOptions(player, () => 0);
+  return ["left", "right"].map((side) => {
+    const id = normalized.digPathOptions[side];
+    const path = getDigPath(normalized, id);
+    return {
+      side,
+      id,
+      label: path ? path.label : side,
+      description: path ? path.description : ""
+    };
+  });
+}
+
+function getDigPathPrefix(playerInput, sideOrPath) {
+  const path = getDigPath(playerInput, sideOrPath);
   return path ? `${path.label}｜${path.description}。` : "";
 }
 
-function applyDigPathWeights(weights, digPath) {
-  const path = getDigPath(digPath);
+function applyDigPathWeights(weights, playerInput, sideOrPath) {
+  const path = getDigPath(playerInput, sideOrPath);
   if (!path || !path.weightMultipliers) return weights;
 
   const next = { ...weights };
@@ -109,8 +151,8 @@ function applyDigPathWeights(weights, digPath) {
   return next;
 }
 
-function getDigPathRewardMultiplier(digPath) {
-  const path = getDigPath(digPath);
+function getDigPathRewardMultiplier(playerInput, sideOrPath) {
+  const path = getDigPath(playerInput, sideOrPath);
   return path && path.rewardMultiplier ? path.rewardMultiplier : 1;
 }
 
@@ -129,7 +171,7 @@ function getMiningWeights(playerInput, digPath = null) {
   if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
   if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
   weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
-  return applyDigPathWeights(weights, digPath);
+  return applyDigPathWeights(weights, player, digPath);
 }
 
 function getMaxBombs(playerInput) {
@@ -274,6 +316,7 @@ function resetRunState(player, random = Math.random) {
   player.pendingEvent = null;
   player.nextEventDepth = 4;
   player.bagBonusSlots = 0;
+  player.digPathOptions = {};
   player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
 }
 
@@ -380,6 +423,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.pendingEvent = null;
   player.nextEventDepth = 4;
   player.bagBonusSlots = config.bagBonusSlots || 0;
+  player.digPathOptions = refreshDigPathOptions(player, random || Math.random).digPathOptions;
 
   return {
     ok: true,
@@ -618,6 +662,9 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
   const eventMessage = kind === "blocked" || kind === "full" || player.dead || player.caveType === "gem"
     ? ""
     : maybeTriggerRandomEvent(player, random);
+  if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
+    player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
+  }
   return {
     kind,
     player,
@@ -633,11 +680,11 @@ function getGemAmount(depth, random = Math.random) {
 }
 
 function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "", digPath = null) {
-  const pathPrefix = getDigPathPrefix(digPath);
-  const result = rollWeighted(applyDigPathWeights(CONFIG.mining.gemWeights, digPath), random);
+  const pathPrefix = getDigPathPrefix(player, digPath);
+  const result = rollWeighted(applyDigPathWeights(CONFIG.mining.gemWeights, player, digPath), random);
   const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
-  const digPathRewardMultiplier = getDigPathRewardMultiplier(digPath);
+  const digPathRewardMultiplier = getDigPathRewardMultiplier(player, digPath);
 
   if (result === "redGem" || result === "blueGem" || result === "greenGem") {
     const amount = Math.max(1, Math.floor(getGemAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
@@ -710,8 +757,8 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
 
 function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
   const player = getPlayer(playerInput);
-  const pathPrefix = getDigPathPrefix(digPath);
-  const digPathRewardMultiplier = getDigPathRewardMultiplier(digPath);
+  const pathPrefix = getDigPathPrefix(player, digPath);
+  const digPathRewardMultiplier = getDigPathRewardMultiplier(player, digPath);
   if (player.dead) {
     return {
       kind: "blocked",
@@ -1698,6 +1745,7 @@ module.exports = {
   getCollectionUniqueCount,
   getCommunityProgress,
   getDepthLabel,
+  getDigPathOptions,
   getCaveLabel,
   getMaxBombs,
   getPlayer,

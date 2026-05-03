@@ -17,6 +17,7 @@ const {
   getCollectionTotal,
   getBagUsedSlots,
   getCommunityProgress,
+  getDigPathOptions,
   getRunModeOptions,
   mine,
   drinkHealingPotion,
@@ -83,13 +84,13 @@ test("左挖右挖會套用安全與貪婪路線差異", () => {
   const leftRolls = [0, 0.99, 0.99];
   const rightRolls = [0, 0.99, 0.99];
   const left = mine(
-    chooseRunMode(createPlayer(), "safe").player,
+    { ...createPlayer(), runMode: "safe", caveType: "normal", digPathOptions: { left: "steady", right: "greedy" } },
     () => leftRolls.shift() ?? 0.99,
     1000,
     "left"
   );
   const right = mine(
-    chooseRunMode(createPlayer(), "safe").player,
+    { ...createPlayer(), runMode: "safe", caveType: "normal", digPathOptions: { left: "steady", right: "greedy" } },
     () => rightRolls.shift() ?? 0.99,
     1000,
     "right"
@@ -99,8 +100,22 @@ test("左挖右挖會套用安全與貪婪路線差異", () => {
   assert.equal(right.kind, "gold");
   assert.equal(left.player.gold, 2);
   assert.equal(right.player.gold, 3);
-  assert.match(left.message, /左挖｜安全支道/);
-  assert.match(right.message, /右挖｜貪婪裂隙/);
+  assert.match(left.message, /穩固石壁｜安全支道/);
+  assert.match(right.message, /貪婪裂隙｜貪婪裂隙/);
+});
+
+test("左右路線會在下礦和每次挖完後刷新", () => {
+  const startRolls = [0.5, 0, 0];
+  const start = chooseRunMode(createPlayer(), "safe", () => startRolls.shift() ?? 0);
+
+  assert.equal(start.ok, true);
+  assert.deepEqual(getDigPathOptions(start.player).map((path) => path.id), ["steady", "greedy"]);
+
+  const mineRolls = [0, 0.99, 0.45, 0.5];
+  const result = mine(start.player, () => mineRolls.shift() ?? 0.99, 1000, "left");
+
+  assert.equal(result.kind, "gold");
+  assert.deepEqual(getDigPathOptions(result.player).map((path) => path.id), ["oreVein", "rustyCrack"]);
 });
 
 test("進入礦洞有小機率掉進寶石礦洞", () => {

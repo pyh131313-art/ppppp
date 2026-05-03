@@ -21,9 +21,9 @@ const CONFIG = {
       stalactite: 18,
       platinumJunk: 12
     },
-    digPaths: {
-      left: {
-        label: "左挖",
+    digPathTypes: {
+      steady: {
+        label: "穩固石壁",
         description: "安全支道",
         rewardMultiplier: 0.85,
         weightMultipliers: {
@@ -42,8 +42,8 @@ const CONFIG = {
           platinumJunk: 0.8
         }
       },
-      right: {
-        label: "右挖",
+      greedy: {
+        label: "貪婪裂隙",
         description: "貪婪裂隙",
         rewardMultiplier: 1.3,
         weightMultipliers: {
@@ -60,6 +60,106 @@ const CONFIG = {
           greenGem: 1.3,
           stalactite: 1.35,
           platinumJunk: 1.35
+        }
+      },
+      glitter: {
+        label: "閃光礦脈",
+        description: "金幣更多但更容易出炸彈",
+        rewardMultiplier: 1.2,
+        weightMultipliers: {
+          gold: 1.55,
+          ore: 0.9,
+          goldOre: 1.1,
+          platinumOre: 1.1,
+          rusty: 0.8,
+          junk: 0.9,
+          bomb: 1.2,
+          empty: 0.75,
+          redGem: 1.05,
+          blueGem: 1.05,
+          greenGem: 1.05,
+          stalactite: 1.15,
+          platinumJunk: 0.95
+        }
+      },
+      oreVein: {
+        label: "厚重礦壁",
+        description: "礦石多但佔包包",
+        rewardMultiplier: 1.1,
+        weightMultipliers: {
+          gold: 0.75,
+          ore: 1.7,
+          goldOre: 1.5,
+          platinumOre: 1.5,
+          rusty: 0.9,
+          junk: 1.15,
+          bomb: 0.95,
+          empty: 0.8,
+          redGem: 1.15,
+          blueGem: 1.15,
+          greenGem: 1.15,
+          stalactite: 0.95,
+          platinumJunk: 1.2
+        }
+      },
+      rustyCrack: {
+        label: "鏽色裂縫",
+        description: "較容易出鏽幣與破爛",
+        rewardMultiplier: 1,
+        weightMultipliers: {
+          gold: 0.85,
+          ore: 0.9,
+          goldOre: 0.9,
+          platinumOre: 0.9,
+          rusty: 1.65,
+          junk: 1.45,
+          bomb: 0.9,
+          empty: 0.85,
+          redGem: 0.9,
+          blueGem: 0.9,
+          greenGem: 0.9,
+          stalactite: 0.9,
+          platinumJunk: 1.45
+        }
+      },
+      hollow: {
+        label: "空心坑道",
+        description: "空挖多但最不容易出事",
+        rewardMultiplier: 0.75,
+        weightMultipliers: {
+          gold: 0.75,
+          ore: 0.75,
+          goldOre: 0.75,
+          platinumOre: 0.75,
+          rusty: 0.7,
+          junk: 0.65,
+          bomb: 0.55,
+          empty: 2,
+          redGem: 0.75,
+          blueGem: 0.75,
+          greenGem: 0.75,
+          stalactite: 0.55,
+          platinumJunk: 0.65
+        }
+      },
+      unstable: {
+        label: "炸裂裂縫",
+        description: "掉落豐厚但爆炸很兇",
+        rewardMultiplier: 1.45,
+        weightMultipliers: {
+          gold: 1.15,
+          ore: 1.3,
+          goldOre: 1.4,
+          platinumOre: 1.4,
+          rusty: 1.1,
+          junk: 1.25,
+          bomb: 1.8,
+          empty: 0.55,
+          redGem: 1.35,
+          blueGem: 1.35,
+          greenGem: 1.35,
+          stalactite: 1.8,
+          platinumJunk: 1.4
         }
       }
     }

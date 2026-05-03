@@ -19,6 +19,7 @@ const {
   canChooseMinorBuff,
   getCaveLabel,
   getDepthLabel,
+  getDigPathOptions,
   getMaxBombs,
   getPlayer,
   getRandomEvent,
@@ -79,6 +80,10 @@ function buildQuickStatus(playerInput) {
   const player = getPlayer(playerInput);
   const maxHp = getMaxBombs(player);
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
+  const digPaths = player.runMode ? getDigPathOptions(player) : [];
+  const digPathText = digPaths.length
+    ? `左:${digPaths[0].label}｜右:${digPaths[1].label}`
+    : "尚未生成";
   return [
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `道具 🧪${player.healingPotion} 🗿${player.undyingTotem}`,
@@ -89,6 +94,7 @@ function buildQuickStatus(playerInput) {
     `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
+    `路線 ${digPathText}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
     `事件 ${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
     `礦洞 ${getCaveLabel(player)}`,
@@ -564,9 +570,12 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   }
 
   if (inMine) {
+    const digPaths = getDigPathOptions(player);
+    const leftPath = digPaths.find((path) => path.side === "left") || { label: "左路" };
+    const rightPath = digPaths.find((path) => path.side === "right") || { label: "右路" };
     addRow(
-      makeButton(CUSTOM_IDS.mineLeft, "左挖", ButtonStyle.Primary, "⬅️"),
-      makeButton(CUSTOM_IDS.mineRight, "右挖", ButtonStyle.Danger, "➡️"),
+      makeButton(CUSTOM_IDS.mineLeft, `左:${leftPath.label}`, ButtonStyle.Primary, "⬅️"),
+      makeButton(CUSTOM_IDS.mineRight, `右:${rightPath.label}`, ButtonStyle.Danger, "➡️"),
       makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
       player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
     );
