@@ -17,6 +17,7 @@ const {
   getDepthLabel,
   getMaxBombs,
   getPlayer,
+  getRandomEvent,
   getRunModeLabel,
   getShopItems
 } = require("./game");
@@ -29,6 +30,8 @@ const CUSTOM_IDS = {
   buffBomb: "mine_ui:buff_bomb",
   bag: "mine_ui:bag",
   leaderboard: "mine_ui:leaderboard",
+  eventRisk: "mine_ui:event:risk",
+  eventSafe: "mine_ui:event:safe",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyOne: "mine_ui:shop_buy_one",
   rustOne: "mine_ui:rust_one",
@@ -69,6 +72,7 @@ function buildQuickStatus(playerInput) {
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
+    `事件 ${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
     `深度 ${player.depth}｜最深 ${player.stats.bestDepth}｜${getDepthLabel(player.depth)}`
   ];
 }
@@ -184,10 +188,12 @@ function addActorFooter(embed, user) {
 function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇下方按鈕開始挖礦。", user = null) {
   const player = getPlayer(playerInput);
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
+  const event = player.pendingEvent ? getRandomEvent(player.pendingEvent) : null;
+  const eventText = event ? `\n\n目前事件：${event.title}\n${event.description}` : "";
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${title}`)
-    .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。`)
+    .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${eventText}`)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildIdleMineScene()) });
   return addActorFooter(embed, user);
 }
@@ -306,11 +312,37 @@ function makeButton(customId, label, style = ButtonStyle.Secondary, emoji = null
   return button;
 }
 
-function buildPanelComponents(targetUserId = null) {
+function getEventButtonLabels(eventId) {
+  if (eventId === "cracked_wall") {
+    return {
+      risk: "敲開礦牆",
+      safe: "繞路前進"
+    };
+  }
+  if (eventId === "collapse_warning") {
+    return {
+      risk: "硬挖一波",
+      safe: "立刻撤退"
+    };
+  }
+  if (eventId === "ancient_rust") {
+    return {
+      risk: "免費除鏽",
+      safe: "穩定除鏽"
+    };
+  }
+  return {
+    risk: "冒險選項",
+    safe: "保守選項"
+  };
+}
+
+function buildPanelComponents(targetUserId = null, playerInput = null) {
+  const player = getPlayer(playerInput);
   const rescueId = targetUserId
     ? `${CUSTOM_IDS.rescuePrefix}:${targetUserId}`
     : `${CUSTOM_IDS.rescuePrefix}:none`;
-  return [
+  const rows = [
     new ActionRowBuilder().addComponents(
       makeButton(CUSTOM_IDS.modeDouble, "雙倍採集", ButtonStyle.Secondary, "⚡"),
       makeButton(CUSTOM_IDS.modeSafe, "安全血量", ButtonStyle.Secondary, "🛡️"),
@@ -332,6 +364,18 @@ function buildPanelComponents(targetUserId = null) {
       makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
     )
   ];
+
+  if (player.pendingEvent) {
+    const labels = getEventButtonLabels(player.pendingEvent);
+    rows.unshift(
+      new ActionRowBuilder().addComponents(
+        makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
+        makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭")
+      )
+    );
+  }
+
+  return rows;
 }
 
 function isMiningUiButton(customId) {

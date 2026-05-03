@@ -22,6 +22,8 @@ function createPlayer() {
       bomb: 0
     },
     nextBuffDepth: 5,
+    pendingEvent: null,
+    nextEventDepth: 4,
     stats: {
       bestDepth: 0,
       totalMines: 0,
@@ -122,6 +124,8 @@ function resetRunState(player) {
   player.runMode = null;
   player.minorBuffs = { gold: 0, bomb: 0 };
   player.nextBuffDepth = 5;
+  player.pendingEvent = null;
+  player.nextEventDepth = 4;
 }
 
 function getRunModeLabel(playerInput) {
@@ -154,6 +158,8 @@ function chooseRunMode(playerInput, mode) {
   player.runMode = mode;
   player.minorBuffs = { gold: 0, bomb: 0 };
   player.nextBuffDepth = 5;
+  player.pendingEvent = null;
+  player.nextEventDepth = 4;
 
   return {
     ok: true,
@@ -257,6 +263,80 @@ function awardRustCollectible(player, random = Math.random) {
   return awardFromPool(player, getRustCollectibles(), random);
 }
 
+const RANDOM_EVENTS = {
+  cracked_wall: {
+    title: "裂開的礦牆",
+    description: "牆縫後面有亮光，但石層很不穩。"
+  },
+  collapse_warning: {
+    title: "坍塌前兆",
+    description: "頭頂開始掉碎石，繼續貪可能賺，也可能出事。"
+  },
+  ancient_rust: {
+    title: "古老除鏽機",
+    description: "角落有一台舊機器，似乎可以處理生鏽紀念幣。"
+  }
+};
+
+function getRandomEvent(eventId) {
+  return RANDOM_EVENTS[eventId] || null;
+}
+
+function getRandomEvents() {
+  return RANDOM_EVENTS;
+}
+
+function setDepthRecord(player) {
+  if (player.depth <= player.stats.bestDepth) return "";
+  player.stats.bestDepth = player.depth;
+  return `突破個人最深紀錄：第 ${player.depth} 層！`;
+}
+
+function maybeTriggerRandomEvent(player, random = Math.random) {
+  if (player.dead || player.pendingEvent || player.depth < player.nextEventDepth) return "";
+  player.nextEventDepth += 4;
+  if (random() >= 0.55) return "";
+
+  const eventIds = Object.keys(RANDOM_EVENTS);
+  const eventId = eventIds[Math.floor(random() * eventIds.length)] || eventIds[0];
+  player.pendingEvent = eventId;
+  const event = getRandomEvent(eventId);
+  return `\n\n事件出現：${event.title}。\n${event.description}`;
+}
+
+function addBombDamage(player, now = Date.now()) {
+  player.bombs += 1;
+  const maxBombs = getMaxBombs(player);
+  if (player.bombs < maxBombs) {
+    return {
+      dead: false,
+      message: `受到爆炸傷害，炸彈次數 ${player.bombs}/${maxBombs}。`
+    };
+  }
+
+  const lostGold = applyDeathPenalty(player);
+  player.dead = true;
+  player.deathAt = now;
+  player.stats.deaths += 1;
+  return {
+    dead: true,
+    message: `爆炸死亡，損失 ${lostGold} 枚金幣。`
+  };
+}
+
+function buildOutcome(kind, player, title, message, recordMessage = "", random = Math.random) {
+  const eventMessage = kind === "blocked" || kind === "full" || player.dead
+    ? ""
+    : maybeTriggerRandomEvent(player, random);
+  return {
+    kind,
+    player,
+    title,
+    message: `${message}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
+    recordMessage
+  };
+}
+
 function mine(playerInput, random = Math.random, now = Date.now()) {
   const player = getPlayer(playerInput);
   if (player.dead) {
@@ -265,6 +345,18 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       player,
       title: "你已經死亡",
       message: "目前不能挖礦。請使用 `/復活`。"
+    };
+  }
+
+  if (player.pendingEvent) {
+    const event = getRandomEvent(player.pendingEvent);
+    return {
+      kind: "blocked",
+      player,
+      title: "事件等待選擇",
+      message: event
+        ? `目前遇到事件：${event.title}。請先選擇事件選項。`
+        : "目前遇到事件，請先選擇事件選項。"
     };
   }
 
@@ -280,11 +372,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   player.mines += 1;
   player.stats.totalMines += 1;
   player.depth += 1;
-  let recordMessage = "";
-  if (player.depth > player.stats.bestDepth) {
-    player.stats.bestDepth = player.depth;
-    recordMessage = `突破個人最深紀錄：第 ${player.depth} 層！`;
-  }
+  const recordMessage = setDepthRecord(player);
   const result = rollWeighted(getMiningWeights(player), random);
   const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
   const goldMultiplier = 1 + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus;
@@ -292,13 +380,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   if (result === "gold") {
     const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier));
     player.gold += amount;
-    return {
-      kind: "gold",
-      player,
-      title: "挖到金幣",
-      message: `你挖到了 ${amount} 枚金幣。${recordMessage ? `\n${recordMessage}` : ""}`,
-      recordMessage
-    };
+    return buildOutcome("gold", player, "挖到金幣", `你挖到了 ${amount} 枚金幣。`, recordMessage, random);
   }
 
   if (result === "ore") {
@@ -315,13 +397,14 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
     const gained = Math.min(amount, freeSlots);
     player.ore += gained;
-    return {
-      kind: "ore",
+    return buildOutcome(
+      "ore",
       player,
-      title: "挖到礦石",
-      message: `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}${recordMessage ? `\n${recordMessage}` : ""}`,
-      recordMessage
-    };
+      "挖到礦石",
+      `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      recordMessage,
+      random
+    );
   }
 
   if (result === "rusty") {
@@ -338,39 +421,30 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
     const gained = Math.min(amount, freeSlots);
     player.rusty += gained;
-    return {
-      kind: "rusty",
+    return buildOutcome(
+      "rusty",
       player,
-      title: "挖到生鏽紀念幣",
-      message: `你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}${recordMessage ? `\n${recordMessage}` : ""}`,
-      recordMessage
-    };
+      "挖到生鏽紀念幣",
+      `你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      recordMessage,
+      random
+    );
   }
 
   if (result === "bomb") {
-    player.bombs += 1;
+    const damage = addBombDamage(player, now);
     const maxBombs = getMaxBombs(player);
-    if (player.bombs >= maxBombs) {
-      const lostGold = applyDeathPenalty(player);
-      player.dead = true;
-      player.deathAt = now;
-      player.stats.deaths += 1;
+    if (damage.dead) {
       return {
         kind: "dead",
         player,
         title: "爆炸",
-        message: `你第 ${player.bombs} 次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `你第 ${player.bombs} 次挖到炸彈，${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
 
-    return {
-      kind: "bomb",
-      player,
-      title: "挖到炸彈",
-      message: `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。${recordMessage ? `\n${recordMessage}` : ""}`,
-      recordMessage
-    };
+    return buildOutcome("bomb", player, "挖到炸彈", `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
   }
 
   if (result === "junk") {
@@ -386,21 +460,151 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     }
 
     player.junk += amount;
-    return {
-      kind: "junk",
+    return buildOutcome(
+      "junk",
       player,
-      title: "挖到超級破爛",
-      message: `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。${recordMessage ? `\n${recordMessage}` : ""}`,
-      recordMessage
+      "挖到超級破爛",
+      `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。`,
+      recordMessage,
+      random
+    );
+  }
+
+  return buildOutcome("empty", player, "什麼都沒有", "這一鏟只有碎石。", recordMessage, random);
+}
+
+function resolveRandomEvent(playerInput, choice, random = Math.random, now = Date.now()) {
+  const player = getPlayer(playerInput);
+  const eventId = player.pendingEvent;
+  const event = getRandomEvent(eventId);
+
+  if (!event) {
+    return {
+      ok: false,
+      player,
+      title: "沒有事件",
+      message: "目前沒有事件需要處理。"
+    };
+  }
+
+  player.pendingEvent = null;
+
+  if (eventId === "cracked_wall") {
+    if (choice === "risk") {
+      if (random() < 0.6) {
+        const amount = 2 + getDepthBonus(player.depth);
+        const gained = Math.min(amount, getBagFreeSlots(player));
+        player.ore += gained;
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: `你敲開礦牆，拿到 ${gained} 塊礦石。${gained < amount ? "包包不夠，有些放不下。" : ""}`
+        };
+      }
+
+      const damage = addBombDamage(player, now);
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `礦牆炸開了。${damage.message}`
+      };
+    }
+
+    player.depth += 1;
+    const recordMessage = setDepthRecord(player);
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `你繞路前進到第 ${player.depth} 層，沒有獲得資源。${recordMessage ? `\n${recordMessage}` : ""}`
+    };
+  }
+
+  if (eventId === "collapse_warning") {
+    if (choice === "risk") {
+      const gold = 15 + getDepthBonus(player.depth) * 5;
+      const ore = Math.min(2, getBagFreeSlots(player));
+      player.gold += gold;
+      player.ore += ore;
+      const damage = random() < 0.45 ? addBombDamage(player, now).message : "這次沒有被砸中。";
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `你硬挖一波，獲得 ${gold} 金幣和 ${ore} 塊礦石。${damage}`
+      };
+    }
+
+    return {
+      ...returnToSurface(player),
+      title: event.title
+    };
+  }
+
+  if (eventId === "ancient_rust") {
+    if (player.rusty <= 0) {
+      return {
+        ok: false,
+        player,
+        title: event.title,
+        message: "你沒有生鏽紀念幣可以放進機器。"
+      };
+    }
+
+    if (choice === "risk") {
+      player.rusty -= 1;
+      if (random() < 0.3) {
+        const award = awardRustCollectible(player, random);
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: `舊機器成功啟動，免費除鏽成功：${award.name}。`
+        };
+      }
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "舊機器冒煙，生鏽紀念幣損壞了。"
+      };
+    }
+
+    const cost = 300;
+    if (player.gold < cost) {
+      return {
+        ok: false,
+        player,
+        title: event.title,
+        message: `穩定除鏽需要 ${cost} 金幣，你目前只有 ${player.gold} 金幣。`
+      };
+    }
+    player.gold -= cost;
+    player.rusty -= 1;
+    if (random() < 0.7) {
+      const award = awardRustCollectible(player, random);
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `你花 ${cost} 金幣穩定除鏽成功：${award.name}。`
+      };
+    }
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `你花 ${cost} 金幣，但除鏽失敗，生鏽紀念幣損壞了。`
     };
   }
 
   return {
-    kind: "empty",
+    ok: false,
     player,
-    title: "什麼都沒有",
-    message: `這一鏟只有碎石。${recordMessage ? `\n${recordMessage}` : ""}`,
-    recordMessage
+    title: event.title,
+    message: "這個事件還沒有可用選項。"
   };
 }
 
@@ -755,6 +959,7 @@ function formatInventory(playerInput) {
     `深度：${player.depth}（${getDepthLabel(player.depth)}）`,
     `下礦方式：${getRunModeLabel(player)}`,
     `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
+    `事件：${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
     `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
     `狀態：${player.dead ? "死亡" : "存活"}`,
     `最深紀錄：${player.stats.bestDepth}`,
@@ -812,11 +1017,14 @@ module.exports = {
   getDepthLabel,
   getMaxBombs,
   getPlayer,
+  getRandomEvent,
+  getRandomEvents,
   getRustCollectibles,
   getRunModeLabel,
   getShopItems,
   mine,
   removeRust,
+  resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
   revive,

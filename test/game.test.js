@@ -14,6 +14,7 @@ const {
   getBagUsedSlots,
   mine,
   removeRust,
+  resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
   revive,
@@ -76,6 +77,32 @@ test("挖礦會更新最深紀錄和總挖掘次數", () => {
   assert.equal(second.player.stats.bestDepth, 2);
   assert.equal(second.player.stats.totalMines, 2);
   assert.match(second.recordMessage, /第 2 層/);
+});
+
+test("隨機事件出現後會阻擋繼續挖礦直到選擇", () => {
+  const rolls = [0, 0, 0, 0];
+  const start = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    nextEventDepth: 1
+  };
+  const event = mine(start, () => rolls.shift() ?? 0);
+  const blocked = mine(event.player, () => 0);
+
+  assert.equal(event.player.pendingEvent, "cracked_wall");
+  assert.equal(blocked.kind, "blocked");
+  assert.match(blocked.message, /裂開的礦牆/);
+});
+
+test("事件選項會清除事件並套用結果", () => {
+  const result = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "cracked_wall" },
+    "risk",
+    () => 0
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.pendingEvent, null);
+  assert.equal(result.player.ore, 2);
 });
 
 test("礦石返回地面會自動換成金幣", () => {
