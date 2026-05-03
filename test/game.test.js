@@ -22,6 +22,7 @@ const {
   mine,
   drinkHealingPotion,
   removeRust,
+  rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
@@ -368,6 +369,25 @@ test("返回地面會刷新下一輪初始詞條", () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.player.runModeOptions, ["silkTouch", "fireDragonPickaxe"]);
+});
+
+test("地表可以花十金幣刷新初始詞條", () => {
+  const player = ensureRunModeOptions({ ...createPlayer(), gold: 25 }, () => 0);
+  const result = rerollRunModeOptions(player, () => 0.99);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.gold, 15);
+  assert.deepEqual(result.player.runModeOptions, ["silkTouch", "fireDragonPickaxe"]);
+});
+
+test("下礦後不能刷新初始詞條且金幣不足會被擋下", () => {
+  const poor = rerollRunModeOptions({ ...createPlayer(), gold: 9 }, () => 0);
+  const inMine = rerollRunModeOptions(chooseRunMode({ ...createPlayer(), gold: 25 }, "safe").player, () => 0);
+
+  assert.equal(poor.ok, false);
+  assert.match(poor.message, /需要 10 金幣/);
+  assert.equal(inMine.ok, false);
+  assert.match(inMine.message, /礦坑/);
 });
 
 test("火龍十字鎬每次深入會跳兩層並錯過部分小磁條層", () => {

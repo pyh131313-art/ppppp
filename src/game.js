@@ -291,6 +291,44 @@ function ensureRunModeOptions(playerInput, random = Math.random) {
   return refreshRunModeOptions(player, random);
 }
 
+function rerollRunModeOptions(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const cost = CONFIG.mining.runModeRerollCostGold;
+
+  if (player.dead) {
+    return {
+      ok: false,
+      player,
+      message: "死亡時不能刷新初始詞條。"
+    };
+  }
+
+  if (player.runMode) {
+    return {
+      ok: false,
+      player,
+      message: "已經在礦坑裡了，返回地面後才能刷新初始詞條。"
+    };
+  }
+
+  if (player.gold < cost) {
+    return {
+      ok: false,
+      player,
+      message: `刷新初始詞條需要 ${cost} 金幣，你目前只有 ${player.gold} 金幣。`
+    };
+  }
+
+  player.gold -= cost;
+  player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
+
+  return {
+    ok: true,
+    player,
+    message: `花費 ${cost} 金幣刷新初始詞條。`
+  };
+}
+
 function resetRunState(player, random = Math.random) {
   player.rusty = 0;
   player.ore = 0;
@@ -1757,6 +1795,7 @@ module.exports = {
   getShopConsumables,
   mine,
   removeRust,
+  rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,

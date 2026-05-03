@@ -19,6 +19,7 @@ const {
   getShopItems,
   mine,
   removeRust,
+  rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
@@ -291,6 +292,16 @@ async function handleMiningButton(interaction) {
       const result = chooseRunMode(player, mode, Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.rerollModes) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = rerollRunModeOptions(player, Math.random);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "刷新詞條", result.message, interaction.user);
       files = buildHudFiles(result.player);
       return result.player;
     });

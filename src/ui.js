@@ -33,6 +33,7 @@ const CUSTOM_IDS = {
   mine: "mine_ui:mine",
   mineLeft: "mine_ui:mine_left",
   mineRight: "mine_ui:mine_right",
+  rerollModes: "mine_ui:reroll_modes",
   modePrefix: "mine_ui:mode",
   modeDouble: "mine_ui:mode_double",
   modeSafe: "mine_ui:mode_safe",
@@ -556,7 +557,8 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     addRow(
       ...getRunModeOptions(player).map((mode) => (
         makeButton(`${CUSTOM_IDS.modePrefix}:${mode.id}`, mode.label, ButtonStyle.Secondary, "🎴")
-      ))
+      )),
+      makeButton(CUSTOM_IDS.rerollModes, "刷新詞條 10", ButtonStyle.Primary, "🔄")
     );
     addRow(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),

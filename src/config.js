@@ -4,6 +4,7 @@ const CONFIG = {
   mining: {
     baseHp: 2,
     gemCaveChance: 0.08,
+    runModeRerollCostGold: 10,
     weights: {
       gold: 48,
       ore: 14,
