@@ -44,6 +44,18 @@ const CONFIG = {
     bombProof: {
       label: "防爆外套",
       bombWeightMultiplier: 0.75
+    },
+    fireDragonPickaxe: {
+      label: "火龍十字鎬",
+      depthStep: 2,
+      smeltedSurfaceMultiplier: 1.5,
+      smeltedGoblinMultiplier: 0.55,
+      megaBombChance: 0.35
+    },
+    silkTouch: {
+      label: "絲綢之觸",
+      rawGoblinMultiplier: 1.7,
+      bombCaptureChance: 0.4
     }
   },
   minorBuffs: {
@@ -60,6 +72,11 @@ const CONFIG = {
     goldPerOre: 8,
     goldPerGoldOre: 120,
     goldPerPlatinumOre: 260,
+    goldPerGoldBlock: 2,
+    goldPerOreIngot: 12,
+    goldPerGoldOreIngot: 180,
+    goldPerPlatinumOreIngot: 390,
+    goldPerBombItem: 90,
     redGemGold: 35,
     blueGemGold: 50,
     greenGemGold: 75

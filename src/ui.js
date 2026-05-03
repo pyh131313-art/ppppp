@@ -73,6 +73,7 @@ function buildQuickStatus(playerInput) {
   return [
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `礦石 ⛏️${player.ore} 🟨${player.goldOre} ◻️${player.platinumOre}`,
+    `加工 🧈${player.goldBlock} 🔶${player.oreIngot} 🔷${player.goldOreIngot} 🔳${player.platinumOreIngot} 💣${player.bombItem}`,
     `寶石 🔴${player.redGem} 🔵${player.blueGem} 🟢${player.greenGem}`,
     `破爛 ${player.junk}｜白金 ${player.platinumJunk}`,
     `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
@@ -104,6 +105,26 @@ function getBagSlots(playerInput) {
     icon: "◻️",
     label: "鉑金礦石"
   }));
+  const goldBlockSlots = Array.from({ length: player.goldBlock }, () => ({
+    icon: "🧈",
+    label: "金塊"
+  }));
+  const oreIngotSlots = Array.from({ length: player.oreIngot }, () => ({
+    icon: "🔶",
+    label: "礦錠"
+  }));
+  const goldOreIngotSlots = Array.from({ length: player.goldOreIngot }, () => ({
+    icon: "🔷",
+    label: "金錠"
+  }));
+  const platinumOreIngotSlots = Array.from({ length: player.platinumOreIngot }, () => ({
+    icon: "🔳",
+    label: "鉑金錠"
+  }));
+  const bombItemSlots = Array.from({ length: player.bombItem }, () => ({
+    icon: "💣",
+    label: "完整炸彈"
+  }));
   const redGemSlots = Array.from({ length: player.redGem }, () => ({
     icon: "🔴",
     label: "紅寶石"
@@ -130,6 +151,11 @@ function getBagSlots(playerInput) {
     ...oreSlots,
     ...goldOreSlots,
     ...platinumOreSlots,
+    ...goldBlockSlots,
+    ...oreIngotSlots,
+    ...goldOreIngotSlots,
+    ...platinumOreIngotSlots,
+    ...bombItemSlots,
     ...redGemSlots,
     ...blueGemSlots,
     ...greenGemSlots,
@@ -173,6 +199,11 @@ function getResultEmoji(kind) {
     ore: "⛏️",
     goldOre: "🟨",
     platinumOre: "◻️",
+    goldBlock: "🧈",
+    oreIngot: "🔶",
+    goldOreIngot: "🔷",
+    platinumOreIngot: "🔳",
+    bombItem: "💣",
     junk: "🧱",
     redGem: "🔴",
     blueGem: "🔵",
@@ -195,6 +226,11 @@ function getResultLabel(kind) {
     ore: "礦石",
     goldOre: "金礦石",
     platinumOre: "鉑金礦石",
+    goldBlock: "金塊",
+    oreIngot: "礦錠",
+    goldOreIngot: "金錠",
+    platinumOreIngot: "鉑金錠",
+    bombItem: "完整炸彈",
     junk: "超級破爛",
     redGem: "紅寶石",
     blueGem: "藍寶石",

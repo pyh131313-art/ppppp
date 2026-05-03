@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buyShopItem,
+  canChooseMinorBuff,
   chooseMinorBuff,
   chooseRunMode,
   createPlayer,
@@ -307,10 +308,10 @@ test("地表會刷新兩個初始詞條並只能選本輪出現的", () => {
   const chosen = chooseRunMode(player, options[0]);
 
   assert.equal(options.length, 2);
-  assert.deepEqual(options, ["bombProof", "bigBag"]);
+  assert.deepEqual(options, ["silkTouch", "fireDragonPickaxe"]);
   assert.equal(blocked.ok, false);
   assert.equal(chosen.ok, true);
-  assert.equal(chosen.player.runMode, "bombProof");
+  assert.equal(chosen.player.runMode, "silkTouch");
   assert.deepEqual(chosen.player.runModeOptions, []);
 });
 
@@ -324,7 +325,77 @@ test("返回地面會刷新下一輪初始詞條", () => {
   );
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.player.runModeOptions, ["bombProof", "bigBag"]);
+  assert.deepEqual(result.player.runModeOptions, ["silkTouch", "fireDragonPickaxe"]);
+});
+
+test("火龍十字鎬每次深入會跳兩層並錯過部分小磁條層", () => {
+  const start = {
+    ...chooseRunMode(
+      { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"], nextEventDepth: 99 },
+      "fireDragonPickaxe"
+    ).player,
+    nextEventDepth: 99
+  };
+  const first = mine(start, () => 0);
+  const second = mine(first.player, () => 0);
+  const third = mine(second.player, () => 0);
+
+  assert.equal(first.player.depth, 2);
+  assert.equal(second.player.depth, 4);
+  assert.equal(third.player.depth, 6);
+  assert.equal(canChooseMinorBuff(third.player), false);
+});
+
+test("火龍十字鎬會把金幣和礦物燒成更高地表價值的物品", () => {
+  const goldRun = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
+    "fireDragonPickaxe"
+  ).player;
+  const goldBlock = mine(goldRun, () => 0);
+  const goldReturn = returnToSurface(goldBlock.player);
+
+  const oreRun = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
+    "fireDragonPickaxe"
+  ).player;
+  const oreIngot = mine(oreRun, () => 0.5);
+  const oreReturn = returnToSurface(oreIngot.player);
+
+  assert.equal(goldBlock.kind, "goldBlock");
+  assert.equal(goldBlock.player.goldBlock, 1);
+  assert.equal(goldReturn.player.gold, 2);
+  assert.equal(oreIngot.kind, "oreIngot");
+  assert.equal(oreIngot.player.oreIngot, 2);
+  assert.equal(oreReturn.player.gold, 24);
+});
+
+test("火龍十字鎬的大爆炸會扣兩滴血", () => {
+  const start = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
+    "fireDragonPickaxe"
+  ).player;
+  const rolls = [0.95, 0];
+  const result = mine(start, () => rolls.shift() ?? 0, 1000);
+
+  assert.equal(result.kind, "dead");
+  assert.equal(result.player.bombs, 2);
+  assert.equal(result.player.dead, true);
+  assert.match(result.title, /大爆炸/);
+});
+
+test("絲綢之觸可以把炸彈完整挖回地表販售", () => {
+  const start = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["silkTouch", "safe"] },
+    "silkTouch"
+  ).player;
+  const rolls = [0.95, 0];
+  const result = mine(start, () => rolls.shift() ?? 0, 1000);
+  const sold = returnToSurface(result.player);
+
+  assert.equal(result.kind, "bombItem");
+  assert.equal(result.player.bombItem, 1);
+  assert.equal(result.player.bombs, 0);
+  assert.equal(sold.player.gold, 90);
 });
 
 test("雙倍採集會加倍礦石但死亡損失雙倍金幣", () => {
@@ -504,6 +575,34 @@ test("壞地精會拿走礦石且可能造成傷害", () => {
   assert.equal(result.player.gold, 0);
   assert.equal(result.player.bombs, 1);
   assert.match(result.message, /壞地精/);
+});
+
+test("絲綢之觸原礦給地精收購價更高", () => {
+  const result = resolveRandomEvent(
+    {
+      ...chooseRunMode({ ...createPlayer(), runModeOptions: ["silkTouch", "safe"] }, "silkTouch").player,
+      pendingEvent: "goblin_purchase",
+      ore: 1
+    },
+    "risk",
+    () => 0
+  );
+
+  assert.equal(result.player.gold, 18);
+});
+
+test("火龍十字鎬加工物給地精收購價更低", () => {
+  const result = resolveRandomEvent(
+    {
+      ...chooseRunMode({ ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] }, "fireDragonPickaxe").player,
+      pendingEvent: "goblin_purchase",
+      oreIngot: 1
+    },
+    "risk",
+    () => 0
+  );
+
+  assert.equal(result.player.gold, 6);
 });
 
 test("超大洞穴蟑螂會吃掉身上的所有破爛", () => {

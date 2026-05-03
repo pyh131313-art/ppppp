@@ -19,6 +19,11 @@ function createPlayer() {
     ore: 0,
     goldOre: 0,
     platinumOre: 0,
+    goldBlock: 0,
+    oreIngot: 0,
+    goldOreIngot: 0,
+    platinumOreIngot: 0,
+    bombItem: 0,
     junk: 0,
     redGem: 0,
     blueGem: 0,
@@ -98,7 +103,7 @@ function getMiningWeights(playerInput) {
 
 function getMaxBombs(playerInput) {
   const player = getPlayer(playerInput);
-  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  const mode = getMode(player);
   return CONFIG.mining.baseHp + (mode && mode.extraHp ? mode.extraHp : 0);
 }
 
@@ -123,8 +128,34 @@ function getOreAmount(depth, random = Math.random) {
   return 1 + Math.floor(random() * (2 + bonus));
 }
 
+function getMode(playerInput) {
+  const player = getPlayer(playerInput);
+  return player.runMode ? CONFIG.runModes[player.runMode] || null : null;
+}
+
+function getOreTargetForMode(kind, playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.runMode !== "fireDragonPickaxe") return kind;
+  if (kind === "ore") return "oreIngot";
+  if (kind === "goldOre") return "goldOreIngot";
+  if (kind === "platinumOre") return "platinumOreIngot";
+  return kind;
+}
+
+function getOreName(kind) {
+  const names = {
+    ore: "礦石",
+    goldOre: "金礦石",
+    platinumOre: "鉑金礦石",
+    oreIngot: "礦錠",
+    goldOreIngot: "金錠",
+    platinumOreIngot: "鉑金錠"
+  };
+  return names[kind] || "礦物";
+}
+
 function applyDeathPenalty(player) {
-  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  const mode = getMode(player);
   const multiplier = mode && mode.deathPenaltyMultiplier ? mode.deathPenaltyMultiplier : 1;
   const lostGold = Math.min(player.gold, Math.ceil((player.gold / 3) * multiplier));
   player.gold = Math.max(0, player.gold - lostGold);
@@ -138,6 +169,11 @@ function isInMine(playerInput) {
     player.ore > 0 ||
     player.goldOre > 0 ||
     player.platinumOre > 0 ||
+    player.goldBlock > 0 ||
+    player.oreIngot > 0 ||
+    player.goldOreIngot > 0 ||
+    player.platinumOreIngot > 0 ||
+    player.bombItem > 0 ||
     player.redGem > 0 ||
     player.blueGem > 0 ||
     player.greenGem > 0 ||
@@ -188,6 +224,11 @@ function resetRunState(player, random = Math.random) {
   player.ore = 0;
   player.goldOre = 0;
   player.platinumOre = 0;
+  player.goldBlock = 0;
+  player.oreIngot = 0;
+  player.goldOreIngot = 0;
+  player.platinumOreIngot = 0;
+  player.bombItem = 0;
   player.junk = 0;
   player.redGem = 0;
   player.blueGem = 0;
@@ -320,7 +361,7 @@ function chooseRunMode(playerInput, mode, random = null) {
 
 function canChooseMinorBuff(playerInput) {
   const player = getPlayer(playerInput);
-  return !player.dead && player.depth >= player.nextBuffDepth;
+  return !player.dead && player.depth >= player.nextBuffDepth && player.depth % 5 === 0;
 }
 
 function chooseMinorBuff(playerInput, buff) {
@@ -344,7 +385,7 @@ function chooseMinorBuff(playerInput, buff) {
   }
 
   player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
-  player.nextBuffDepth += 5;
+  player.nextBuffDepth = player.depth + 5;
 
   return {
     ok: true,
@@ -394,6 +435,11 @@ function getBagUsedSlots(playerInput) {
     + player.ore
     + player.goldOre
     + player.platinumOre
+    + player.goldBlock
+    + player.oreIngot
+    + player.goldOreIngot
+    + player.platinumOreIngot
+    + player.bombItem
     + player.redGem
     + player.blueGem
     + player.greenGem
@@ -626,13 +672,14 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
   player.mines += 1;
   player.stats.totalMines += 1;
-  player.depth += 1;
+  const mode = getMode(player);
+  const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
+  player.depth += depthStep;
   const recordMessage = setDepthRecord(player);
   if (player.caveType === "gem") {
     return mineGemCave(player, random, now, recordMessage);
   }
   const result = rollWeighted(getMiningWeights(player), random);
-  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
   const goldMultiplier = 1
     + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
@@ -640,6 +687,19 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
   if (result === "gold") {
     const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier));
+    if (player.runMode === "fireDragonPickaxe") {
+      if (getBagFreeSlots(player) <= 0) {
+        return {
+          kind: "full",
+          player,
+          title: "包包已滿",
+          message: "金幣被火龍十字鎬燒成金塊，但包包已滿，放不下。"
+        };
+      }
+      const gained = Math.min(amount, getBagFreeSlots(player));
+      player.goldBlock += gained;
+      return buildOutcome("goldBlock", player, "燒成金塊", `火龍十字鎬把金幣燒成 ${gained} 個金塊，會佔包包格子。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`, recordMessage, random);
+    }
     player.gold += amount;
     return buildOutcome("gold", player, "挖到金幣", `你挖到了 ${amount} 枚金幣。`, recordMessage, random);
   }
@@ -656,13 +716,14 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       };
     }
 
+    const target = getOreTargetForMode("ore", player);
     const gained = Math.min(amount, freeSlots);
-    player.ore += gained;
+    player[target] += gained;
     return buildOutcome(
-      "ore",
+      target,
       player,
-      "挖到礦石",
-      `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      target === "ore" ? "挖到礦石" : "燒成礦錠",
+      `你挖到了 ${gained} 塊${getOreName(target)}。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
@@ -671,7 +732,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   if (result === "goldOre" || result === "platinumOre") {
     const amount = getOreAmount(player.depth, random) * gatherMultiplier;
     const freeSlots = getBagFreeSlots(player);
-    const name = result === "goldOre" ? "金礦石" : "鉑金礦石";
+    const target = getOreTargetForMode(result, player);
+    const name = getOreName(target);
     if (freeSlots <= 0) {
       return {
         kind: "full",
@@ -682,9 +744,9 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     }
 
     const gained = Math.min(amount, freeSlots);
-    player[result] += gained;
+    player[target] += gained;
     return buildOutcome(
-      result,
+      target,
       player,
       `挖到${name}`,
       `你挖到了 ${gained} 塊${name}。返回地面時會自動換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
@@ -718,19 +780,32 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   }
 
   if (result === "bomb") {
-    const damage = addBombDamage(player, now);
+    if (player.runMode === "silkTouch" && random() < CONFIG.runModes.silkTouch.bombCaptureChance) {
+      if (getBagFreeSlots(player) <= 0) {
+        return {
+          kind: "full",
+          player,
+          title: "包包已滿",
+          message: "你完整挖出一顆炸彈，但包包已滿，放不下。"
+        };
+      }
+      player.bombItem += 1;
+      return buildOutcome("bombItem", player, "完整挖出炸彈", "絲綢之觸讓炸彈沒有爆炸，變成可帶回地表販售的物品。", recordMessage, random);
+    }
+    const damageAmount = player.runMode === "fireDragonPickaxe" && random() < CONFIG.runModes.fireDragonPickaxe.megaBombChance ? 2 : 1;
+    const damage = addBombDamage(player, now, damageAmount);
     const maxBombs = getMaxBombs(player);
     if (damage.dead) {
       return {
         kind: "dead",
         player,
-        title: "爆炸",
-        message: `你第 ${player.bombs} 次挖到炸彈，${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        title: damageAmount > 1 ? "大爆炸" : "爆炸",
+        message: `你挖到炸彈，${damageAmount > 1 ? "火龍十字鎬引發大爆炸，" : ""}${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
 
-    return buildOutcome("bomb", player, "挖到炸彈", `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
+    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
   }
 
   if (result === "junk") {
@@ -952,7 +1027,11 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     const ore = player.ore;
     const goldOre = player.goldOre;
     const platinumOre = player.platinumOre;
-    const totalOre = ore + goldOre + platinumOre;
+    const goldBlock = player.goldBlock;
+    const oreIngot = player.oreIngot;
+    const goldOreIngot = player.goldOreIngot;
+    const platinumOreIngot = player.platinumOreIngot;
+    const totalOre = ore + goldOre + platinumOre + goldBlock + oreIngot + goldOreIngot + platinumOreIngot;
     if (totalOre <= 0) {
       return {
         ok: true,
@@ -965,12 +1044,22 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     player.ore = 0;
     player.goldOre = 0;
     player.platinumOre = 0;
+    player.goldBlock = 0;
+    player.oreIngot = 0;
+    player.goldOreIngot = 0;
+    player.platinumOreIngot = 0;
 
     if (random() < 0.55) {
+      const rawMultiplier = player.runMode === "silkTouch" ? CONFIG.runModes.silkTouch.rawGoblinMultiplier : 1;
+      const smeltedMultiplier = player.runMode === "fireDragonPickaxe" ? CONFIG.runModes.fireDragonPickaxe.smeltedGoblinMultiplier : 1;
       const payout = Math.floor(
-        ore * CONFIG.ore.goldPerOre * 1.35
-        + goldOre * CONFIG.ore.goldPerGoldOre * 1.25
-        + platinumOre * CONFIG.ore.goldPerPlatinumOre * 1.2
+        ore * CONFIG.ore.goldPerOre * 1.35 * rawMultiplier
+        + goldOre * CONFIG.ore.goldPerGoldOre * 1.25 * rawMultiplier
+        + platinumOre * CONFIG.ore.goldPerPlatinumOre * 1.2 * rawMultiplier
+        + goldBlock * CONFIG.ore.goldPerGoldBlock * smeltedMultiplier
+        + oreIngot * CONFIG.ore.goldPerOreIngot * smeltedMultiplier
+        + goldOreIngot * CONFIG.ore.goldPerGoldOreIngot * smeltedMultiplier
+        + platinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot * smeltedMultiplier
       );
       player.gold += payout;
       return {
@@ -1163,9 +1252,19 @@ function returnToSurface(playerInput, random = Math.random) {
   const soldOre = player.ore;
   const soldGoldOre = player.goldOre;
   const soldPlatinumOre = player.platinumOre;
+  const soldGoldBlock = player.goldBlock;
+  const soldOreIngot = player.oreIngot;
+  const soldGoldOreIngot = player.goldOreIngot;
+  const soldPlatinumOreIngot = player.platinumOreIngot;
+  const soldBombItem = player.bombItem;
   const oreGold = soldOre * CONFIG.ore.goldPerOre;
   const goldOreGold = soldGoldOre * CONFIG.ore.goldPerGoldOre;
   const platinumOreGold = soldPlatinumOre * CONFIG.ore.goldPerPlatinumOre;
+  const goldBlockGold = soldGoldBlock * CONFIG.ore.goldPerGoldBlock;
+  const oreIngotGold = soldOreIngot * CONFIG.ore.goldPerOreIngot;
+  const goldOreIngotGold = soldGoldOreIngot * CONFIG.ore.goldPerGoldOreIngot;
+  const platinumOreIngotGold = soldPlatinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot;
+  const bombItemGold = soldBombItem * CONFIG.ore.goldPerBombItem;
   const soldRedGem = player.redGem;
   const soldBlueGem = player.blueGem;
   const soldGreenGem = player.greenGem;
@@ -1181,16 +1280,21 @@ function returnToSurface(playerInput, random = Math.random) {
   player.ore = 0;
   player.goldOre = 0;
   player.platinumOre = 0;
+  player.goldBlock = 0;
+  player.oreIngot = 0;
+  player.goldOreIngot = 0;
+  player.platinumOreIngot = 0;
+  player.bombItem = 0;
   player.redGem = 0;
   player.blueGem = 0;
   player.greenGem = 0;
-  player.gold += oreGold + goldOreGold + platinumOreGold + gemGold;
+  player.gold += oreGold + goldOreGold + platinumOreGold + goldBlockGold + oreIngotGold + goldOreIngotGold + platinumOreIngotGold + bombItemGold + gemGold;
   resetRunState(player, random);
 
   return {
     ok: true,
     player,
-    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${soldGoldBlock > 0 ? `${soldGoldBlock} 個金塊換成 ${goldBlockGold} 金幣。` : ""}${soldOreIngot + soldGoldOreIngot + soldPlatinumOreIngot > 0 ? `錠換成 ${oreIngotGold + goldOreIngotGold + platinumOreIngotGold} 金幣。` : ""}${soldBombItem > 0 ? `${soldBombItem} 顆完整炸彈換成 ${bombItemGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
   };
 }
 
@@ -1399,6 +1503,7 @@ function formatInventory(playerInput) {
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
     `礦石：普通 ${player.ore}｜金 ${player.goldOre}｜鉑金 ${player.platinumOre}`,
+    `加工物：金塊 ${player.goldBlock}｜礦錠 ${player.oreIngot}｜金錠 ${player.goldOreIngot}｜鉑金錠 ${player.platinumOreIngot}｜完整炸彈 ${player.bombItem}`,
     `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
     `超級破爛：${player.junk}`,
     `白金破爛：${player.platinumJunk}`,
