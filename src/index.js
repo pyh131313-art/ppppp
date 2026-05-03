@@ -7,6 +7,7 @@ const {
   buyShopItem,
   chooseMinorBuff,
   chooseRunMode,
+  depositBank,
   discardItem,
   exchange,
   formatShop,
@@ -19,7 +20,8 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
-  transferCollectible
+  transferCollectible,
+  withdrawBank
 } = require("./game");
 const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
@@ -317,6 +319,26 @@ async function handleMiningButton(interaction) {
     const players = await loadPlayers();
     embed = buildLeaderboardEmbed(players);
     files = [];
+  }
+
+  if (interaction.customId === CUSTOM_IDS.bankDeposit) {
+    await updatePlayer(interaction.user.id, (player) => {
+      const result = depositBank(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.bankWithdraw) {
+    await updatePlayer(interaction.user.id, (player) => {
+      const result = withdrawBank(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
   }
 
   if (interaction.customId === CUSTOM_IDS.eventRisk || interaction.customId === CUSTOM_IDS.eventSafe) {

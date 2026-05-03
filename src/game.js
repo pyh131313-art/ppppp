@@ -7,6 +7,7 @@ const BAG_CAPACITY = 12;
 function createPlayer() {
   return {
     gold: 0,
+    bankGold: 0,
     rusty: 0,
     collection: {},
     bombs: 0,
@@ -115,6 +116,19 @@ function applyDeathPenalty(player) {
   return lostGold;
 }
 
+function isInMine(playerInput) {
+  const player = getPlayer(playerInput);
+  return Boolean(
+    player.depth > 0 ||
+    player.ore > 0 ||
+    player.rusty > 0 ||
+    player.junk > 0 ||
+    player.bombs > 0 ||
+    player.runMode ||
+    player.pendingEvent
+  );
+}
+
 function resetRunState(player) {
   player.rusty = 0;
   player.ore = 0;
@@ -133,6 +147,58 @@ function getRunModeLabel(playerInput) {
   return player.runMode && CONFIG.runModes[player.runMode]
     ? CONFIG.runModes[player.runMode].label
     : "尚未選擇";
+}
+
+function depositBank(playerInput) {
+  const player = getPlayer(playerInput);
+
+  if (isInMine(player)) {
+    return {
+      ok: false,
+      player,
+      message: "銀行只能在地面使用。先返回地面再存錢。"
+    };
+  }
+
+  if (player.gold <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "身上沒有金幣可以存入銀行。"
+    };
+  }
+
+  const amount = player.gold;
+  player.gold = 0;
+  player.bankGold += amount;
+
+  return {
+    ok: true,
+    player,
+    message: `已存入 ${amount} 金幣。銀行金幣死亡不會噴。`
+  };
+}
+
+function withdrawBank(playerInput) {
+  const player = getPlayer(playerInput);
+
+  if (player.bankGold <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "銀行目前沒有金幣可以領出。"
+    };
+  }
+
+  const amount = player.bankGold;
+  player.bankGold = 0;
+  player.gold += amount;
+
+  return {
+    ok: true,
+    player,
+    message: `已領出 ${amount} 金幣。領出後如果死亡，身上金幣會照常損失。`
+  };
 }
 
 function chooseRunMode(playerInput, mode) {
@@ -950,7 +1016,8 @@ function rescuePlayer(rescuerInput, targetInput) {
 function formatInventory(playerInput) {
   const player = getPlayer(playerInput);
   return [
-    `金幣：${player.gold}`,
+    `身上金幣：${player.gold}`,
+    `銀行金幣：${player.bankGold}`,
     `礦石：${player.ore}`,
     `超級破爛：${player.junk}`,
     `生鏽紀念幣：${player.rusty}`,
@@ -1002,6 +1069,7 @@ module.exports = {
   chooseMinorBuff,
   chooseRunMode,
   createPlayer,
+  depositBank,
   discardItem,
   exchange,
   formatCollection,
@@ -1029,5 +1097,6 @@ module.exports = {
   returnToSurface,
   revive,
   rollWeighted,
-  transferCollectible
+  transferCollectible,
+  withdrawBank
 };

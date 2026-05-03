@@ -8,6 +8,7 @@ const {
   chooseMinorBuff,
   chooseRunMode,
   createPlayer,
+  depositBank,
   discardItem,
   exchange,
   getCollectionTotal,
@@ -18,7 +19,8 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
-  transferCollectible
+  transferCollectible,
+  withdrawBank
 } = require("../src/game");
 
 test("挖到兩次炸彈會死亡", () => {
@@ -43,6 +45,32 @@ test("炸彈死亡會損失三分之一金幣", () => {
   assert.equal(result.player.gold, 20);
   assert.equal(result.player.stats.deaths, 1);
   assert.match(result.message, /損失 10 枚金幣/);
+});
+
+test("銀行金幣不會被爆炸死亡扣除", () => {
+  const result = mine(
+    { ...createPlayer(), gold: 30, bankGold: 100, bombs: 3, runMode: "safe" },
+    () => 0.95,
+    1000
+  );
+
+  assert.equal(result.player.dead, true);
+  assert.equal(result.player.gold, 20);
+  assert.equal(result.player.bankGold, 100);
+});
+
+test("銀行只能在地面存入並可以領出", () => {
+  const deposited = depositBank({ ...createPlayer(), gold: 45 });
+  const blocked = depositBank({ ...createPlayer(), gold: 45, runMode: "safe" });
+  const withdrawn = withdrawBank(deposited.player);
+
+  assert.equal(deposited.ok, true);
+  assert.equal(deposited.player.gold, 0);
+  assert.equal(deposited.player.bankGold, 45);
+  assert.equal(blocked.ok, false);
+  assert.equal(withdrawn.ok, true);
+  assert.equal(withdrawn.player.gold, 45);
+  assert.equal(withdrawn.player.bankGold, 0);
 });
 
 test("可以丟棄生鏽紀念幣和正式紀念幣", () => {

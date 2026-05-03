@@ -30,6 +30,8 @@ const CUSTOM_IDS = {
   buffBomb: "mine_ui:buff_bomb",
   bag: "mine_ui:bag",
   leaderboard: "mine_ui:leaderboard",
+  bankDeposit: "mine_ui:bank_deposit",
+  bankWithdraw: "mine_ui:bank_withdraw",
   eventRisk: "mine_ui:event:risk",
   eventSafe: "mine_ui:event:safe",
   exchangeOne: "mine_ui:exchange_one",
@@ -66,7 +68,7 @@ function buildQuickStatus(playerInput) {
   const maxHp = getMaxBombs(player);
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   return [
-    `金幣 ${player.gold}`,
+    `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `礦石 ${player.ore}`,
     `破爛 ${player.junk}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
@@ -243,16 +245,16 @@ function buildLeaderboardEmbed(playersInput = {}) {
         collectionTotal: getCollectionTotal(player)
       };
     })
-    .filter((row) => row.bestDepth > 0 || row.totalMines > 0 || row.player.gold > 0 || row.collectionTotal > 0)
+    .filter((row) => row.bestDepth > 0 || row.totalMines > 0 || row.player.gold > 0 || row.player.bankGold > 0 || row.collectionTotal > 0)
     .sort((a, b) => {
       if (b.bestDepth !== a.bestDepth) return b.bestDepth - a.bestDepth;
       if (b.collectionTotal !== a.collectionTotal) return b.collectionTotal - a.collectionTotal;
-      return b.player.gold - a.player.gold;
+      return (b.player.gold + b.player.bankGold) - (a.player.gold + a.player.bankGold);
     })
     .slice(0, 10);
 
   const lines = rows.map((row, index) => (
-    `${index + 1}. <@${row.userId}>｜最深 ${row.bestDepth}｜金幣 ${row.player.gold}｜集幣冊 ${row.collectionTotal}｜死亡 ${row.player.stats.deaths}`
+    `${index + 1}. <@${row.userId}>｜最深 ${row.bestDepth}｜金幣 ${row.player.gold + row.player.bankGold}｜集幣冊 ${row.collectionTotal}｜死亡 ${row.player.stats.deaths}`
   ));
 
   return new EmbedBuilder()
@@ -362,6 +364,10 @@ function buildPanelComponents(targetUserId = null, playerInput = null) {
       makeButton(CUSTOM_IDS.shopBuyOne, "商店購買", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
       makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
+    ),
+    new ActionRowBuilder().addComponents(
+      makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦"),
+      makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
     )
   ];
 
