@@ -30,6 +30,8 @@ const {
 
 const CUSTOM_IDS = {
   mine: "mine_ui:mine",
+  mineLeft: "mine_ui:mine_left",
+  mineRight: "mine_ui:mine_right",
   modePrefix: "mine_ui:mode",
   modeDouble: "mine_ui:mode_double",
   modeSafe: "mine_ui:mode_safe",
@@ -563,9 +565,12 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
 
   if (inMine) {
     addRow(
-      makeButton(CUSTOM_IDS.mine, "深入挖礦", ButtonStyle.Primary, "⛏️"),
+      makeButton(CUSTOM_IDS.mineLeft, "左挖", ButtonStyle.Primary, "⬅️"),
+      makeButton(CUSTOM_IDS.mineRight, "右挖", ButtonStyle.Danger, "➡️"),
       makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null,
+      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
+    );
+    addRow(
       makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
       makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
     );

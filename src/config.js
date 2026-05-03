@@ -20,6 +20,48 @@ const CONFIG = {
       greenGem: 14,
       stalactite: 18,
       platinumJunk: 12
+    },
+    digPaths: {
+      left: {
+        label: "左挖",
+        description: "安全支道",
+        rewardMultiplier: 0.85,
+        weightMultipliers: {
+          gold: 0.9,
+          ore: 0.9,
+          goldOre: 0.9,
+          platinumOre: 0.9,
+          rusty: 0.85,
+          junk: 0.8,
+          bomb: 0.7,
+          empty: 1.25,
+          redGem: 0.85,
+          blueGem: 0.85,
+          greenGem: 0.85,
+          stalactite: 0.7,
+          platinumJunk: 0.8
+        }
+      },
+      right: {
+        label: "右挖",
+        description: "貪婪裂隙",
+        rewardMultiplier: 1.3,
+        weightMultipliers: {
+          gold: 1.2,
+          ore: 1.25,
+          goldOre: 1.25,
+          platinumOre: 1.25,
+          rusty: 1.2,
+          junk: 1.25,
+          bomb: 1.35,
+          empty: 0.75,
+          redGem: 1.3,
+          blueGem: 1.3,
+          greenGem: 1.3,
+          stalactite: 1.35,
+          platinumJunk: 1.35
+        }
+      }
     }
   },
   runModes: {

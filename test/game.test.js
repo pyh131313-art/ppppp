@@ -79,6 +79,30 @@ test("銀行只能在地面存入並可以領出", () => {
   assert.equal(withdrawn.player.bankGold, 0);
 });
 
+test("左挖右挖會套用安全與貪婪路線差異", () => {
+  const leftRolls = [0, 0.99, 0.99];
+  const rightRolls = [0, 0.99, 0.99];
+  const left = mine(
+    chooseRunMode(createPlayer(), "safe").player,
+    () => leftRolls.shift() ?? 0.99,
+    1000,
+    "left"
+  );
+  const right = mine(
+    chooseRunMode(createPlayer(), "safe").player,
+    () => rightRolls.shift() ?? 0.99,
+    1000,
+    "right"
+  );
+
+  assert.equal(left.kind, "gold");
+  assert.equal(right.kind, "gold");
+  assert.equal(left.player.gold, 2);
+  assert.equal(right.player.gold, 3);
+  assert.match(left.message, /左挖｜安全支道/);
+  assert.match(right.message, /右挖｜貪婪裂隙/);
+});
+
 test("進入礦洞有小機率掉進寶石礦洞", () => {
   const result = chooseRunMode(createPlayer(), "safe", () => 0);
 

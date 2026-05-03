@@ -85,7 +85,36 @@ function rollWeighted(weights, random = Math.random) {
   return entries[entries.length - 1][0];
 }
 
-function getMiningWeights(playerInput) {
+function getDigPath(digPath) {
+  return CONFIG.mining.digPaths && CONFIG.mining.digPaths[digPath]
+    ? CONFIG.mining.digPaths[digPath]
+    : null;
+}
+
+function getDigPathPrefix(digPath) {
+  const path = getDigPath(digPath);
+  return path ? `${path.label}｜${path.description}。` : "";
+}
+
+function applyDigPathWeights(weights, digPath) {
+  const path = getDigPath(digPath);
+  if (!path || !path.weightMultipliers) return weights;
+
+  const next = { ...weights };
+  for (const [key, multiplier] of Object.entries(path.weightMultipliers)) {
+    if (Object.prototype.hasOwnProperty.call(next, key)) {
+      next[key] *= multiplier;
+    }
+  }
+  return next;
+}
+
+function getDigPathRewardMultiplier(digPath) {
+  const path = getDigPath(digPath);
+  return path && path.rewardMultiplier ? path.rewardMultiplier : 1;
+}
+
+function getMiningWeights(playerInput, digPath = null) {
   const player = getPlayer(playerInput);
   const dangerTier = Math.min(4, Math.floor(player.depth / 3));
   const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
@@ -100,7 +129,7 @@ function getMiningWeights(playerInput) {
   if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
   if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
   weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
-  return weights;
+  return applyDigPathWeights(weights, digPath);
 }
 
 function getMaxBombs(playerInput) {
@@ -603,20 +632,22 @@ function getGemAmount(depth, random = Math.random) {
   return 1 + Math.floor(random() * (2 + bonus));
 }
 
-function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "") {
-  const result = rollWeighted(CONFIG.mining.gemWeights, random);
+function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "", digPath = null) {
+  const pathPrefix = getDigPathPrefix(digPath);
+  const result = rollWeighted(applyDigPathWeights(CONFIG.mining.gemWeights, digPath), random);
   const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
+  const digPathRewardMultiplier = getDigPathRewardMultiplier(digPath);
 
   if (result === "redGem" || result === "blueGem" || result === "greenGem") {
-    const amount = getGemAmount(player.depth, random) * gatherMultiplier;
+    const amount = Math.max(1, Math.floor(getGemAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
     const freeSlots = getBagFreeSlots(player);
     if (freeSlots <= 0) {
       return {
         kind: "full",
         player,
         title: "包包已滿",
-        message: "你挖到寶石，但包包已滿，放不下。"
+        message: `${pathPrefix}你挖到寶石，但包包已滿，放不下。`
       };
     }
 
@@ -627,7 +658,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       result,
       player,
       `挖到${name}`,
-      `你挖到了 ${gained} 顆${name}。返回地面時會換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      `${pathPrefix}你挖到了 ${gained} 顆${name}。返回地面時會換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
@@ -640,7 +671,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
         kind: "dead",
         player,
         title: "鐘乳石砸落",
-        message: `鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `${pathPrefix}鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
@@ -649,7 +680,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       "stalactite",
       player,
       "鐘乳石砸落",
-      `鐘乳石砸中你，扣 2 滴血。炸彈次數 ${player.bombs}/${getMaxBombs(player)}。`,
+      `${pathPrefix}鐘乳石砸中你，扣 2 滴血。炸彈次數 ${player.bombs}/${getMaxBombs(player)}。`,
       recordMessage,
       random
     );
@@ -662,7 +693,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       kind: "full",
       player,
       title: "包包已滿",
-      message: `你挖到 ${amount} 個白金破爛，但它需要 ${requiredSlots} 格包包，放不下。`
+      message: `${pathPrefix}你挖到 ${amount} 個白金破爛，但它需要 ${requiredSlots} 格包包，放不下。`
     };
   }
 
@@ -671,14 +702,16 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
     "platinumJunk",
     player,
     "挖到白金破爛",
-    `你挖到了 ${amount} 個白金破爛，共佔 ${requiredSlots} 格包包，只能返回地面時清掉。`,
+    `${pathPrefix}你挖到了 ${amount} 個白金破爛，共佔 ${requiredSlots} 格包包，只能返回地面時清掉。`,
     recordMessage,
     random
   );
 }
 
-function mine(playerInput, random = Math.random, now = Date.now()) {
+function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
   const player = getPlayer(playerInput);
+  const pathPrefix = getDigPathPrefix(digPath);
+  const digPathRewardMultiplier = getDigPathRewardMultiplier(digPath);
   if (player.dead) {
     return {
       kind: "blocked",
@@ -716,42 +749,42 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   player.depth += depthStep;
   const recordMessage = setDepthRecord(player);
   if (player.caveType === "gem") {
-    return mineGemCave(player, random, now, recordMessage);
+    return mineGemCave(player, random, now, recordMessage, digPath);
   }
-  const result = rollWeighted(getMiningWeights(player), random);
+  const result = rollWeighted(getMiningWeights(player, digPath), random);
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
   const goldMultiplier = 1
     + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
     + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
 
   if (result === "gold") {
-    const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier));
+    const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier * digPathRewardMultiplier));
     if (player.runMode === "fireDragonPickaxe") {
       if (getBagFreeSlots(player) <= 0) {
         return {
           kind: "full",
           player,
           title: "包包已滿",
-          message: "金幣被火龍十字鎬燒成金塊，但包包已滿，放不下。"
+          message: `${pathPrefix}金幣被火龍十字鎬燒成金塊，但包包已滿，放不下。`
         };
       }
       const gained = Math.min(amount, getBagFreeSlots(player));
       player.goldBlock += gained;
-      return buildOutcome("goldBlock", player, "燒成金塊", `火龍十字鎬把金幣燒成 ${gained} 個金塊，會佔包包格子。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`, recordMessage, random);
+      return buildOutcome("goldBlock", player, "燒成金塊", `${pathPrefix}火龍十字鎬把金幣燒成 ${gained} 個金塊，會佔包包格子。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`, recordMessage, random);
     }
     player.gold += amount;
-    return buildOutcome("gold", player, "挖到金幣", `你挖到了 ${amount} 枚金幣。`, recordMessage, random);
+    return buildOutcome("gold", player, "挖到金幣", `${pathPrefix}你挖到了 ${amount} 枚金幣。`, recordMessage, random);
   }
 
   if (result === "ore") {
-    const amount = getOreAmount(player.depth, random) * gatherMultiplier;
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
     const freeSlots = getBagFreeSlots(player);
     if (freeSlots <= 0) {
       return {
         kind: "full",
         player,
         title: "包包已滿",
-        message: "你挖到礦石，但包包已滿，放不下。"
+        message: `${pathPrefix}你挖到礦石，但包包已滿，放不下。`
       };
     }
 
@@ -762,14 +795,14 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       target,
       player,
       target === "ore" ? "挖到礦石" : "燒成礦錠",
-      `你挖到了 ${gained} 塊${getOreName(target)}。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      `${pathPrefix}你挖到了 ${gained} 塊${getOreName(target)}。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
   }
 
   if (result === "goldOre" || result === "platinumOre") {
-    const amount = getOreAmount(player.depth, random) * gatherMultiplier;
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
     const freeSlots = getBagFreeSlots(player);
     const target = getOreTargetForMode(result, player);
     const name = getOreName(target);
@@ -778,7 +811,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "full",
         player,
         title: "包包已滿",
-        message: `你挖到${name}，但包包已滿，放不下。`
+        message: `${pathPrefix}你挖到${name}，但包包已滿，放不下。`
       };
     }
 
@@ -788,7 +821,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       target,
       player,
       `挖到${name}`,
-      `你挖到了 ${gained} 塊${name}。返回地面時會自動換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      `${pathPrefix}你挖到了 ${gained} 塊${name}。返回地面時會自動換成高價金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
@@ -802,7 +835,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "full",
         player,
         title: "包包已滿",
-        message: `你挖到生鏽紀念幣，但 ${getBagCapacity(player)} 格包包已滿，放不下。`
+        message: `${pathPrefix}你挖到生鏽紀念幣，但 ${getBagCapacity(player)} 格包包已滿，放不下。`
       };
     }
 
@@ -812,7 +845,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       "rusty",
       player,
       "挖到生鏽紀念幣",
-      `你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      `${pathPrefix}你挖到了 ${gained} 枚本次生鏽紀念幣。離開礦坑會消失，只能先用 \`/除鏽\` 帶走。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
@@ -825,11 +858,11 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
           kind: "full",
           player,
           title: "包包已滿",
-          message: "你完整挖出一顆炸彈，但包包已滿，放不下。"
+          message: `${pathPrefix}你完整挖出一顆炸彈，但包包已滿，放不下。`
         };
       }
       player.bombItem += 1;
-      return buildOutcome("bombItem", player, "完整挖出炸彈", "絲綢之觸讓炸彈沒有爆炸，變成可帶回地表販售的物品。", recordMessage, random);
+      return buildOutcome("bombItem", player, "完整挖出炸彈", `${pathPrefix}絲綢之觸讓炸彈沒有爆炸，變成可帶回地表販售的物品。`, recordMessage, random);
     }
     const damageAmount = player.runMode === "fireDragonPickaxe" && random() < CONFIG.runModes.fireDragonPickaxe.megaBombChance ? 2 : 1;
     const damage = addBombDamage(player, now, damageAmount);
@@ -839,12 +872,12 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "dead",
         player,
         title: damageAmount > 1 ? "大爆炸" : "爆炸",
-        message: `你挖到炸彈，${damageAmount > 1 ? "火龍十字鎬引發大爆炸，" : ""}${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `${pathPrefix}你挖到炸彈，${damageAmount > 1 ? "火龍十字鎬引發大爆炸，" : ""}${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
 
-    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
+    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${pathPrefix}你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
   }
 
   if (result === "junk") {
@@ -855,7 +888,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "full",
         player,
         title: "包包已滿",
-        message: `你挖到 ${amount} 個超級破爛，但它需要 ${requiredSlots} 格包包，放不下。`
+        message: `${pathPrefix}你挖到 ${amount} 個超級破爛，但它需要 ${requiredSlots} 格包包，放不下。`
       };
     }
 
@@ -864,13 +897,13 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       "junk",
       player,
       "挖到超級破爛",
-      `你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。`,
+      `${pathPrefix}你挖到了 ${amount} 個超級破爛，共佔 ${requiredSlots} 格包包，只能返回地面時丟掉。`,
       recordMessage,
       random
     );
   }
 
-  return buildOutcome("empty", player, "什麼都沒有", "這一鏟只有碎石。", recordMessage, random);
+  return buildOutcome("empty", player, "什麼都沒有", `${pathPrefix}這一鏟只有碎石。`, recordMessage, random);
 }
 
 function resolveRandomEvent(playerInput, choice, random = Math.random, now = Date.now()) {
