@@ -26,8 +26,7 @@ const {
 const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
   CUSTOM_IDS,
-  buildCollectionEmbeds,
-  buildCollectionFiles,
+  buildCollectionResponse,
   buildHudFiles,
   buildLeaderboardEmbed,
   buildMiningEmbed,
@@ -141,10 +140,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (name === "包包") {
       await interaction.deferReply({ ephemeral: true });
       const result = await updatePlayer(interaction.user.id, (player) => getPlayer(player));
-      await interaction.editReply({
-        embeds: buildCollectionEmbeds(result),
-        files: buildCollectionFiles(result)
-      });
+      await interaction.editReply(await buildCollectionResponse(result));
       return;
     }
 
@@ -310,12 +306,12 @@ async function handleMiningButton(interaction) {
       const next = getPlayer(player);
       componentPlayer = next;
       embed = null;
-      files = buildCollectionFiles(next);
       return next;
     });
+    const collectionResponse = await buildCollectionResponse(componentPlayer);
     await interaction.editReply({
-      embeds: buildCollectionEmbeds(componentPlayer),
-      files,
+      embeds: collectionResponse.embeds,
+      files: collectionResponse.files,
       attachments: [],
       components: buildPanelComponents(componentTargetId, componentPlayer)
     });

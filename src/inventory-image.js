@@ -18,6 +18,12 @@ const GRID_HEIGHT = PADDING * 2 + HEADER_HEIGHT + ROWS * SLOT_SIZE + (ROWS - 1) 
 const HEIGHT = WIDTH;
 const imageCache = new Map();
 
+const BOOK_COLUMNS = 4;
+const BOOK_SLOT_SIZE = 128;
+const BOOK_GAP = 14;
+const BOOK_PADDING = 24;
+const BOOK_HEADER_HEIGHT = 70;
+
 function escapeXml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -117,7 +123,20 @@ function buildInventorySvg(playerInput) {
 </svg>`;
 }
 
-function buildInventoryPng(playerInput) {
+async function renderSvgBufferToPng(svg) {
+  try {
+    const sharp = require("sharp");
+    return await sharp(Buffer.from(svg)).png().toBuffer();
+  } catch {
+    return renderSvgToPng(svg, "coin-book-");
+  }
+}
+
+async function buildInventoryPng(playerInput) {
+  return renderSvgBufferToPng(buildInventorySvg(playerInput));
+}
+
+function buildLegacyInventoryPng(playerInput) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "coin-bag-"));
   const svgPath = path.join(tempDir, "coin-bag.svg");
   const pngPath = `${svgPath}.png`;
@@ -136,6 +155,75 @@ function buildInventoryPng(playerInput) {
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+}
+
+function buildCoinBookSlot({ index, item, count }) {
+  const column = index % BOOK_COLUMNS;
+  const row = Math.floor(index / BOOK_COLUMNS);
+  const x = BOOK_PADDING + column * (BOOK_SLOT_SIZE + BOOK_GAP);
+  const y = BOOK_PADDING + BOOK_HEADER_HEIGHT + row * (BOOK_SLOT_SIZE + BOOK_GAP);
+  const unlocked = count > 0;
+  const image = unlocked && item.image
+    ? `<image href="${imageToDataUri(item.image)}" x="${x + 14}" y="${y + 8}" width="${BOOK_SLOT_SIZE - 28}" height="${BOOK_SLOT_SIZE - 38}" preserveAspectRatio="xMidYMid meet"/>`
+    : "";
+  const lock = !unlocked
+    ? `<text x="${x + BOOK_SLOT_SIZE / 2}" y="${y + 66}" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="900" fill="#64748b">?</text>`
+    : "";
+  const countBadge = unlocked
+    ? `<rect x="${x + BOOK_SLOT_SIZE - 44}" y="${y + 8}" width="34" height="24" rx="8" fill="#111827" opacity="0.9"/>
+       <text x="${x + BOOK_SLOT_SIZE - 27}" y="${y + 26}" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="900" fill="#fde68a">x${count}</text>`
+    : "";
+  const rarityColor = item.rarity === "傳說"
+    ? "#f59e0b"
+    : item.rarity === "史詩"
+      ? "#a78bfa"
+      : item.rarity === "稀有"
+        ? "#38bdf8"
+        : item.rarity === "除鏽限定"
+          ? "#fb7185"
+          : item.rarity === "商店限定"
+            ? "#22c55e"
+            : "#cbd5e1";
+
+  return `
+    <g>
+      <rect x="${x}" y="${y}" width="${BOOK_SLOT_SIZE}" height="${BOOK_SLOT_SIZE}" rx="12" fill="${unlocked ? "#f8fafc" : "#dbe3eb"}" stroke="${unlocked ? rarityColor : "#94a3b8"}" stroke-width="4"/>
+      <rect x="${x + 7}" y="${y + 7}" width="${BOOK_SLOT_SIZE - 14}" height="${BOOK_SLOT_SIZE - 14}" rx="9" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.62"/>
+      ${image}
+      ${lock}
+      ${countBadge}
+      <text x="${x + BOOK_SLOT_SIZE / 2}" y="${y + BOOK_SLOT_SIZE - 25}" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="900" fill="${unlocked ? "#1f2937" : "#64748b"}">${escapeXml(item.name.slice(0, 10))}</text>
+      <text x="${x + BOOK_SLOT_SIZE / 2}" y="${y + BOOK_SLOT_SIZE - 9}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="800" fill="${rarityColor}">${escapeXml(item.rarity)}</text>
+    </g>
+  `;
+}
+
+function buildCoinBookSvg(playerInput) {
+  const player = getPlayer(playerInput);
+  const collectibles = getCollectibles();
+  const rows = Math.ceil(collectibles.length / BOOK_COLUMNS);
+  const width = BOOK_PADDING * 2 + BOOK_COLUMNS * BOOK_SLOT_SIZE + (BOOK_COLUMNS - 1) * BOOK_GAP;
+  const height = BOOK_PADDING * 2 + BOOK_HEADER_HEIGHT + rows * BOOK_SLOT_SIZE + (rows - 1) * BOOK_GAP;
+  const total = Object.values(player.collection).reduce((sum, count) => sum + count, 0);
+  const unique = collectibles.filter((item) => (player.collection[item.id] || 0) > 0).length;
+  const slots = collectibles.map((item, index) => buildCoinBookSlot({
+    index,
+    item,
+    count: player.collection[item.id] || 0
+  })).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="${width}" height="${height}" rx="22" fill="#111827"/>
+  <rect x="10" y="10" width="${width - 20}" height="${height - 20}" rx="18" fill="#263244" stroke="#64748b" stroke-width="3"/>
+  <text x="${BOOK_PADDING}" y="44" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="#f8fafc">紀念幣集幣冊</text>
+  <text x="${width - BOOK_PADDING}" y="40" text-anchor="end" font-family="Arial, sans-serif" font-size="17" font-weight="800" fill="#fde68a">種類 ${unique}/${collectibles.length}｜總數 ${total}</text>
+  ${slots}
+</svg>`;
+}
+
+async function buildCoinBookPng(playerInput) {
+  return renderSvgBufferToPng(buildCoinBookSvg(playerInput));
 }
 
 function buildSideBagSvg(playerInput) {
@@ -227,7 +315,10 @@ function buildSideBagPng(playerInput) {
 }
 
 module.exports = {
+  buildCoinBookPng,
+  buildCoinBookSvg,
   buildInventoryPng,
+  buildLegacyInventoryPng,
   buildSideBagPng,
   buildInventorySvg
 };
