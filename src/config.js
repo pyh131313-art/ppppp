@@ -68,6 +68,7 @@ const CONFIG = {
   },
   revive: {
     freeAfterMs: 10 * 60 * 1000,
+    rescueRefundAfterMs: 3 * 60 * 1000,
     costGold: 200,
     rescueCostGold: 20
   },

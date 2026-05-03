@@ -448,3 +448,41 @@ test("其他玩家可以花金幣救援死亡玩家", () => {
   assert.equal(result.target.rusty, 0);
   assert.equal(result.target.runMode, null);
 });
+
+test("三分鐘內救援會退回死亡損失金幣", () => {
+  const dead = mine(
+    { ...createPlayer(), gold: 90, bombs: 1, runMode: "double" },
+    () => 0.95,
+    1000
+  ).player;
+  const result = rescuePlayer(
+    { ...createPlayer(), gold: 20 },
+    dead,
+    1000 + 2 * 60 * 1000
+  );
+
+  assert.equal(dead.gold, 30);
+  assert.equal(dead.lastDeathLostGold, 60);
+  assert.equal(result.ok, true);
+  assert.equal(result.target.gold, 90);
+  assert.equal(result.target.lastDeathLostGold, 0);
+  assert.match(result.message, /退回 60/);
+});
+
+test("超過三分鐘救援不退回死亡損失金幣", () => {
+  const dead = mine(
+    { ...createPlayer(), gold: 90, bombs: 1, runMode: "double" },
+    () => 0.95,
+    1000
+  ).player;
+  const result = rescuePlayer(
+    { ...createPlayer(), gold: 20 },
+    dead,
+    1000 + 4 * 60 * 1000
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.target.gold, 30);
+  assert.equal(result.target.lastDeathLostGold, 0);
+  assert.doesNotMatch(result.message, /退回/);
+});

@@ -13,6 +13,7 @@ function createPlayer() {
     bombs: 0,
     dead: false,
     deathAt: null,
+    lastDeathLostGold: 0,
     mines: 0,
     depth: 0,
     ore: 0,
@@ -425,6 +426,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
   const lostGold = applyDeathPenalty(player);
   player.dead = true;
   player.deathAt = now;
+  player.lastDeathLostGold = lostGold;
   player.stats.deaths += 1;
   return {
     dead: true,
@@ -1156,6 +1158,7 @@ function revive(playerInput, now = Date.now()) {
   player.dead = false;
   resetRunState(player);
   player.deathAt = null;
+  player.lastDeathLostGold = 0;
 
   return {
     ok: true,
@@ -1164,7 +1167,7 @@ function revive(playerInput, now = Date.now()) {
   };
 }
 
-function rescuePlayer(rescuerInput, targetInput) {
+function rescuePlayer(rescuerInput, targetInput, now = Date.now()) {
   const rescuer = getPlayer(rescuerInput);
   const target = getPlayer(targetInput);
 
@@ -1186,16 +1189,22 @@ function rescuePlayer(rescuerInput, targetInput) {
     };
   }
 
+  const rescueRefund = target.deathAt && now - target.deathAt <= CONFIG.revive.rescueRefundAfterMs
+    ? target.lastDeathLostGold || 0
+    : 0;
+
   rescuer.gold -= CONFIG.revive.rescueCostGold;
+  target.gold += rescueRefund;
   target.dead = false;
   resetRunState(target);
   target.deathAt = null;
+  target.lastDeathLostGold = 0;
 
   return {
     ok: true,
     rescuer,
     target,
-    message: `救援成功，花費 ${CONFIG.revive.rescueCostGold} 金幣。`
+    message: `救援成功，花費 ${CONFIG.revive.rescueCostGold} 金幣。${rescueRefund > 0 ? `3 分鐘內救起，退回 ${rescueRefund} 枚死亡損失金幣。` : ""}`
   };
 }
 
