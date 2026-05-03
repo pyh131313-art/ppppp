@@ -14,7 +14,13 @@ function createPlayer() {
     deathAt: null,
     mines: 0,
     depth: 0,
-    ore: 0
+    ore: 0,
+    runMode: null,
+    minorBuffs: {
+      gold: 0,
+      bomb: 0
+    },
+    nextBuffDepth: 5
   };
 }
 
@@ -25,6 +31,10 @@ function getPlayer(player) {
   };
   next.collection = {
     ...(player && player.collection ? player.collection : {})
+  };
+  next.minorBuffs = {
+    ...createPlayer().minorBuffs,
+    ...(player && player.minorBuffs ? player.minorBuffs : {})
   };
   return next;
 }
@@ -51,7 +61,17 @@ function getMiningWeights(playerInput) {
   weights.rusty += dangerTier;
   weights.bomb += dangerTier * 4;
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
+  if (player.runMode === "safe") {
+    weights.rusty *= CONFIG.runModes.safe.rustyWeightMultiplier;
+  }
+  weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
   return weights;
+}
+
+function getMaxBombs(playerInput) {
+  const player = getPlayer(playerInput);
+  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  return CONFIG.mining.baseHp + (mode && mode.extraHp ? mode.extraHp : 0);
 }
 
 function getDepthLabel(depth) {
@@ -76,9 +96,94 @@ function getOreAmount(depth, random = Math.random) {
 }
 
 function applyDeathPenalty(player) {
-  const lostGold = Math.ceil(player.gold / 3);
+  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  const multiplier = mode && mode.deathPenaltyMultiplier ? mode.deathPenaltyMultiplier : 1;
+  const lostGold = Math.min(player.gold, Math.ceil((player.gold / 3) * multiplier));
   player.gold = Math.max(0, player.gold - lostGold);
   return lostGold;
+}
+
+function resetRunState(player) {
+  player.rusty = 0;
+  player.ore = 0;
+  player.bombs = 0;
+  player.depth = 0;
+  player.runMode = null;
+  player.minorBuffs = { gold: 0, bomb: 0 };
+  player.nextBuffDepth = 5;
+}
+
+function getRunModeLabel(playerInput) {
+  const player = getPlayer(playerInput);
+  return player.runMode && CONFIG.runModes[player.runMode]
+    ? CONFIG.runModes[player.runMode].label
+    : "尚未選擇";
+}
+
+function chooseRunMode(playerInput, mode) {
+  const player = getPlayer(playerInput);
+  const config = CONFIG.runModes[mode];
+
+  if (!config) {
+    return {
+      ok: false,
+      player,
+      message: "沒有這個下礦方式。"
+    };
+  }
+
+  if (player.depth > 0 || player.ore > 0 || player.rusty > 0 || player.bombs > 0) {
+    return {
+      ok: false,
+      player,
+      message: "已經在礦坑裡了，返回地面後才能重新選擇下礦方式。"
+    };
+  }
+
+  player.runMode = mode;
+  player.minorBuffs = { gold: 0, bomb: 0 };
+  player.nextBuffDepth = 5;
+
+  return {
+    ok: true,
+    player,
+    message: `已選擇 ${config.label}。可以開始深入挖礦。`
+  };
+}
+
+function canChooseMinorBuff(playerInput) {
+  const player = getPlayer(playerInput);
+  return !player.dead && player.depth >= player.nextBuffDepth;
+}
+
+function chooseMinorBuff(playerInput, buff) {
+  const player = getPlayer(playerInput);
+  const config = CONFIG.minorBuffs[buff];
+
+  if (!config) {
+    return {
+      ok: false,
+      player,
+      message: "沒有這個小磁條。"
+    };
+  }
+
+  if (!canChooseMinorBuff(player)) {
+    return {
+      ok: false,
+      player,
+      message: `還不能選小磁條。每 5 層可選一次，下一次在第 ${player.nextBuffDepth} 層。`
+    };
+  }
+
+  player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
+  player.nextBuffDepth += 5;
+
+  return {
+    ok: true,
+    player,
+    message: `已裝上 ${config.label}。下一次小磁條在第 ${player.nextBuffDepth} 層。`
+  };
 }
 
 function getCollectibles() {
@@ -153,12 +258,23 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     };
   }
 
+  if (!player.runMode) {
+    return {
+      kind: "blocked",
+      player,
+      title: "選擇下礦方式",
+      message: "下礦前請先選擇：雙倍採集，或安全血量。"
+    };
+  }
+
   player.mines += 1;
   player.depth += 1;
   const result = rollWeighted(getMiningWeights(player), random);
+  const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
+  const goldMultiplier = 1 + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus;
 
   if (result === "gold") {
-    const amount = getGoldAmount(player.depth, random);
+    const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier));
     player.gold += amount;
     return {
       kind: "gold",
@@ -169,7 +285,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
   }
 
   if (result === "ore") {
-    const amount = getOreAmount(player.depth, random);
+    const amount = getOreAmount(player.depth, random) * gatherMultiplier;
     player.ore += amount;
     return {
       kind: "ore",
@@ -203,7 +319,8 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
   if (result === "bomb") {
     player.bombs += 1;
-    if (player.bombs >= 2) {
+    const maxBombs = getMaxBombs(player);
+    if (player.bombs >= maxBombs) {
       const lostGold = applyDeathPenalty(player);
       player.dead = true;
       player.deathAt = now;
@@ -211,7 +328,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "dead",
         player,
         title: "爆炸",
-        message: `你第二次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣使用 \`/復活\`。`
+        message: `你第 ${player.bombs} 次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。`
       };
     }
 
@@ -219,7 +336,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "bomb",
       player,
       title: "挖到炸彈",
-      message: "你被炸傷了。炸彈次數 1/2，再挖到一次炸彈就會死亡。"
+      message: `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。`
     };
   }
 
@@ -385,8 +502,7 @@ function returnToSurface(playerInput) {
   player.rusty = 0;
   player.ore = 0;
   player.gold += oreGold;
-  player.bombs = 0;
-  player.depth = 0;
+  resetRunState(player);
 
   return {
     ok: true,
@@ -550,16 +666,48 @@ function revive(playerInput, now = Date.now()) {
 
   if (!canFreeRevive) player.gold -= CONFIG.revive.costGold;
   player.dead = false;
-  player.bombs = 0;
-  player.depth = 0;
-  player.rusty = 0;
-  player.ore = 0;
+  resetRunState(player);
   player.deathAt = null;
 
   return {
     ok: true,
     player,
     message: canFreeRevive ? "你已免費復活，炸彈次數歸零。" : `你花費 ${CONFIG.revive.costGold} 金幣復活，炸彈次數歸零。`
+  };
+}
+
+function rescuePlayer(rescuerInput, targetInput) {
+  const rescuer = getPlayer(rescuerInput);
+  const target = getPlayer(targetInput);
+
+  if (!target.dead) {
+    return {
+      ok: false,
+      rescuer,
+      target,
+      message: "對方目前沒有死亡，不需要救援。"
+    };
+  }
+
+  if (rescuer.gold < CONFIG.revive.rescueCostGold) {
+    return {
+      ok: false,
+      rescuer,
+      target,
+      message: `救援需要 ${CONFIG.revive.rescueCostGold} 金幣，你目前只有 ${rescuer.gold} 金幣。`
+    };
+  }
+
+  rescuer.gold -= CONFIG.revive.rescueCostGold;
+  target.dead = false;
+  resetRunState(target);
+  target.deathAt = null;
+
+  return {
+    ok: true,
+    rescuer,
+    target,
+    message: `救援成功，花費 ${CONFIG.revive.rescueCostGold} 金幣。`
   };
 }
 
@@ -572,7 +720,9 @@ function formatInventory(playerInput) {
     `收藏紀念幣：${getCollectionTotal(player)} 枚`,
     `包包格數：${getBagUsedSlots(player)}/${BAG_CAPACITY}`,
     `深度：${player.depth}（${getDepthLabel(player.depth)}）`,
-    `炸彈次數：${player.bombs}/2`,
+    `下礦方式：${getRunModeLabel(player)}`,
+    `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
+    `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
     `狀態：${player.dead ? "死亡" : "存活"}`,
     `挖礦次數：${player.mines}`
   ].join("\n");
@@ -608,6 +758,9 @@ module.exports = {
   awardCollectible,
   awardRustCollectible,
   buyShopItem,
+  canChooseMinorBuff,
+  chooseMinorBuff,
+  chooseRunMode,
   createPlayer,
   discardItem,
   exchange,
@@ -622,11 +775,14 @@ module.exports = {
   getCollectionTotal,
   getCollectionUniqueCount,
   getDepthLabel,
+  getMaxBombs,
   getPlayer,
   getRustCollectibles,
+  getRunModeLabel,
   getShopItems,
   mine,
   removeRust,
+  rescuePlayer,
   returnToSurface,
   revive,
   rollWeighted,

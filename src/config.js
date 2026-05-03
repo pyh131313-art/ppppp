@@ -2,12 +2,35 @@
 
 const CONFIG = {
   mining: {
+    baseHp: 2,
     weights: {
       gold: 48,
       ore: 16,
       rusty: 6,
       empty: 20,
       bomb: 10
+    }
+  },
+  runModes: {
+    double: {
+      label: "雙倍採集",
+      gatherMultiplier: 2,
+      deathPenaltyMultiplier: 2
+    },
+    safe: {
+      label: "安全血量",
+      extraHp: 2,
+      rustyWeightMultiplier: 0.5
+    }
+  },
+  minorBuffs: {
+    gold: {
+      label: "金幣磁條",
+      goldMultiplierBonus: 0.05
+    },
+    bomb: {
+      label: "防爆磁條",
+      bombWeightMultiplier: 0.95
     }
   },
   ore: {
@@ -33,7 +56,8 @@ const CONFIG = {
   },
   revive: {
     freeAfterMs: 10 * 60 * 1000,
-    costGold: 200
+    costGold: 30,
+    rescueCostGold: 20
   },
   collectibles: [
     {

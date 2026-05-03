@@ -5,19 +5,23 @@ const assert = require("node:assert/strict");
 
 const {
   buyShopItem,
+  chooseMinorBuff,
+  chooseRunMode,
   createPlayer,
   discardItem,
   exchange,
   getCollectionTotal,
   mine,
   removeRust,
+  rescuePlayer,
   returnToSurface,
   revive,
   transferCollectible
 } = require("../src/game");
 
 test("挖到兩次炸彈會死亡", () => {
-  const first = mine(createPlayer(), () => 0.95, 1000).player;
+  const start = chooseRunMode(createPlayer(), "double").player;
+  const first = mine(start, () => 0.95, 1000).player;
   assert.equal(first.bombs, 1);
   assert.equal(first.dead, false);
 
@@ -28,7 +32,7 @@ test("挖到兩次炸彈會死亡", () => {
 
 test("炸彈死亡會損失三分之一金幣", () => {
   const result = mine(
-    { ...createPlayer(), gold: 30, bombs: 1 },
+    { ...createPlayer(), gold: 30, bombs: 3, runMode: "safe" },
     () => 0.95,
     1000
   );
@@ -54,7 +58,8 @@ test("可以丟棄生鏽紀念幣和正式紀念幣", () => {
 });
 
 test("生鏽紀念幣一次只會掉一枚", () => {
-  const result = mine(createPlayer(), () => 0.66);
+  const start = chooseRunMode(createPlayer(), "double").player;
+  const result = mine(start, () => 0.66);
 
   assert.equal(result.kind, "rusty");
   assert.equal(result.player.rusty, 1);
@@ -62,13 +67,53 @@ test("生鏽紀念幣一次只會掉一枚", () => {
 
 test("礦石返回地面會自動換成金幣", () => {
   const rolls = [0.5, 0.5];
-  const mined = mine(createPlayer(), () => rolls.shift() ?? 0);
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const mined = mine(start, () => rolls.shift() ?? 0);
   const result = returnToSurface(mined.player);
 
   assert.equal(mined.kind, "ore");
   assert.equal(mined.player.ore, 2);
   assert.equal(result.player.ore, 0);
   assert.equal(result.player.gold, 16);
+});
+
+test("下礦前需要先二選一", () => {
+  const result = mine(createPlayer(), () => 0);
+
+  assert.equal(result.kind, "blocked");
+  assert.equal(result.player.depth, 0);
+});
+
+test("雙倍採集會加倍礦石但死亡損失雙倍金幣", () => {
+  const start = chooseRunMode({ ...createPlayer(), gold: 30 }, "double").player;
+  const ore = mine(start, () => 0.5).player;
+  const dead = mine({ ...ore, bombs: 1 }, () => 0.95, 1000);
+
+  assert.equal(ore.ore, 4);
+  assert.equal(dead.player.dead, true);
+  assert.equal(dead.player.gold, 10);
+});
+
+test("安全血量會讓生命增加二", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const first = mine(start, () => 0.95, 1000).player;
+  const second = mine(first, () => 0.95, 2000).player;
+  const third = mine(second, () => 0.95, 3000).player;
+
+  assert.equal(third.bombs, 3);
+  assert.equal(third.dead, false);
+});
+
+test("每五層可以選一個小磁條", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 5
+  };
+  const result = chooseMinorBuff(player, "gold");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.minorBuffs.gold, 1);
+  assert.equal(result.player.nextBuffDepth, 10);
 });
 
 test("金幣可以兌換收藏紀念幣", () => {
@@ -203,4 +248,19 @@ test("死亡十分鐘後可以免費復活", () => {
   assert.equal(result.player.dead, false);
   assert.equal(result.player.bombs, 0);
   assert.equal(result.player.gold, 0);
+});
+
+test("其他玩家可以花金幣救援死亡玩家", () => {
+  const result = rescuePlayer(
+    { ...createPlayer(), gold: 20 },
+    { ...createPlayer(), dead: true, bombs: 2, ore: 3, rusty: 1, runMode: "double" }
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.rescuer.gold, 0);
+  assert.equal(result.target.dead, false);
+  assert.equal(result.target.bombs, 0);
+  assert.equal(result.target.ore, 0);
+  assert.equal(result.target.rusty, 0);
+  assert.equal(result.target.runMode, null);
 });

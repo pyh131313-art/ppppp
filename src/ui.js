@@ -15,19 +15,26 @@ const {
   getCollectionUniqueCount,
   getBagUsedSlots,
   getDepthLabel,
+  getMaxBombs,
   getPlayer,
+  getRunModeLabel,
   getShopItems
 } = require("./game");
 
 const CUSTOM_IDS = {
   mine: "mine_ui:mine",
+  modeDouble: "mine_ui:mode_double",
+  modeSafe: "mine_ui:mode_safe",
+  buffGold: "mine_ui:buff_gold",
+  buffBomb: "mine_ui:buff_bomb",
   bag: "mine_ui:bag",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyOne: "mine_ui:shop_buy_one",
   rustOne: "mine_ui:rust_one",
   discardRustOne: "mine_ui:discard_rust_one",
   returnSurface: "mine_ui:return_surface",
-  revive: "mine_ui:revive"
+  revive: "mine_ui:revive",
+  rescuePrefix: "mine_ui:rescue"
 };
 
 const FAST_MODE = process.env.FAST_MODE !== "false";
@@ -52,11 +59,14 @@ function getDepth(mines) {
 
 function buildQuickStatus(playerInput) {
   const player = getPlayer(playerInput);
-  const hp = player.dead ? 0 : 2 - player.bombs;
+  const maxHp = getMaxBombs(player);
+  const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   return [
     `金幣 ${player.gold}`,
     `礦石 ${player.ore}`,
-    `生命 ${"♥".repeat(hp)}${".".repeat(2 - hp)} ${hp}/2`,
+    `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
+    `方式 ${getRunModeLabel(player)}`,
+    `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
     `深度 ${player.depth}｜${getDepthLabel(player.depth)}`
   ];
 }
@@ -220,15 +230,25 @@ function makeButton(customId, label, style = ButtonStyle.Secondary, emoji = null
   return button;
 }
 
-function buildPanelComponents() {
+function buildPanelComponents(targetUserId = null) {
+  const rescueId = targetUserId
+    ? `${CUSTOM_IDS.rescuePrefix}:${targetUserId}`
+    : `${CUSTOM_IDS.rescuePrefix}:none`;
   return [
     new ActionRowBuilder().addComponents(
+      makeButton(CUSTOM_IDS.modeDouble, "雙倍採集", ButtonStyle.Secondary, "⚡"),
+      makeButton(CUSTOM_IDS.modeSafe, "安全血量", ButtonStyle.Secondary, "🛡️"),
       makeButton(CUSTOM_IDS.mine, "深入挖礦", ButtonStyle.Primary, "⛏️"),
-      makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
-      makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-      makeButton(CUSTOM_IDS.revive, "復活", ButtonStyle.Success, "💚")
+      makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠")
     ),
     new ActionRowBuilder().addComponents(
+      makeButton(CUSTOM_IDS.buffGold, "金幣磁條", ButtonStyle.Secondary, "🧲"),
+      makeButton(CUSTOM_IDS.buffBomb, "防爆磁條", ButtonStyle.Secondary, "🧲"),
+      makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
+      makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚")
+    ),
+    new ActionRowBuilder().addComponents(
+      makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
       makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"),
       makeButton(CUSTOM_IDS.shopBuyOne, "商店購買", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
@@ -238,7 +258,7 @@ function buildPanelComponents() {
 }
 
 function isMiningUiButton(customId) {
-  return Object.values(CUSTOM_IDS).includes(customId);
+  return customId.startsWith("mine_ui:");
 }
 
 module.exports = {
