@@ -55,6 +55,7 @@ function buildQuickStatus(playerInput) {
   const hp = player.dead ? 0 : 2 - player.bombs;
   return [
     `金幣 ${player.gold}`,
+    `礦石 ${player.ore}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(2 - hp)} ${hp}/2`,
     `深度 ${player.depth}｜${getDepthLabel(player.depth)}`
   ];
@@ -79,6 +80,7 @@ function getBagSlots(playerInput) {
 function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
+    ore: "⛏️",
     rusty: "🟤",
     bomb: "💣",
     dead: "💥",
@@ -92,6 +94,7 @@ function getResultEmoji(kind) {
 function getResultLabel(kind) {
   const map = {
     gold: "金幣",
+    ore: "礦石",
     rusty: "生鏽紀念幣",
     bomb: "炸彈",
     dead: "爆炸",

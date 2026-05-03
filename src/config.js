@@ -3,33 +3,37 @@
 const CONFIG = {
   mining: {
     weights: {
-      gold: 56,
-      rusty: 8,
-      empty: 26,
+      gold: 48,
+      ore: 16,
+      rusty: 6,
+      empty: 20,
       bomb: 10
     }
   },
+  ore: {
+    goldPerOre: 8
+  },
   exchange: {
-    goldPerCommemorative: 10
+    goldPerCommemorative: 100
   },
   shop: {
     items: [
       {
         id: "zhongkui_peace",
-        priceGold: 80
+        priceGold: 800
       }
     ]
   },
   rustRemoval: {
     default: {
       label: "除鏽",
-      costGold: 15,
+      costGold: 150,
       successRate: 0.45
     }
   },
   revive: {
     freeAfterMs: 10 * 60 * 1000,
-    costGold: 20
+    costGold: 200
   },
   collectibles: [
     {

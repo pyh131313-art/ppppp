@@ -53,8 +53,26 @@ test("可以丟棄生鏽紀念幣和正式紀念幣", () => {
   assert.equal(second.player.collection.nina_hot_water, undefined);
 });
 
+test("生鏽紀念幣一次只會掉一枚", () => {
+  const result = mine(createPlayer(), () => 0.66);
+
+  assert.equal(result.kind, "rusty");
+  assert.equal(result.player.rusty, 1);
+});
+
+test("礦石返回地面會自動換成金幣", () => {
+  const rolls = [0.5, 0.5];
+  const mined = mine(createPlayer(), () => rolls.shift() ?? 0);
+  const result = returnToSurface(mined.player);
+
+  assert.equal(mined.kind, "ore");
+  assert.equal(mined.player.ore, 2);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.gold, 16);
+});
+
 test("金幣可以兌換收藏紀念幣", () => {
-  const result = exchange({ ...createPlayer(), gold: 20 }, 2, () => 0);
+  const result = exchange({ ...createPlayer(), gold: 200 }, 2, () => 0);
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 0);
@@ -63,7 +81,7 @@ test("金幣可以兌換收藏紀念幣", () => {
 });
 
 test("金幣鑄造不會抽到除鏽限定紀念幣", () => {
-  const result = exchange({ ...createPlayer(), gold: 20 }, 2, () => 0.99);
+  const result = exchange({ ...createPlayer(), gold: 200 }, 2, () => 0.99);
 
   assert.equal(result.ok, true);
   assert.equal(result.player.collection.rose_smirk, 2);
@@ -71,7 +89,7 @@ test("金幣鑄造不會抽到除鏽限定紀念幣", () => {
 });
 
 test("商店限定紀念幣只能用金幣購買", () => {
-  const result = buyShopItem({ ...createPlayer(), gold: 80 }, "zhongkui_peace", 1);
+  const result = buyShopItem({ ...createPlayer(), gold: 800 }, "zhongkui_peace", 1);
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 0);
@@ -80,7 +98,7 @@ test("商店限定紀念幣只能用金幣購買", () => {
 
 test("除鏽成功會增加收藏紀念幣", () => {
   const result = removeRust(
-    { ...createPlayer(), gold: 30, rusty: 2 },
+    { ...createPlayer(), gold: 300, rusty: 2 },
     2,
     () => 0
   );
@@ -93,7 +111,7 @@ test("除鏽成功會增加收藏紀念幣", () => {
 test("除鏽成功可以抽到除鏽限定紀念幣", () => {
   const rolls = [0, 0.99];
   const result = removeRust(
-    { ...createPlayer(), gold: 15, rusty: 1 },
+    { ...createPlayer(), gold: 150, rusty: 1 },
     1,
     () => rolls.shift() ?? 0
   );
@@ -104,7 +122,7 @@ test("除鏽成功可以抽到除鏽限定紀念幣", () => {
 
 test("除鏽失敗會消耗金幣和生鏽紀念幣", () => {
   const result = removeRust(
-    { ...createPlayer(), gold: 15, rusty: 1 },
+    { ...createPlayer(), gold: 150, rusty: 1 },
     1,
     () => 0.99
   );
@@ -163,11 +181,14 @@ test("返回地面會清除本次生鏽幣、深度與炸彈", () => {
   const result = returnToSurface({
     ...createPlayer(),
     rusty: 3,
+    ore: 2,
     bombs: 1,
     depth: 5
   });
 
   assert.equal(result.player.rusty, 0);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.gold, 16);
   assert.equal(result.player.bombs, 0);
   assert.equal(result.player.depth, 0);
 });

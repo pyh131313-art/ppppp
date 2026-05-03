@@ -38,6 +38,7 @@ function imageToDataUri(relativePath) {
 function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
+    ore: "⛏️",
     rusty: "🟤",
     bomb: "💣",
     dead: "💥",
@@ -146,7 +147,8 @@ function buildHudSvg(playerInput, outcome = null) {
 
   <rect x="68" y="420" width="410" height="52" rx="12" fill="#27272a"/>
   <text x="92" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#fde68a">金幣 ${player.gold}</text>
-  <text x="228" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#fecaca">生命 ${"♥".repeat(hp)}${".".repeat(2 - hp)} ${hp}/2</text>
+  <text x="220" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#cbd5e1">礦石 ${player.ore}</text>
+  <text x="348" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#fecaca">生命 ${"♥".repeat(hp)}${".".repeat(2 - hp)} ${hp}/2</text>
 
   <rect x="562" y="42" width="150" height="650" rx="18" fill="#334155" stroke="#64748b" stroke-width="3"/>
   <text x="637" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#f8fafc">包包 ${used}/12</text>

@@ -13,7 +13,8 @@ function createPlayer() {
     dead: false,
     deathAt: null,
     mines: 0,
-    depth: 0
+    depth: 0,
+    ore: 0
   };
 }
 
@@ -46,7 +47,8 @@ function getMiningWeights(playerInput) {
   const dangerTier = Math.min(4, Math.floor(player.depth / 3));
   const weights = { ...CONFIG.mining.weights };
   weights.gold = Math.max(32, weights.gold - dangerTier * 2);
-  weights.rusty += dangerTier * 2;
+  weights.ore += dangerTier * 3;
+  weights.rusty += dangerTier;
   weights.bomb += dangerTier * 4;
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
   return weights;
@@ -66,6 +68,11 @@ function getDepthBonus(depth) {
 function getGoldAmount(depth, random = Math.random) {
   const bonus = getDepthBonus(depth);
   return 1 + bonus + Math.floor(random() * (3 + bonus * 2));
+}
+
+function getOreAmount(depth, random = Math.random) {
+  const bonus = getDepthBonus(depth);
+  return 1 + Math.floor(random() * (2 + bonus));
 }
 
 function applyDeathPenalty(player) {
@@ -161,9 +168,19 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     };
   }
 
+  if (result === "ore") {
+    const amount = getOreAmount(player.depth, random);
+    player.ore += amount;
+    return {
+      kind: "ore",
+      player,
+      title: "挖到礦石",
+      message: `你挖到了 ${amount} 塊礦石。返回地面時會自動換成金幣。`
+    };
+  }
+
   if (result === "rusty") {
-    const bonus = getDepthBonus(player.depth);
-    const amount = 1 + Math.floor(random() * (2 + bonus));
+    const amount = 1;
     const freeSlots = getBagFreeSlots(player);
     if (freeSlots <= 0) {
       return {
@@ -194,7 +211,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
         kind: "dead",
         player,
         title: "爆炸",
-        message: `你第二次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 20 金幣使用 \`/復活\`。`
+        message: `你第二次挖到炸彈，死亡了，損失 ${lostGold} 枚金幣。可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣使用 \`/復活\`。`
       };
     }
 
@@ -360,17 +377,21 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
 function returnToSurface(playerInput) {
   const player = getPlayer(playerInput);
   const lostRusty = player.rusty;
+  const soldOre = player.ore;
+  const oreGold = soldOre * CONFIG.ore.goldPerOre;
   const clearedBombs = player.bombs;
   const depth = player.depth;
 
   player.rusty = 0;
+  player.ore = 0;
+  player.gold += oreGold;
   player.bombs = 0;
   player.depth = 0;
 
   return {
     ok: true,
     player,
-    message: `已返回地面。深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
   };
 }
 
@@ -532,6 +553,7 @@ function revive(playerInput, now = Date.now()) {
   player.bombs = 0;
   player.depth = 0;
   player.rusty = 0;
+  player.ore = 0;
   player.deathAt = null;
 
   return {
@@ -545,6 +567,7 @@ function formatInventory(playerInput) {
   const player = getPlayer(playerInput);
   return [
     `金幣：${player.gold}`,
+    `礦石：${player.ore}`,
     `生鏽紀念幣：${player.rusty}`,
     `收藏紀念幣：${getCollectionTotal(player)} 枚`,
     `包包格數：${getBagUsedSlots(player)}/${BAG_CAPACITY}`,
