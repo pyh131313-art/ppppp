@@ -80,7 +80,7 @@ test("商店限定紀念幣只能用金幣購買", () => {
 
 test("除鏽成功會增加收藏紀念幣", () => {
   const result = removeRust(
-    { ...createPlayer(), gold: 10, rusty: 2 },
+    { ...createPlayer(), gold: 30, rusty: 2 },
     2,
     () => 0
   );
@@ -93,13 +93,27 @@ test("除鏽成功會增加收藏紀念幣", () => {
 test("除鏽成功可以抽到除鏽限定紀念幣", () => {
   const rolls = [0, 0.99];
   const result = removeRust(
-    { ...createPlayer(), gold: 5, rusty: 1 },
+    { ...createPlayer(), gold: 15, rusty: 1 },
     1,
     () => rolls.shift() ?? 0
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.player.collection.rose_rust_scratch, 1);
+});
+
+test("除鏽失敗會消耗金幣和生鏽紀念幣", () => {
+  const result = removeRust(
+    { ...createPlayer(), gold: 15, rusty: 1 },
+    1,
+    () => 0.99
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.gold, 0);
+  assert.equal(result.player.rusty, 0);
+  assert.equal(getCollectionTotal(result.player), 0);
+  assert.match(result.message, /損壞 1 枚/);
 });
 
 test("可以把正式紀念幣交易給其他玩家", () => {

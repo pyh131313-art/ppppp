@@ -3,9 +3,9 @@
 const CONFIG = {
   mining: {
     weights: {
-      gold: 52,
-      rusty: 16,
-      empty: 22,
+      gold: 56,
+      rusty: 8,
+      empty: 26,
       bomb: 10
     }
   },
@@ -23,8 +23,8 @@ const CONFIG = {
   rustRemoval: {
     default: {
       label: "除鏽",
-      costGold: 5,
-      successRate: 0.7
+      costGold: 15,
+      successRate: 0.45
     }
   },
   revive: {
