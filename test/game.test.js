@@ -10,10 +10,12 @@ const {
   createPlayer,
   depositBank,
   discardItem,
+  ensureRunModeOptions,
   exchange,
   getBagCapacity,
   getCollectionTotal,
   getBagUsedSlots,
+  getRunModeOptions,
   mine,
   removeRust,
   resolveRandomEvent,
@@ -296,6 +298,33 @@ test("下礦前需要先二選一", () => {
 
   assert.equal(result.kind, "blocked");
   assert.equal(result.player.depth, 0);
+});
+
+test("地表會刷新兩個初始詞條並只能選本輪出現的", () => {
+  const player = ensureRunModeOptions(createPlayer(), () => 0.99);
+  const options = getRunModeOptions(player).map((option) => option.id);
+  const blocked = chooseRunMode(player, "double");
+  const chosen = chooseRunMode(player, options[0]);
+
+  assert.equal(options.length, 2);
+  assert.deepEqual(options, ["bombProof", "bigBag"]);
+  assert.equal(blocked.ok, false);
+  assert.equal(chosen.ok, true);
+  assert.equal(chosen.player.runMode, "bombProof");
+  assert.deepEqual(chosen.player.runModeOptions, []);
+});
+
+test("返回地面會刷新下一輪初始詞條", () => {
+  const result = returnToSurface(
+    {
+      ...chooseRunMode(createPlayer(), "safe").player,
+      depth: 3
+    },
+    () => 0.99
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.player.runModeOptions, ["bombProof", "bigBag"]);
 });
 
 test("雙倍採集會加倍礦石但死亡損失雙倍金幣", () => {

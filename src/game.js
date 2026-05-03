@@ -25,6 +25,7 @@ function createPlayer() {
     greenGem: 0,
     platinumJunk: 0,
     runMode: null,
+    runModeOptions: [],
     caveType: null,
     minorBuffs: {
       gold: 0,
@@ -54,6 +55,9 @@ function getPlayer(player) {
     ...createPlayer().minorBuffs,
     ...(player && player.minorBuffs ? player.minorBuffs : {})
   };
+  next.runModeOptions = Array.isArray(player && player.runModeOptions)
+    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
+    : [];
   next.stats = {
     ...createPlayer().stats,
     ...(player && player.stats ? player.stats : {})
@@ -77,6 +81,7 @@ function rollWeighted(weights, random = Math.random) {
 function getMiningWeights(playerInput) {
   const player = getPlayer(playerInput);
   const dangerTier = Math.min(4, Math.floor(player.depth / 3));
+  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
   const weights = { ...CONFIG.mining.weights };
   weights.gold = Math.max(32, weights.gold - dangerTier * 2);
   weights.ore += dangerTier * 3;
@@ -85,9 +90,8 @@ function getMiningWeights(playerInput) {
   weights.rusty += dangerTier;
   weights.bomb += dangerTier * 4;
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
-  if (player.runMode === "safe") {
-    weights.rusty *= CONFIG.runModes.safe.rustyWeightMultiplier;
-  }
+  if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
+  if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
   weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
   return weights;
 }
@@ -146,7 +150,40 @@ function isInMine(playerInput) {
   );
 }
 
-function resetRunState(player) {
+function getRunModeIds() {
+  return Object.keys(CONFIG.runModes);
+}
+
+function refreshRunModeOptions(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const pool = getRunModeIds();
+  const options = [];
+  while (options.length < 2 && pool.length > 0) {
+    const index = Math.floor(random() * pool.length);
+    options.push(pool.splice(index, 1)[0]);
+  }
+  player.runModeOptions = options;
+  return player;
+}
+
+function getRunModeOptions(playerInput) {
+  const player = getPlayer(playerInput);
+  const ids = player.runModeOptions.length >= 2 ? player.runModeOptions : getRunModeIds().slice(0, 2);
+  return ids
+    .map((id) => ({
+      id,
+      ...CONFIG.runModes[id]
+    }))
+    .filter((mode) => mode.label);
+}
+
+function ensureRunModeOptions(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  if (player.runMode || player.dead || player.runModeOptions.length >= 2) return player;
+  return refreshRunModeOptions(player, random);
+}
+
+function resetRunState(player, random = Math.random) {
   player.rusty = 0;
   player.ore = 0;
   player.goldOre = 0;
@@ -165,6 +202,7 @@ function resetRunState(player) {
   player.pendingEvent = null;
   player.nextEventDepth = 4;
   player.bagBonusSlots = 0;
+  player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
 }
 
 function getRunModeLabel(playerInput) {
@@ -253,13 +291,23 @@ function chooseRunMode(playerInput, mode, random = null) {
     };
   }
 
+  const options = getRunModeOptions(player).map((option) => option.id);
+  if (!options.includes(mode)) {
+    return {
+      ok: false,
+      player,
+      message: "這個初始詞條這輪沒有出現，請從目前顯示的兩個詞條選一個。"
+    };
+  }
+
   player.runMode = mode;
+  player.runModeOptions = [];
   player.caveType = random && random() < CONFIG.mining.gemCaveChance ? "gem" : "normal";
   player.minorBuffs = { gold: 0, bomb: 0 };
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
-  player.bagBonusSlots = 0;
+  player.bagBonusSlots = config.bagBonusSlots || 0;
 
   return {
     ok: true,
@@ -472,7 +520,8 @@ function getGemAmount(depth, random = Math.random) {
 
 function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "") {
   const result = rollWeighted(CONFIG.mining.gemWeights, random);
-  const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
+  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
 
   if (result === "redGem" || result === "blueGem" || result === "greenGem") {
     const amount = getGemAmount(player.depth, random) * gatherMultiplier;
@@ -571,7 +620,7 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       kind: "blocked",
       player,
       title: "選擇下礦方式",
-      message: "下礦前請先選擇：雙倍採集，或安全血量。"
+      message: "下礦前請先從目前顯示的兩個初始詞條中選一個。"
     };
   }
 
@@ -583,8 +632,11 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
     return mineGemCave(player, random, now, recordMessage);
   }
   const result = rollWeighted(getMiningWeights(player), random);
-  const gatherMultiplier = player.runMode === "double" ? CONFIG.runModes.double.gatherMultiplier : 1;
-  const goldMultiplier = 1 + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus;
+  const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
+  const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
+  const goldMultiplier = 1
+    + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
+    + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
 
   if (result === "gold") {
     const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier));
@@ -1105,7 +1157,7 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
   };
 }
 
-function returnToSurface(playerInput) {
+function returnToSurface(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const lostRusty = player.rusty;
   const soldOre = player.ore;
@@ -1133,7 +1185,7 @@ function returnToSurface(playerInput) {
   player.blueGem = 0;
   player.greenGem = 0;
   player.gold += oreGold + goldOreGold + platinumOreGold + gemGold;
-  resetRunState(player);
+  resetRunState(player, random);
 
   return {
     ok: true,
@@ -1264,7 +1316,7 @@ function transferCollectible(fromInput, toInput, itemId, amount = 1, gold = 0) {
   };
 }
 
-function revive(playerInput, now = Date.now()) {
+function revive(playerInput, now = Date.now(), random = Math.random) {
   const player = getPlayer(playerInput);
   if (!player.dead) {
     return {
@@ -1289,7 +1341,7 @@ function revive(playerInput, now = Date.now()) {
 
   if (!canFreeRevive) player.gold -= CONFIG.revive.costGold;
   player.dead = false;
-  resetRunState(player);
+  resetRunState(player, random);
   player.deathAt = null;
   player.lastDeathLostGold = 0;
 
@@ -1300,7 +1352,7 @@ function revive(playerInput, now = Date.now()) {
   };
 }
 
-function rescuePlayer(rescuerInput, targetInput, now = Date.now()) {
+function rescuePlayer(rescuerInput, targetInput, now = Date.now(), random = Math.random) {
   const rescuer = getPlayer(rescuerInput);
   const target = getPlayer(targetInput);
 
@@ -1329,7 +1381,7 @@ function rescuePlayer(rescuerInput, targetInput, now = Date.now()) {
   rescuer.gold -= CONFIG.revive.rescueCostGold;
   target.gold += rescueRefund;
   target.dead = false;
-  resetRunState(target);
+  resetRunState(target, random);
   target.deathAt = null;
   target.lastDeathLostGold = 0;
 
@@ -1402,6 +1454,7 @@ module.exports = {
   createPlayer,
   depositBank,
   discardItem,
+  ensureRunModeOptions,
   exchange,
   formatCollection,
   formatInventory,
@@ -1421,6 +1474,7 @@ module.exports = {
   getRandomEvent,
   getRandomEvents,
   getRustCollectibles,
+  getRunModeOptions,
   getRunModeLabel,
   getShopItems,
   mine,

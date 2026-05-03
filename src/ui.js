@@ -21,12 +21,14 @@ const {
   getMaxBombs,
   getPlayer,
   getRandomEvent,
+  getRunModeOptions,
   getRunModeLabel,
   getShopItems
 } = require("./game");
 
 const CUSTOM_IDS = {
   mine: "mine_ui:mine",
+  modePrefix: "mine_ui:mode",
   modeDouble: "mine_ui:mode_double",
   modeSafe: "mine_ui:mode_safe",
   buffGold: "mine_ui:buff_gold",
@@ -484,8 +486,9 @@ function buildPanelComponents(targetUserId = null, playerInput = null) {
 
   if (onSurface) {
     addRow(
-      makeButton(CUSTOM_IDS.modeDouble, "雙倍採集", ButtonStyle.Secondary, "⚡"),
-      makeButton(CUSTOM_IDS.modeSafe, "安全血量", ButtonStyle.Secondary, "🛡️")
+      ...getRunModeOptions(player).map((mode) => (
+        makeButton(`${CUSTOM_IDS.modePrefix}:${mode.id}`, mode.label, ButtonStyle.Secondary, "🎴")
+      ))
     );
     addRow(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),

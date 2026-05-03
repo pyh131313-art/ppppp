@@ -32,6 +32,18 @@ const CONFIG = {
       label: "安全血量",
       extraHp: 2,
       rustyWeightMultiplier: 0.5
+    },
+    goldRush: {
+      label: "淘金熱",
+      goldMultiplierBonus: 0.35
+    },
+    bigBag: {
+      label: "大背包",
+      bagBonusSlots: 4
+    },
+    bombProof: {
+      label: "防爆外套",
+      bombWeightMultiplier: 0.75
     }
   },
   minorBuffs: {

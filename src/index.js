@@ -12,6 +12,7 @@ const {
   exchange,
   formatShop,
   formatInventory,
+  ensureRunModeOptions,
   getPlayer,
   getShopItems,
   mine,
@@ -105,7 +106,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "礦場") {
       await interaction.deferReply();
-      const player = await updatePlayer(interaction.user.id, (current) => getPlayer(current));
+      const player = await updatePlayer(interaction.user.id, (current) => ensureRunModeOptions(current, Math.random));
       await interaction.editReply({
         embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
         files: buildHudFiles(player),
@@ -274,19 +275,14 @@ async function handleMiningButton(interaction) {
   let componentTargetId = panelTargetUserId;
   let componentPlayer = null;
 
-  if (interaction.customId === CUSTOM_IDS.modeDouble) {
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.modePrefix}:`) || interaction.customId === CUSTOM_IDS.modeDouble || interaction.customId === CUSTOM_IDS.modeSafe) {
+    const mode = interaction.customId.startsWith(`${CUSTOM_IDS.modePrefix}:`)
+      ? interaction.customId.split(":")[2]
+      : interaction.customId === CUSTOM_IDS.modeDouble
+        ? "double"
+        : "safe";
     await updatePlayer(panelTargetUserId, (player) => {
-      const result = chooseRunMode(player, "double", Math.random);
-      componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
-      files = buildHudFiles(result.player);
-      return result.player;
-    });
-  }
-
-  if (interaction.customId === CUSTOM_IDS.modeSafe) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = chooseRunMode(player, "safe", Math.random);
+      const result = chooseRunMode(player, mode, Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
       files = buildHudFiles(result.player);
