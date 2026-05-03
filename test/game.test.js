@@ -100,8 +100,9 @@ test("左挖右挖會套用安全與貪婪路線差異", () => {
   assert.equal(right.kind, "gold");
   assert.equal(left.player.gold, 2);
   assert.equal(right.player.gold, 3);
-  assert.match(left.message, /穩固石壁｜安全支道/);
-  assert.match(right.message, /貪婪裂隙｜貪婪裂隙/);
+  assert.match(left.message, /穩固石壁。/);
+  assert.match(right.message, /貪婪裂隙。/);
+  assert.doesNotMatch(left.message, /安全支道/);
 });
 
 test("左右路線會在下礦和每次挖完後刷新", () => {

@@ -127,15 +127,14 @@ function getDigPathOptions(playerInput) {
     return {
       side,
       id,
-      label: path ? path.label : side,
-      description: path ? path.description : ""
+      label: path ? path.label : side
     };
   });
 }
 
 function getDigPathPrefix(playerInput, sideOrPath) {
   const path = getDigPath(playerInput, sideOrPath);
-  return path ? `${path.label}｜${path.description}。` : "";
+  return path ? `${path.label}。` : "";
 }
 
 function applyDigPathWeights(weights, playerInput, sideOrPath) {
