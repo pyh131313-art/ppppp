@@ -6,8 +6,6 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const {
   getBagUsedSlots,
-  getCollectibles,
-  getCollectionTotal,
   getMaxBombs,
   getPlayer
 } = require("./game");
@@ -69,12 +67,6 @@ function buildMineLines(outcome) {
 
 function getBagSlots(playerInput) {
   const player = getPlayer(playerInput);
-  const collectibleSlots = getCollectibles()
-    .filter((item) => (player.collection[item.id] || 0) > 0)
-    .map((item) => ({
-      item,
-      count: player.collection[item.id] || 0
-    }));
   const rustySlots = Array.from({ length: player.rusty }, () => ({
     item: {
       type: "rusty",
@@ -82,13 +74,29 @@ function getBagSlots(playerInput) {
     },
     count: 1
   }));
+  const oreSlots = Array.from({ length: player.ore }, () => ({
+    item: {
+      type: "ore",
+      name: "礦石"
+    },
+    count: 1
+  }));
+  const junkSlots = Array.from({ length: player.junk * 3 }, () => ({
+    item: {
+      type: "junk",
+      name: "超級破爛"
+    },
+    count: 1
+  }));
 
-  return [...collectibleSlots, ...rustySlots].slice(0, SLOT_COUNT);
+  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, SLOT_COUNT);
 }
 
 function buildBagSlot({ bagSlot, index, x, y }) {
   const slot = 42;
   const rusty = bagSlot && bagSlot.item.type === "rusty";
+  const ore = bagSlot && bagSlot.item.type === "ore";
+  const junk = bagSlot && bagSlot.item.type === "junk";
   const filled = Boolean(bagSlot);
   const fill = filled ? "#f8fafc" : "#dbe3eb";
   const stroke = filled ? "#f59e0b" : "#94a3b8";
@@ -98,6 +106,12 @@ function buildBagSlot({ bagSlot, index, x, y }) {
   const rustyIcon = rusty
     ? `<circle cx="${x + 21}" cy="${y + 20}" r="15" fill="#8b5e34" stroke="#5f3b1f" stroke-width="4"/>
        <text x="${x + 21}" y="${y + 26}" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="900" fill="#f3d19c">?</text>`
+    : "";
+  const oreIcon = ore
+    ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">⛏️</text>`
+    : "";
+  const junkIcon = junk
+    ? `<text x="${x + 21}" y="${y + 29}" text-anchor="middle" font-family="Apple Color Emoji, Arial, sans-serif" font-size="22">🧱</text>`
     : "";
   const count = filled && !rusty && bagSlot.count > 1
     ? `<text x="${x + 60}" y="${y + 27}" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#fde68a">x${bagSlot.count}</text>`
@@ -109,6 +123,8 @@ function buildBagSlot({ bagSlot, index, x, y }) {
       <rect x="${x}" y="${y}" width="${slot}" height="${slot}" rx="9" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
       ${image}
       ${rustyIcon}
+      ${oreIcon}
+      ${junkIcon}
       ${count}
     </g>
   `;

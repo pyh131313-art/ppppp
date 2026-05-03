@@ -225,7 +225,7 @@ function getCollectionUniqueCount(playerInput) {
 
 function getBagUsedSlots(playerInput) {
   const player = getPlayer(playerInput);
-  return getCollectionUniqueCount(player) + player.rusty + player.ore + player.junk * 3;
+  return player.rusty + player.ore + player.junk * 3;
 }
 
 function getBagFreeSlots(playerInput) {
@@ -236,7 +236,6 @@ function awardFromPool(player, pool, random = Math.random) {
   const weights = Object.fromEntries(pool.map((item) => [item.id, item.weight]));
   const id = rollWeighted(weights, random);
   const collectible = getCollectible(id);
-  if ((player.collection[id] || 0) === 0 && getBagFreeSlots(player) <= 0) return null;
   player.collection[id] = (player.collection[id] || 0) + 1;
   return collectible;
 }
@@ -415,15 +414,6 @@ function exchange(playerInput, amount = 1, random = Math.random) {
     if (award) awards.push(award);
   }
 
-  if (awards.length === 0) {
-    return {
-      ok: false,
-      player,
-      awards,
-      message: "包包已滿，沒有空格放新的紀念幣。"
-    };
-  }
-
   const actualCost = awards.length * CONFIG.exchange.goldPerCommemorative;
   player.gold -= actualCost;
 
@@ -445,14 +435,6 @@ function buyShopItem(playerInput, itemId, amount = 1) {
       ok: false,
       player,
       message: "商店沒有這個商品。"
-    };
-  }
-
-  if ((player.collection[itemId] || 0) === 0 && getBagFreeSlots(player) <= 0) {
-    return {
-      ok: false,
-      player,
-      message: "包包已滿，沒有空格放新的紀念幣。"
     };
   }
 
@@ -643,14 +625,6 @@ function transferCollectible(fromInput, toInput, itemId, amount = 1, gold = 0) {
       };
     }
 
-    if ((to.collection[itemId] || 0) === 0 && getBagFreeSlots(to) <= 0) {
-      return {
-        ok: false,
-        from,
-        to,
-        message: "對方包包已滿，沒有空格接收新的紀念幣。"
-      };
-    }
   }
 
   if (safeAmount > 0) {

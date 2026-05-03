@@ -87,6 +87,19 @@ test("礦石會佔用包包格子", () => {
   assert.equal(getBagUsedSlots(player), 2);
 });
 
+test("正式紀念幣放在集幣冊不佔包包", () => {
+  const player = {
+    ...createPlayer(),
+    collection: {
+      nina_hot_water: 1,
+      rose_smirk: 1
+    }
+  };
+
+  assert.equal(getBagUsedSlots(player), 0);
+  assert.equal(getCollectionTotal(player), 2);
+});
+
 test("超級破爛佔三格且返回地面清除", () => {
   const mined = mine(chooseRunMode(createPlayer(), "safe").player, () => 0.7);
   const result = returnToSurface(mined.player);

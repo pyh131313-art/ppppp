@@ -74,12 +74,6 @@ function buildQuickStatus(playerInput) {
 
 function getBagSlots(playerInput) {
   const player = getPlayer(playerInput);
-  const collectibleSlots = getCollectibles()
-    .filter((item) => (player.collection[item.id] || 0) > 0)
-    .map((item) => ({
-      icon: "🪙",
-      label: `${item.name} x${player.collection[item.id]}`
-    }));
   const rustySlots = Array.from({ length: player.rusty }, () => ({
     icon: "🟤",
     label: "生鏽紀念幣"
@@ -93,7 +87,7 @@ function getBagSlots(playerInput) {
     label: `超級破爛 ${Math.floor(index / 3) + 1}/佔3格`
   }));
 
-  return [...collectibleSlots, ...rustySlots, ...oreSlots, ...junkSlots].slice(0, 12);
+  return [...rustySlots, ...oreSlots, ...junkSlots].slice(0, 12);
 }
 
 function buildBagGrid(playerInput) {
@@ -113,6 +107,15 @@ function buildBagList(playerInput) {
   const slots = getBagSlots(playerInput);
   if (slots.length === 0) return "目前包包是空的。";
   return slots.map((slot, index) => `${index + 1}. ${slot.icon} ${slot.label}`).join("\n");
+}
+
+function buildCoinBookList(playerInput) {
+  const player = getPlayer(playerInput);
+  const owned = getCollectibles()
+    .filter((item) => (player.collection[item.id] || 0) > 0)
+    .map((item) => `${item.name}｜${item.rarity}｜x${player.collection[item.id]}`);
+  if (owned.length === 0) return "尚未收藏正式紀念幣。";
+  return owned.join("\n");
 }
 
 function getResultEmoji(kind) {
@@ -230,12 +233,13 @@ function buildCollectionEmbed(playerInput, message = "這是你的收藏紀念�
       message,
       "",
       `總數：${total}`,
-      `格數：${slots}/12`,
+      `包包格數：${slots}/12`,
       `種類：${unique}/${all} ${progressBar(unique, all, 12)}`
     ].join("\n"))
     .addFields(
       { name: "12 格物品欄", value: buildBagGrid(player) },
-      { name: "內容", value: buildBagList(player).slice(0, 1024) }
+      { name: "包包內容", value: buildBagList(player).slice(0, 1024) },
+      { name: "集幣冊", value: buildCoinBookList(player).slice(0, 1024) }
     )
     .setFooter({ text: `目前開放：${all} 種紀念幣。` });
 
