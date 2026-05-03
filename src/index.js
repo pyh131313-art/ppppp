@@ -422,6 +422,21 @@ async function handleMiningButton(interaction) {
     return;
   }
 
+  if (interaction.customId === CUSTOM_IDS.shopExit) {
+    const progress = getCommunityProgress(await loadPlayers());
+    const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
+    componentPlayer = player;
+    embed = buildPanelEmbed(player, "礦場面板", "已返回礦場面板。", interaction.user);
+    files = buildHudFiles(player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress)
+    });
+    return;
+  }
+
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
     const progress = getCommunityProgress(await loadPlayers());
     await updatePlayer(panelTargetUserId, (player) => {

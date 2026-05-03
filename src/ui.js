@@ -46,6 +46,7 @@ const CUSTOM_IDS = {
   shopOpen: "mine_ui:shop_open",
   shopBuyPotion: "mine_ui:shop_buy_potion",
   shopBuyTotem: "mine_ui:shop_buy_totem",
+  shopExit: "mine_ui:shop_exit",
   drinkPotion: "mine_ui:drink_potion",
   rustOne: "mine_ui:rust_one",
   discardRustOne: "mine_ui:discard_rust_one",
@@ -596,6 +597,9 @@ function buildShopComponents(progressInput = {}) {
     firstRow.push(makeButton(CUSTOM_IDS.shopBuyTotem, "購買不死圖騰", ButtonStyle.Success, "🗿"));
   }
   rows.push(new ActionRowBuilder().addComponents(...firstRow));
+  rows.push(new ActionRowBuilder().addComponents(
+    makeButton(CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
+  ));
   return rows;
 }
 
