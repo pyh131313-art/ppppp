@@ -11,6 +11,7 @@ const {
   discardItem,
   exchange,
   getCollectionTotal,
+  getBagUsedSlots,
   mine,
   removeRust,
   rescuePlayer,
@@ -75,6 +76,36 @@ test("礦石返回地面會自動換成金幣", () => {
   assert.equal(mined.player.ore, 2);
   assert.equal(result.player.ore, 0);
   assert.equal(result.player.gold, 16);
+});
+
+test("礦石會佔用包包格子", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    ore: 2
+  };
+
+  assert.equal(getBagUsedSlots(player), 2);
+});
+
+test("超級破爛佔三格且返回地面清除", () => {
+  const mined = mine(chooseRunMode(createPlayer(), "safe").player, () => 0.7);
+  const result = returnToSurface(mined.player);
+
+  assert.equal(mined.kind, "junk");
+  assert.equal(mined.player.junk, 1);
+  assert.equal(getBagUsedSlots(mined.player), 3);
+  assert.equal(result.player.junk, 0);
+});
+
+test("超級破爛需要三格空間", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    ore: 10
+  };
+  const result = mine(player, () => 0.7);
+
+  assert.equal(result.kind, "full");
+  assert.equal(result.player.junk, 0);
 });
 
 test("下礦前需要先二選一", () => {
@@ -227,12 +258,14 @@ test("返回地面會清除本次生鏽幣、深度與炸彈", () => {
     ...createPlayer(),
     rusty: 3,
     ore: 2,
+    junk: 1,
     bombs: 1,
     depth: 5
   });
 
   assert.equal(result.player.rusty, 0);
   assert.equal(result.player.ore, 0);
+  assert.equal(result.player.junk, 0);
   assert.equal(result.player.gold, 16);
   assert.equal(result.player.bombs, 0);
   assert.equal(result.player.depth, 0);

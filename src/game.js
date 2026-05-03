@@ -15,6 +15,7 @@ function createPlayer() {
     mines: 0,
     depth: 0,
     ore: 0,
+    junk: 0,
     runMode: null,
     minorBuffs: {
       gold: 0,
@@ -106,6 +107,7 @@ function applyDeathPenalty(player) {
 function resetRunState(player) {
   player.rusty = 0;
   player.ore = 0;
+  player.junk = 0;
   player.bombs = 0;
   player.depth = 0;
   player.runMode = null;
@@ -132,7 +134,7 @@ function chooseRunMode(playerInput, mode) {
     };
   }
 
-  if (player.depth > 0 || player.ore > 0 || player.rusty > 0 || player.bombs > 0) {
+  if (player.depth > 0 || player.ore > 0 || player.rusty > 0 || player.junk > 0 || player.bombs > 0) {
     return {
       ok: false,
       player,
@@ -223,7 +225,7 @@ function getCollectionUniqueCount(playerInput) {
 
 function getBagUsedSlots(playerInput) {
   const player = getPlayer(playerInput);
-  return getCollectionUniqueCount(player) + player.rusty;
+  return getCollectionUniqueCount(player) + player.rusty + player.ore + player.junk * 3;
 }
 
 function getBagFreeSlots(playerInput) {
@@ -286,12 +288,23 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
 
   if (result === "ore") {
     const amount = getOreAmount(player.depth, random) * gatherMultiplier;
-    player.ore += amount;
+    const freeSlots = getBagFreeSlots(player);
+    if (freeSlots <= 0) {
+      return {
+        kind: "full",
+        player,
+        title: "包包已滿",
+        message: "你挖到礦石，但包包已滿，放不下。"
+      };
+    }
+
+    const gained = Math.min(amount, freeSlots);
+    player.ore += gained;
     return {
       kind: "ore",
       player,
       title: "挖到礦石",
-      message: `你挖到了 ${amount} 塊礦石。返回地面時會自動換成金幣。`
+      message: `你挖到了 ${gained} 塊礦石。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`
     };
   }
 
@@ -337,6 +350,25 @@ function mine(playerInput, random = Math.random, now = Date.now()) {
       player,
       title: "挖到炸彈",
       message: `你被炸傷了。炸彈次數 ${player.bombs}/${maxBombs}。`
+    };
+  }
+
+  if (result === "junk") {
+    if (getBagFreeSlots(player) < 3) {
+      return {
+        kind: "full",
+        player,
+        title: "包包已滿",
+        message: "你挖到超級破爛，但它需要 3 格包包，放不下。"
+      };
+    }
+
+    player.junk += 1;
+    return {
+      kind: "junk",
+      player,
+      title: "挖到超級破爛",
+      message: "你挖到了超級破爛，佔 3 格包包，只能返回地面時丟掉。"
     };
   }
 
@@ -496,6 +528,7 @@ function returnToSurface(playerInput) {
   const lostRusty = player.rusty;
   const soldOre = player.ore;
   const oreGold = soldOre * CONFIG.ore.goldPerOre;
+  const clearedJunk = player.junk;
   const clearedBombs = player.bombs;
   const depth = player.depth;
 
@@ -507,7 +540,7 @@ function returnToSurface(playerInput) {
   return {
     ok: true,
     player,
-    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
   };
 }
 
@@ -716,6 +749,7 @@ function formatInventory(playerInput) {
   return [
     `金幣：${player.gold}`,
     `礦石：${player.ore}`,
+    `超級破爛：${player.junk}`,
     `生鏽紀念幣：${player.rusty}`,
     `收藏紀念幣：${getCollectionTotal(player)} 枚`,
     `包包格數：${getBagUsedSlots(player)}/${BAG_CAPACITY}`,

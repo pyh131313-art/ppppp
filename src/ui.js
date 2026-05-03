@@ -64,6 +64,7 @@ function buildQuickStatus(playerInput) {
   return [
     `金幣 ${player.gold}`,
     `礦石 ${player.ore}`,
+    `破爛 ${player.junk}`,
     `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
     `方式 ${getRunModeLabel(player)}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
@@ -83,8 +84,16 @@ function getBagSlots(playerInput) {
     icon: "🟤",
     label: "生鏽紀念幣"
   }));
+  const oreSlots = Array.from({ length: player.ore }, () => ({
+    icon: "⛏️",
+    label: "礦石"
+  }));
+  const junkSlots = Array.from({ length: player.junk * 3 }, (_, index) => ({
+    icon: "🧱",
+    label: `超級破爛 ${Math.floor(index / 3) + 1}/佔3格`
+  }));
 
-  return [...collectibleSlots, ...rustySlots].slice(0, 12);
+  return [...collectibleSlots, ...rustySlots, ...oreSlots, ...junkSlots].slice(0, 12);
 }
 
 function buildBagGrid(playerInput) {
@@ -110,6 +119,7 @@ function getResultEmoji(kind) {
   const map = {
     gold: "🟡",
     ore: "⛏️",
+    junk: "🧱",
     rusty: "🟤",
     bomb: "💣",
     dead: "💥",
@@ -124,6 +134,7 @@ function getResultLabel(kind) {
   const map = {
     gold: "金幣",
     ore: "礦石",
+    junk: "超級破爛",
     rusty: "生鏽紀念幣",
     bomb: "炸彈",
     dead: "爆炸",

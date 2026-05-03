@@ -5,9 +5,10 @@ const CONFIG = {
     baseHp: 2,
     weights: {
       gold: 48,
-      ore: 16,
+      ore: 14,
       rusty: 6,
-      empty: 20,
+      junk: 6,
+      empty: 16,
       bomb: 10
     }
   },
