@@ -15,6 +15,7 @@ const {
   getCollectionUniqueCount,
   getBagCapacity,
   getBagUsedSlots,
+  canChooseMinorBuff,
   getCaveLabel,
   getDepthLabel,
   getMaxBombs,
@@ -456,41 +457,60 @@ function buildPanelComponents(targetUserId = null, playerInput = null) {
   const rescueId = targetUserId
     ? `${CUSTOM_IDS.rescuePrefix}:${targetUserId}`
     : `${CUSTOM_IDS.rescuePrefix}:none`;
-  const rows = [
-    new ActionRowBuilder().addComponents(
-      makeButton(CUSTOM_IDS.modeDouble, "雙倍採集", ButtonStyle.Secondary, "⚡"),
-      makeButton(CUSTOM_IDS.modeSafe, "安全血量", ButtonStyle.Secondary, "🛡️"),
-      makeButton(CUSTOM_IDS.mine, "深入挖礦", ButtonStyle.Primary, "⛏️"),
-      makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠")
-    ),
-    new ActionRowBuilder().addComponents(
-      makeButton(CUSTOM_IDS.buffGold, "金幣磁條", ButtonStyle.Secondary, "🧲"),
-      makeButton(CUSTOM_IDS.buffBomb, "防爆磁條", ButtonStyle.Secondary, "🧲"),
-      makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
-      makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚"),
-      makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆")
-    ),
-    new ActionRowBuilder().addComponents(
-      makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
-      makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"),
-      makeButton(CUSTOM_IDS.shopBuyOne, "商店購買", ButtonStyle.Success, "🏪"),
-      makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
-      makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
-    ),
-    new ActionRowBuilder().addComponents(
-      makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦"),
-      makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
-    )
-  ];
+  const rows = [];
+  const addRow = (...buttons) => {
+    const filtered = buttons.filter(Boolean);
+    if (filtered.length === 0) return;
+    rows.push(new ActionRowBuilder().addComponents(...filtered));
+  };
+  const onSurface = !player.dead && !player.runMode;
+  const inMine = !player.dead && Boolean(player.runMode);
 
   if (player.pendingEvent) {
     const labels = getEventButtonLabels(player.pendingEvent);
-    rows.unshift(
-      new ActionRowBuilder().addComponents(
-        makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
-        makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭")
-      )
+    addRow(
+      makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
+      makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭")
     );
+  }
+
+  if (player.dead) {
+    addRow(
+      makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
+      makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚")
+    );
+    return rows;
+  }
+
+  if (onSurface) {
+    addRow(
+      makeButton(CUSTOM_IDS.modeDouble, "雙倍採集", ButtonStyle.Secondary, "⚡"),
+      makeButton(CUSTOM_IDS.modeSafe, "安全血量", ButtonStyle.Secondary, "🛡️")
+    );
+    addRow(
+      makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
+      makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"),
+      makeButton(CUSTOM_IDS.shopBuyOne, "商店購買", ButtonStyle.Success, "🏪"),
+      makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦"),
+      makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
+    );
+    addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
+    return rows;
+  }
+
+  if (inMine) {
+    addRow(
+      makeButton(CUSTOM_IDS.mine, "深入挖礦", ButtonStyle.Primary, "⛏️"),
+      makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
+      makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
+      makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
+    );
+    if (canChooseMinorBuff(player)) {
+      addRow(
+        makeButton(CUSTOM_IDS.buffGold, "金幣磁條", ButtonStyle.Secondary, "🧲"),
+        makeButton(CUSTOM_IDS.buffBomb, "防爆磁條", ButtonStyle.Secondary, "🧲")
+      );
+    }
   }
 
   return rows;
