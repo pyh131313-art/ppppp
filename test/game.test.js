@@ -137,6 +137,7 @@ test("精簡 UI 只顯示生命深度包包和路線", () => {
   assert.match(value, /生命：/);
   assert.match(value, /深度：12｜最深48/);
   assert.match(value, /🎒 包包（1\/12）/);
+  assert.match(value, /⛏️ ⬛ ⬛ ⬛/);
   assert.match(value, /路線：\n←/);
   assert.doesNotMatch(value, /金幣：/);
   assert.doesNotMatch(value, /銀行/);

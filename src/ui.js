@@ -262,22 +262,6 @@ function buildBagGrid(playerInput) {
   return rows.join("\n");
 }
 
-function buildCompactBagGrid(playerInput) {
-  const slots = getBagSlots(playerInput);
-  const capacity = getBagCapacity(playerInput);
-  const cellCount = Math.max(18, capacity);
-  const cells = Array.from({ length: cellCount }, (_, index) => {
-    if (index >= capacity) return "[ ]";
-    const slot = slots[index];
-    return `[${slot ? slot.icon : " "}]`;
-  });
-  const rows = [];
-  for (let index = 0; index < cells.length; index += 5) {
-    rows.push(cells.slice(index, index + 5).join(""));
-  }
-  return rows.join("\n");
-}
-
 function buildStatusEffects(playerInput, curse = null) {
   const player = getPlayer(playerInput);
   const effects = [];
@@ -465,7 +449,7 @@ function buildCompactHudBlock(playerInput) {
     `深度：${player.depth}｜最深${player.stats.bestDepth}`,
     "",
     `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,
-    buildCompactBagGrid(player),
+    buildBagGrid(player),
     "",
     "路線：",
     digPathText
