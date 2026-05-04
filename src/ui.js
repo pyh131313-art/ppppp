@@ -107,11 +107,22 @@ function buildCoreStatus(playerInput) {
   return { player, maxHp, hp, digPathText };
 }
 
+function formatHpValue(value) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+}
+
+function buildHpIcons(hp, maxHp) {
+  const full = Math.floor(hp);
+  const half = hp % 1 >= 0.5 ? 1 : 0;
+  const empty = Math.max(0, maxHp - full - half);
+  return `${"❤️".repeat(full)}${half ? "💔" : ""}${"🤍".repeat(empty)}`;
+}
+
 function buildMainPage(playerInput) {
   const { player, maxHp, hp, digPathText } = buildCoreStatus(playerInput);
   return [
     "🎒 狀態",
-    `生命：${"❤️".repeat(hp)}${"🤍".repeat(maxHp - hp)} (${hp}/${maxHp})`,
+    `生命：${buildHpIcons(hp, maxHp)} (${formatHpValue(hp)}/${maxHp})`,
     `金幣：${player.gold} ｜ 銀行：${player.bankGold}`,
     `深度：${player.depth} / 最深${player.stats.bestDepth}（${getDepthLabel(player.depth)}）`,
     `路線：${digPathText}`
@@ -443,7 +454,7 @@ function buildCompactHudBlock(playerInput) {
   return [
     "⛏️【礦井探險｜精簡】",
     "",
-    `生命：${"❤️".repeat(hp)}${"🤍".repeat(maxHp - hp)} ${hp}/${maxHp}`,
+    `生命：${buildHpIcons(hp, maxHp)} ${formatHpValue(hp)}/${maxHp}`,
     `深度：${player.depth}｜最深${player.stats.bestDepth}`,
     "",
     `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,

@@ -40,6 +40,7 @@ const { CONFIG } = require("./config");
 
 const BAG_CAPACITY = 12;
 const ITEM_STACK_SIZE = 10;
+const DAMAGE_PER_HIT = 0.5;
 const STACKABLE_ITEM_KEYS = new Set([
   "ore",
   "goldOre",
@@ -176,6 +177,10 @@ function healBombDamage(player, amount = 1) {
   const before = player.bombs;
   player.bombs = Math.max(0, player.bombs - amount);
   return before - player.bombs;
+}
+
+function formatHpValue(value) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }
 
 function addOreReward(player, amount, preferred = "ore") {
@@ -832,6 +837,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
 }
 
 function addBombDamage(player, now = Date.now(), amount = 1) {
+  const damageValue = amount * DAMAGE_PER_HIT;
   const mode = getMode(player);
   if (mode && mode.bombDodgeChance && Math.random() < mode.bombDodgeChance) {
     return {
@@ -841,12 +847,13 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     };
   }
   onDamageTaken(player);
-  player.bombs += amount;
+  player.bombs += damageValue;
   const maxBombs = getMaxBombs(player);
   if (player.bombs < maxBombs) {
     return {
       dead: false,
-      message: `受到傷害，生命損傷 ${player.bombs}/${maxBombs}。`
+      damage: damageValue,
+      message: `受到 ${formatHpValue(damageValue)} 點傷害，生命損傷 ${formatHpValue(player.bombs)}/${maxBombs}。`
     };
   }
 
@@ -855,6 +862,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     player.bombs = Math.max(0, maxBombs - 1);
     return {
       dead: false,
+      damage: damageValue,
       message: `不死圖騰發光碎裂，替你擋下死亡。你原地復活，生命剩 1/${maxBombs}。`
     };
   }
@@ -867,6 +875,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     return {
       dead: false,
       returned: true,
+      damage: damageValue,
       message: `歸還祝福啟動，你沒有死亡並被送回地表，但失去 ${lostGold} 枚金幣。`
     };
   }
@@ -880,6 +889,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
   player.stats.deaths += 1;
   return {
     dead: true,
+    damage: damageValue,
     message: `死亡，損失 ${lostGold} 枚金幣。`
   };
 }
@@ -1114,7 +1124,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
         kind: "dead",
         player,
         title: "鐘乳石砸落",
-        message: `${pathPrefix}鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `${pathPrefix}鐘乳石砸中你，扣 ${formatHpValue(damage.damage || 1)} 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
@@ -1123,7 +1133,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       "stalactite",
       player,
       "鐘乳石砸落",
-      `${pathPrefix}鐘乳石砸中你，扣 2 滴血。炸彈次數 ${player.bombs}/${getMaxBombs(player)}。`,
+      `${pathPrefix}鐘乳石砸中你，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
       recordMessage,
       random
     );
@@ -1348,7 +1358,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       };
     }
 
-    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}${damage.dodged ? damage.message : `你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`}`, recordMessage, random);
+    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}${damage.dodged ? damage.message : `你被炸傷了。${damageAmount > 1 ? `大爆炸扣 ${formatHpValue(damage.damage || 1)} 滴血。` : ""}生命損傷 ${formatHpValue(player.bombs)}/${maxBombs}。`}`, recordMessage, random);
   }
 
   if (result === "junk") {

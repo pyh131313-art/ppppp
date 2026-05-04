@@ -43,20 +43,28 @@ const {
   CUSTOM_IDS
 } = require("../src/ui");
 
-test("挖到兩次炸彈會死亡", () => {
+test("炸彈每次扣半血，累積到生命上限才死亡", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
   const first = mine(start, () => 0.95, 1000).player;
-  assert.equal(first.bombs, 1);
+  assert.equal(first.bombs, 0.5);
   assert.equal(first.dead, false);
 
-  const secondResult = mine(first, () => 0.95, 2000);
-  assert.equal(secondResult.player.bombs, 2);
-  assert.equal(secondResult.player.dead, true);
+  const second = mine(first, () => 0.95, 2000).player;
+  assert.equal(second.bombs, 1);
+  assert.equal(second.dead, false);
+
+  const third = mine(second, () => 0.95, 3000).player;
+  assert.equal(third.bombs, 1.5);
+  assert.equal(third.dead, false);
+
+  const fourthResult = mine(third, () => 0.95, 4000);
+  assert.equal(fourthResult.player.bombs, 2);
+  assert.equal(fourthResult.player.dead, true);
 });
 
 test("炸彈死亡會損失三分之一金幣", () => {
   const result = mine(
-    { ...createPlayer(), gold: 30, bombs: 3, runMode: "safe" },
+    { ...createPlayer(), gold: 30, bombs: 3.5, runMode: "safe" },
     () => 0.95,
     1000
   );
@@ -69,7 +77,7 @@ test("炸彈死亡會損失三分之一金幣", () => {
 
 test("銀行金幣不會被爆炸死亡扣除", () => {
   const result = mine(
-    { ...createPlayer(), gold: 30, bankGold: 100, bombs: 3, runMode: "safe" },
+    { ...createPlayer(), gold: 30, bankGold: 100, bombs: 3.5, runMode: "safe" },
     () => 0.95,
     1000
   );
@@ -410,12 +418,12 @@ test("寶石礦洞只會挖到寶石並返回地面換高價金幣", () => {
   assert.equal(result.player.gold, 35);
 });
 
-test("寶石礦洞的鐘乳石會扣兩滴血", () => {
+test("寶石礦洞的鐘乳石會扣一滴血", () => {
   const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
   const result = mine(start, () => 0.75, 1000);
 
   assert.equal(result.kind, "stalactite");
-  assert.equal(result.player.bombs, 2);
+  assert.equal(result.player.bombs, 1);
   assert.equal(result.player.dead, false);
 });
 
@@ -625,7 +633,7 @@ test("新事件極端選項會套用臨時效果", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.player.tempEffects.some((effect) => effect.id === "powder_extreme"), true);
-  assert.equal(result.player.bombs, 1);
+  assert.equal(result.player.bombs, 0.5);
 });
 
 test("連鎖爆破踩炸彈會堆疊並在下一次收益後歸零", () => {
@@ -688,7 +696,7 @@ test("火龍十字鎬會把金幣和礦物燒成更高地表價值的物品", ()
   assert.equal(oreReturn.player.gold, 24);
 });
 
-test("火龍十字鎬的大爆炸會扣兩滴血", () => {
+test("火龍十字鎬的大爆炸會扣一滴血", () => {
   const start = chooseRunMode(
     { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
     "fireDragonPickaxe"
@@ -696,9 +704,9 @@ test("火龍十字鎬的大爆炸會扣兩滴血", () => {
   const rolls = [0.95, 0];
   const result = mine(start, () => rolls.shift() ?? 0, 1000);
 
-  assert.equal(result.kind, "dead");
-  assert.equal(result.player.bombs, 2);
-  assert.equal(result.player.dead, true);
+  assert.equal(result.kind, "bomb");
+  assert.equal(result.player.bombs, 1);
+  assert.equal(result.player.dead, false);
   assert.match(result.title, /大爆炸/);
 });
 
@@ -720,7 +728,7 @@ test("絲綢之觸可以把炸彈完整挖回地表販售", () => {
 test("雙倍採集會加倍礦石但死亡損失雙倍金幣", () => {
   const start = chooseRunMode({ ...createPlayer(), gold: 30 }, "double").player;
   const ore = mine(start, () => 0.5).player;
-  const dead = mine({ ...ore, bombs: 1 }, () => 0.95, 1000);
+  const dead = mine({ ...ore, bombs: 1.5 }, () => 0.95, 1000);
 
   assert.equal(ore.ore, 4);
   assert.equal(dead.player.dead, true);
@@ -733,7 +741,7 @@ test("安全血量會讓生命增加二", () => {
   const second = mine(first, () => 0.95, 2000).player;
   const third = mine(second, () => 0.95, 3000).player;
 
-  assert.equal(third.bombs, 3);
+  assert.equal(third.bombs, 1.5);
   assert.equal(third.dead, false);
 });
 
@@ -849,7 +857,7 @@ test("不死圖騰會在死亡時原地復活並繼續挖礦", () => {
     { ...createPlayer(), runModeOptions: ["safe", "double"], undyingTotem: 1 },
     "safe"
   ).player;
-  const result = mine({ ...start, bombs: 3 }, () => 0.95, 1000);
+  const result = mine({ ...start, bombs: 3.5 }, () => 0.95, 1000);
 
   assert.equal(result.kind, "bomb");
   assert.equal(result.player.dead, false);
@@ -976,7 +984,7 @@ test("壞地精會拿走礦石且可能造成傷害", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.ore, 0);
   assert.equal(result.player.gold, 0);
-  assert.equal(result.player.bombs, 1);
+  assert.equal(result.player.bombs, 0.5);
   assert.match(result.message, /壞地精/);
 });
 
@@ -1075,7 +1083,7 @@ test("其他玩家可以免費救援並取得下次下礦小詞條", () => {
 
 test("三分鐘內救援會退回死亡損失金幣", () => {
   const dead = mine(
-    { ...createPlayer(), gold: 90, bombs: 1, runMode: "double" },
+    { ...createPlayer(), gold: 90, bombs: 1.5, runMode: "double" },
     () => 0.95,
     1000
   ).player;
@@ -1095,7 +1103,7 @@ test("三分鐘內救援會退回死亡損失金幣", () => {
 
 test("超過三分鐘救援不退回死亡損失金幣", () => {
   const dead = mine(
-    { ...createPlayer(), gold: 90, bombs: 1, runMode: "double" },
+    { ...createPlayer(), gold: 90, bombs: 1.5, runMode: "double" },
     () => 0.95,
     1000
   ).player;

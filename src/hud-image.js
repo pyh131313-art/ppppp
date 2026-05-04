@@ -217,6 +217,11 @@ function buildHudSvg(playerInput, outcome = null) {
   const mineLines = buildMineLines(outcome);
   const title = outcome ? outcome.title : "礦場面板";
   const event = outcome ? outcome.message : "選擇下方按鈕開始挖礦。";
+  const hpText = Number.isInteger(hp) ? `${hp}` : hp.toFixed(1);
+  const fullHearts = Math.floor(hp);
+  const halfHeart = hp % 1 >= 0.5 ? 1 : 0;
+  const emptyHearts = Math.max(0, maxHp - fullHearts - halfHeart);
+  const hpIcons = `${"♥".repeat(fullHearts)}${halfHeart ? "♡" : ""}${".".repeat(emptyHearts)}`;
 
   const mineSvg = mineLines.map(([icon, text], index) => {
     const y = 150 + index * 66;
@@ -246,7 +251,7 @@ function buildHudSvg(playerInput, outcome = null) {
   <text x="92" y="454" font-family="Arial, sans-serif" font-size="22" font-weight="900" fill="#fde68a">金幣 ${player.gold}</text>
   <text x="220" y="454" font-family="Arial, sans-serif" font-size="19" font-weight="900" fill="#cbd5e1">礦石 ${player.ore}/${player.goldOre}/${player.platinumOre}</text>
   <text x="350" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#d4d4d8">破爛 ${player.junk}</text>
-  <text x="438" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#fecaca">生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}</text>
+  <text x="438" y="454" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#fecaca">生命 ${hpIcons} ${hpText}/${maxHp}</text>
 
   <rect x="562" y="42" width="150" height="650" rx="18" fill="#334155" stroke="#64748b" stroke-width="3"/>
   <text x="637" y="74" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#f8fafc">包包 ${used}/${capacity}</text>
