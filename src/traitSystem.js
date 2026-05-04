@@ -2,25 +2,35 @@
 
 const EXTRA_RUN_MODES = {
   chainBlast: {
+    name: "連鎖爆破",
     label: "連鎖爆破",
+    shortDescription: "踩炸彈→收益+30%｜最多5",
     chainBlast: true
   },
   refiningInstinct: {
+    name: "精煉本能",
     label: "精煉本能",
+    shortDescription: "礦石→錠｜金幣-30%",
     refiningInstinct: true,
     goldMultiplierBonus: -0.3
   },
   greedyLoop: {
+    name: "貪婪循環",
     label: "貪婪循環",
+    shortDescription: "金幣→下次+20%｜受傷歸零",
     greedyLoop: true
   },
   dangerSense: {
+    name: "危險感知",
     label: "危險感知",
+    shortDescription: "50%避炸彈｜空挖+40%",
     dangerSense: true,
     emptyWeightMultiplier: 1.4
   },
   anomalousBackpack: {
+    name: "異常背包",
     label: "異常背包",
+    shortDescription: "包包+6｜每層20%破爛",
     bagBonusSlots: 6,
     anomalousBackpack: true
   }

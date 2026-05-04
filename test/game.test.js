@@ -102,6 +102,22 @@ test("礦場分頁按鈕保留玩家狀態並標示目前頁面", () => {
   assert.equal(mainButton.style, 2);
 });
 
+test("詞條選擇畫面會顯示短說明且選擇後不顯示", () => {
+  const choosing = {
+    ...createPlayer(),
+    runModeOptions: ["double", "safe"]
+  };
+  const choosingEmbed = buildPanelEmbed(choosing, "礦場面板", "").toJSON();
+
+  assert.match(choosingEmbed.description, /① 雙倍採集\n採集x2｜死亡扣金x2/);
+  assert.match(choosingEmbed.description, /② 安全血量\n生命\+2｜鏽幣-50%/);
+  assert.match(choosingEmbed.description, /👉 按下方數字選擇/);
+
+  const chosenEmbed = buildPanelEmbed(chooseRunMode(choosing, "double").player, "下礦方式", "").toJSON();
+  assert.doesNotMatch(chosenEmbed.description, /採集x2/);
+  assert.doesNotMatch(chosenEmbed.description, /按下方數字選擇/);
+});
+
 test("銀行只能在地面存入並可以領出", () => {
   const deposited = depositBank({ ...createPlayer(), gold: 45 });
   const blocked = depositBank({ ...createPlayer(), gold: 45, runMode: "safe" });

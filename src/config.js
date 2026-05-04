@@ -167,60 +167,84 @@ const CONFIG = {
   },
   runModes: {
     double: {
+      name: "雙倍採集",
       label: "雙倍採集",
+      shortDescription: "採集x2｜死亡扣金x2",
       gatherMultiplier: 2,
       deathPenaltyMultiplier: 2
     },
     safe: {
+      name: "安全血量",
       label: "安全血量",
+      shortDescription: "生命+2｜鏽幣-50%",
       extraHp: 2,
       rustyWeightMultiplier: 0.5
     },
     goldRush: {
+      name: "淘金熱",
       label: "淘金熱",
+      shortDescription: "金幣+35%",
       goldMultiplierBonus: 0.35
     },
     bigBag: {
+      name: "大背包",
       label: "大背包",
+      shortDescription: "包包+4",
       bagBonusSlots: 4
     },
     bombProof: {
+      name: "防爆外套",
       label: "防爆外套",
+      shortDescription: "炸彈-25%｜閃避爆炸",
       bombWeightMultiplier: 0.75,
       bombDodgeChance: 0.25
     },
     fireDragonPickaxe: {
+      name: "火龍十字鎬",
       label: "火龍十字鎬",
+      shortDescription: "層數+2｜礦物→錠｜大爆炸",
       depthStep: 2,
       smeltedSurfaceMultiplier: 1.5,
       smeltedGoblinMultiplier: 0.55,
       megaBombChance: 0.35
     },
     silkTouch: {
+      name: "絲綢之觸",
       label: "絲綢之觸",
+      shortDescription: "原礦保留｜地精價+｜炸彈→物品",
       rawGoblinMultiplier: 1.7,
       bombCaptureChance: 0.4
     },
     chainBlast: {
+      name: "連鎖爆破",
       label: "連鎖爆破",
+      shortDescription: "踩炸彈→收益+30%｜最多5",
       chainBlast: true
     },
     refiningInstinct: {
+      name: "精煉本能",
       label: "精煉本能",
+      shortDescription: "礦石→錠｜金幣-30%",
       refiningInstinct: true,
       goldMultiplierBonus: -0.3
     },
     greedyLoop: {
+      name: "貪婪循環",
       label: "貪婪循環",
+      shortDescription: "金幣→下次+20%｜受傷歸零",
       greedyLoop: true
     },
     dangerSense: {
+      name: "危險感知",
       label: "危險感知",
+      shortDescription: "50%避炸彈｜空挖+40%",
       dangerSense: true,
       emptyWeightMultiplier: 1.4
     },
     anomalousBackpack: {
+      name: "異常背包",
       label: "異常背包",
+      shortDescription: "包包+6｜每層20%破爛",
       bagBonusSlots: 6,
       anomalousBackpack: true
     }

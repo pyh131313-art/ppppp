@@ -437,6 +437,19 @@ function buildHudBlock(playerInput, mineLines, page = "main") {
   return ["⛏️【礦井探險】", "", ...buildHudPage(playerInput, page)].join("\n");
 }
 
+function buildRunModeSelectionText(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.dead || player.runMode) return "";
+  const options = getRunModeOptions(player);
+  if (options.length === 0) return "";
+  const numbers = ["①", "②"];
+  const lines = options.map((mode, index) => [
+    `${numbers[index] || `${index + 1}.`} ${mode.name || mode.label}`,
+    mode.shortDescription || "效果未明"
+  ].join("\n"));
+  return ["", ...lines, "", "👉 按下方數字選擇"].join("\n");
+}
+
 function getDisplayName(user) {
   return user ? user.displayName || user.globalName || user.username : null;
 }
@@ -452,10 +465,11 @@ function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇�
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
   const event = player.pendingEvent ? getRandomEvent(player.pendingEvent) : null;
   const eventText = event ? `\n\n目前事件：${event.title}\n${event.description}` : "";
+  const selectionText = buildRunModeSelectionText(player);
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${title}`)
-    .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${eventText}`)
+    .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${selectionText}${eventText}`)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildIdleMineScene(), page) });
   return addActorFooter(embed, user);
 }
@@ -653,6 +667,7 @@ function getEventButtonLabels(eventId) {
 function buildPanelComponents(targetUserId = null, playerInput = null, progressInput = {}, page = "main") {
   const player = getPlayer(playerInput);
   const hudPage = normalizeHudPage(page);
+  const modeNumbers = ["①", "②"];
   const progress = {
     healingPotionUnlocked: false,
     undyingTotemUnlocked: false,
@@ -696,8 +711,8 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
 
   if (onSurface) {
     addRow(
-      ...getRunModeOptions(player).map((mode) => (
-        makeButton(`${CUSTOM_IDS.modePrefix}:${mode.id}`, mode.label, ButtonStyle.Secondary, "🎴")
+      ...getRunModeOptions(player).map((mode, index) => (
+        makeButton(`${CUSTOM_IDS.modePrefix}:${mode.id}`, `${modeNumbers[index] || index + 1} ${mode.name || mode.label}`, ButtonStyle.Secondary, "🎴")
       )),
       makeButton(CUSTOM_IDS.rerollModes, "刷新詞條 10", ButtonStyle.Primary, "🔄")
     );
