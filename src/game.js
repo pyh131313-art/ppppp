@@ -53,6 +53,7 @@ function createPlayer() {
     blueGem: 0,
     greenGem: 0,
     platinumJunk: 0,
+    uiMode: "full",
     runMode: null,
     runModeOptions: [],
     digPathOptions: {},
@@ -93,6 +94,7 @@ function getPlayer(player) {
     ...createPlayer().minorBuffs,
     ...(player && player.minorBuffs ? player.minorBuffs : {})
   };
+  next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
   next.runModeOptions = Array.isArray(player && player.runModeOptions)
     ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
     : [];
@@ -458,6 +460,17 @@ function getRunModeLabel(playerInput) {
   return player.runMode && CONFIG.runModes[player.runMode]
     ? CONFIG.runModes[player.runMode].label
     : "尚未選擇";
+}
+
+function setUiMode(playerInput, mode) {
+  const player = getPlayer(playerInput);
+  const nextMode = mode === "compact" ? "compact" : "full";
+  player.uiMode = nextMode;
+  return {
+    ok: true,
+    player,
+    message: nextMode === "compact" ? "已切換為精簡 UI。" : "已切換為完整 UI。"
+  };
 }
 
 function getCaveLabel(playerInput) {
@@ -2237,6 +2250,7 @@ module.exports = {
   rescuePlayer,
   returnToSurface,
   revive,
+  setUiMode,
   shimmerCollectible,
   rollWeighted,
   transferCollectible,

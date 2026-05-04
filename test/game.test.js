@@ -27,6 +27,7 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
+  setUiMode,
   shimmerCollectible,
   transferCollectible,
   withdrawBank
@@ -116,6 +117,33 @@ test("詞條選擇畫面會顯示短說明且選擇後不顯示", () => {
   const chosenEmbed = buildPanelEmbed(chooseRunMode(choosing, "double").player, "下礦方式", "").toJSON();
   assert.doesNotMatch(chosenEmbed.description, /採集x2/);
   assert.doesNotMatch(chosenEmbed.description, /按下方數字選擇/);
+});
+
+test("精簡 UI 只顯示生命深度包包和路線", () => {
+  const player = setUiMode({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    gold: 99,
+    bankGold: 100,
+    ore: 1,
+    stats: { bestDepth: 48, totalMines: 0, deaths: 0 },
+    depth: 12,
+    minorBuffs: { gold: 2, bomb: 1 },
+    tempEffects: [{ id: "gas_extreme", remaining: 2 }]
+  }, "compact").player;
+  const embed = buildPanelEmbed(player, "礦場面板", "", null, "detail").toJSON();
+  const value = embed.fields[0].value;
+
+  assert.match(value, /⛏️【礦井探險｜精簡】/);
+  assert.match(value, /生命：/);
+  assert.match(value, /深度：12｜最深48/);
+  assert.match(value, /🎒 包包（1\/12）/);
+  assert.match(value, /路線：\n←/);
+  assert.doesNotMatch(value, /金幣：/);
+  assert.doesNotMatch(value, /銀行/);
+  assert.doesNotMatch(value, /📦 資源/);
+  assert.doesNotMatch(value, /磁條/);
+  assert.doesNotMatch(value, /狀態效果/);
+  assert.doesNotMatch(value, /礦洞/);
 });
 
 test("銀行只能在地面存入並可以領出", () => {

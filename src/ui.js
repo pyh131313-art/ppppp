@@ -35,6 +35,7 @@ const CUSTOM_IDS = {
   mineLeft: "mine_ui:mine_left",
   mineRight: "mine_ui:mine_right",
   pagePrefix: "mine_ui:page",
+  uiModePrefix: "mine_ui:ui",
   rerollModes: "mine_ui:reroll_modes",
   modePrefix: "mine_ui:mode",
   modeDouble: "mine_ui:mode_double",
@@ -261,6 +262,22 @@ function buildBagGrid(playerInput) {
   return rows.join("\n");
 }
 
+function buildCompactBagGrid(playerInput) {
+  const slots = getBagSlots(playerInput);
+  const capacity = getBagCapacity(playerInput);
+  const cellCount = Math.max(18, capacity);
+  const cells = Array.from({ length: cellCount }, (_, index) => {
+    if (index >= capacity) return "[ ]";
+    const slot = slots[index];
+    return `[${slot ? slot.icon : " "}]`;
+  });
+  const rows = [];
+  for (let index = 0; index < cells.length; index += 5) {
+    rows.push(cells.slice(index, index + 5).join(""));
+  }
+  return rows.join("\n");
+}
+
 function buildStatusEffects(playerInput, curse = null) {
   const player = getPlayer(playerInput);
   const effects = [];
@@ -434,7 +451,25 @@ function buildIdleMineScene() {
 
 function buildHudBlock(playerInput, mineLines, page = "main") {
   void mineLines;
+  const player = getPlayer(playerInput);
+  if (player.uiMode === "compact") return buildCompactHudBlock(player);
   return ["⛏️【礦井探險】", "", ...buildHudPage(playerInput, page)].join("\n");
+}
+
+function buildCompactHudBlock(playerInput) {
+  const { player, maxHp, hp, digPathText } = buildCoreStatus(playerInput);
+  return [
+    "⛏️【礦井探險｜精簡】",
+    "",
+    `生命：${"❤️".repeat(hp)}${"🤍".repeat(maxHp - hp)} ${hp}/${maxHp}`,
+    `深度：${player.depth}｜最深${player.stats.bestDepth}`,
+    "",
+    `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,
+    buildCompactBagGrid(player),
+    "",
+    "路線：",
+    digPathText
+  ].join("\n");
 }
 
 function buildRunModeSelectionText(playerInput) {
@@ -464,12 +499,16 @@ function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇�
   const player = getPlayer(playerInput);
   const color = player.dead ? 0x7f1d1d : player.bombs > 0 ? 0xf59e0b : 0x16a34a;
   const event = player.pendingEvent ? getRandomEvent(player.pendingEvent) : null;
-  const eventText = event ? `\n\n目前事件：${event.title}\n${event.description}` : "";
-  const selectionText = buildRunModeSelectionText(player);
+  const compact = player.uiMode === "compact";
+  const eventText = !compact && event ? `\n\n目前事件：${event.title}\n${event.description}` : "";
+  const selectionText = compact ? "" : buildRunModeSelectionText(player);
+  const description = compact
+    ? (message || " ")
+    : `${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${selectionText}${eventText}`;
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(`礦井探險 | ${title}`)
-    .setDescription(`${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${selectionText}${eventText}`)
+    .setDescription(description)
     .addFields({ name: "礦場", value: buildHudBlock(player, buildIdleMineScene(), page) });
   return addActorFooter(embed, user);
 }
@@ -655,6 +694,17 @@ function makePageButton(page, activePage, targetUserId = null) {
   );
 }
 
+function makeUiModeButton(mode, playerInput, targetUserId = null) {
+  const player = getPlayer(playerInput);
+  const active = player.uiMode === mode;
+  const idTarget = targetUserId || "none";
+  return makeButton(
+    `${CUSTOM_IDS.uiModePrefix}:${mode}:${idTarget}`,
+    mode === "compact" ? "精簡" : "完整",
+    active ? ButtonStyle.Primary : ButtonStyle.Secondary
+  );
+}
+
 function getEventButtonLabels(eventId) {
   const event = getRandomEvent(eventId);
   if (event && event.buttons) return event.buttons;
@@ -706,6 +756,10 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
       makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚")
     );
+    addRow(
+      makeUiModeButton("full", player, targetUserId),
+      makeUiModeButton("compact", player, targetUserId)
+    );
     return rows;
   }
 
@@ -724,6 +778,10 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
     );
     addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
+    addRow(
+      makeUiModeButton("full", player, targetUserId),
+      makeUiModeButton("compact", player, targetUserId)
+    );
     return rows;
   }
 

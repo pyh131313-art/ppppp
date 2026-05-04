@@ -24,6 +24,7 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
+  setUiMode,
   shimmerCollectible,
   transferCollectible,
   withdrawBank
@@ -89,6 +90,10 @@ function getPanelTargetUserId(interaction) {
         const targetUserId = customId.split(":")[3];
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
       }
+      if (customId.startsWith(`${CUSTOM_IDS.uiModePrefix}:`)) {
+        const targetUserId = customId.split(":")[3];
+        return targetUserId && targetUserId !== "none" ? targetUserId : null;
+      }
       if (customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`)) {
         const targetUserId = customId.split(":")[2];
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
@@ -139,6 +144,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         files: buildHudFiles(player),
         components: buildPanelComponents(interaction.user.id, player, progress)
       });
+      return;
+    }
+
+    if (name === "礦場ui") {
+      const mode = interaction.options.getString("模式", true);
+      await interaction.deferReply({ ephemeral: true });
+      let result = null;
+      await updatePlayer(interaction.user.id, (player) => {
+        result = setUiMode(player, mode);
+        return result.player;
+      });
+      await interaction.editReply(result.message);
       return;
     }
 
@@ -311,6 +328,22 @@ async function handleMiningButton(interaction) {
     componentPlayer = player;
     embed = buildPanelEmbed(player, "礦場面板", "", interaction.user, hudPage);
     files = buildHudFiles(player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
+    });
+    return;
+  }
+
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.uiModePrefix}:`)) {
+    const mode = interaction.customId.split(":")[2];
+    const progress = getCommunityProgress(await loadPlayers());
+    const result = await updatePlayer(panelTargetUserId, (player) => setUiMode(player, mode).player);
+    componentPlayer = result;
+    embed = buildPanelEmbed(result, "顯示模式", mode === "compact" ? "已切換為精簡 UI。" : "已切換為完整 UI。", interaction.user, hudPage);
+    files = buildHudFiles(result);
     await interaction.editReply({
       embeds: [embed],
       files,
