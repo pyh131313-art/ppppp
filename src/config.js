@@ -228,6 +228,9 @@ const CONFIG = {
     goldPerCommemorative: 100
   },
   shop: {
+    shimmerPool: {
+      costGold: 400
+    },
     items: [
       {
         id: "zhongkui_peace",

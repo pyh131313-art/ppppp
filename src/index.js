@@ -24,6 +24,7 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
+  shimmerCollectible,
   transferCollectible,
   withdrawBank
 } = require("./game");
@@ -99,7 +100,7 @@ client.once(Events.ClientReady, (readyClient) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
-    if (interaction.isButton() && isMiningUiButton(interaction.customId)) {
+    if ((interaction.isButton() || interaction.isStringSelectMenu()) && isMiningUiButton(interaction.customId)) {
       await handleMiningButton(interaction);
       return;
     }
@@ -295,6 +296,13 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(progress, componentPlayer)
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.rerollModes) {
@@ -305,6 +313,13 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(progress, componentPlayer)
+    });
+    return;
   }
 
   if ([CUSTOM_IDS.mine, CUSTOM_IDS.mineLeft, CUSTOM_IDS.mineRight].includes(interaction.customId)) {
@@ -433,7 +448,7 @@ async function handleMiningButton(interaction) {
       embeds: [embed],
       files,
       attachments: [],
-      components: buildShopComponents(progress)
+      components: buildShopComponents(progress, player)
     });
     return;
   }
@@ -465,6 +480,25 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.shopShimmer) {
+    const progress = getCommunityProgress(await loadPlayers());
+    const itemId = interaction.values && interaction.values[0];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = shimmerCollectible(player, itemId, Math.random);
+      componentPlayer = result.player;
+      embed = buildShopEmbed(result.player, result.message, progress);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(progress, componentPlayer)
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyPotion || interaction.customId === CUSTOM_IDS.shopBuyTotem) {

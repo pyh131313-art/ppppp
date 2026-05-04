@@ -27,6 +27,7 @@ const {
   rescuePlayer,
   returnToSurface,
   revive,
+  shimmerCollectible,
   transferCollectible,
   withdrawBank
 } = require("../src/game");
@@ -515,6 +516,39 @@ test("商店限定紀念幣只能用金幣購買", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 0);
   assert.equal(result.player.collection.zhongkui_peace, 1);
+});
+
+test("微光池會消耗金幣和自選紀念幣並轉換成隨機紀念幣", () => {
+  const result = shimmerCollectible(
+    { ...createPlayer(), gold: 500, collection: { nina_hot_water: 1 } },
+    "nina_hot_water",
+    () => 0
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.gold, 100);
+  assert.equal(result.player.collection.nina_hot_water, undefined);
+  assert.equal(result.award.id, "meijiang_done");
+  assert.equal(result.player.collection.meijiang_done, 1);
+});
+
+test("微光池需要金幣和持有的紀念幣且只能在地表使用", () => {
+  const poor = shimmerCollectible(
+    { ...createPlayer(), gold: 399, collection: { nina_hot_water: 1 } },
+    "nina_hot_water"
+  );
+  const missing = shimmerCollectible({ ...createPlayer(), gold: 500 }, "nina_hot_water");
+  const inMine = shimmerCollectible(
+    { ...createPlayer(), gold: 500, runMode: "safe", collection: { nina_hot_water: 1 } },
+    "nina_hot_water"
+  );
+
+  assert.equal(poor.ok, false);
+  assert.match(poor.message, /400 金幣/);
+  assert.equal(missing.ok, false);
+  assert.match(missing.message, /沒有/);
+  assert.equal(inMine.ok, false);
+  assert.match(inMine.message, /地表/);
 });
 
 test("共同任務達到 70 層後商店解鎖治療藥水", () => {

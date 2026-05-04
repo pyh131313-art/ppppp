@@ -1364,6 +1364,62 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   };
 }
 
+function shimmerCollectible(playerInput, itemId, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const cost = CONFIG.shop.shimmerPool.costGold;
+  const source = getCollectible(itemId);
+
+  if (isInMine(player)) {
+    return {
+      ok: false,
+      player,
+      award: null,
+      message: "微光池只能在地表使用。"
+    };
+  }
+
+  if (!source) {
+    return {
+      ok: false,
+      player,
+      award: null,
+      message: "找不到這枚紀念幣。"
+    };
+  }
+
+  if ((player.collection[itemId] || 0) <= 0) {
+    return {
+      ok: false,
+      player,
+      award: null,
+      message: `你沒有 ${source.name} 可以投入微光池。`
+    };
+  }
+
+  if (player.gold < cost) {
+    return {
+      ok: false,
+      player,
+      award: null,
+      message: `微光池需要 ${cost} 金幣，你目前只有 ${player.gold} 金幣。`
+    };
+  }
+
+  const pool = CONFIG.collectibles.filter((item) => item.id !== itemId);
+  const award = pool[Math.floor(random() * pool.length)] || source;
+  player.gold -= cost;
+  player.collection[itemId] -= 1;
+  if (player.collection[itemId] <= 0) delete player.collection[itemId];
+  player.collection[award.id] = (player.collection[award.id] || 0) + 1;
+
+  return {
+    ok: true,
+    player,
+    award,
+    message: `微光池吞下 ${source.name} 和 ${cost} 金幣，轉換出 ${award.name}。`
+  };
+}
+
 function drinkHealingPotion(playerInput) {
   const player = getPlayer(playerInput);
   if (!player.runMode || player.dead) {
@@ -1800,6 +1856,7 @@ module.exports = {
   rescuePlayer,
   returnToSurface,
   revive,
+  shimmerCollectible,
   rollWeighted,
   transferCollectible,
   withdrawBank
