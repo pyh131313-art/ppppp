@@ -296,13 +296,6 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
-    await interaction.editReply({
-      embeds: [embed],
-      files,
-      attachments: [],
-      components: buildShopComponents(progress, componentPlayer)
-    });
-    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.rerollModes) {
@@ -313,13 +306,6 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
-    await interaction.editReply({
-      embeds: [embed],
-      files,
-      attachments: [],
-      components: buildShopComponents(progress, componentPlayer)
-    });
-    return;
   }
 
   if ([CUSTOM_IDS.mine, CUSTOM_IDS.mineLeft, CUSTOM_IDS.mineRight].includes(interaction.customId)) {
