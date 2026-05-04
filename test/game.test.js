@@ -35,6 +35,11 @@ const {
   getEventTriggerChance,
   updateEventState
 } = require("../src/eventPitySystem");
+const {
+  buildPanelComponents,
+  buildPanelEmbed,
+  CUSTOM_IDS
+} = require("../src/ui");
 
 test("挖到兩次炸彈會死亡", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
@@ -70,6 +75,31 @@ test("銀行金幣不會被爆炸死亡扣除", () => {
   assert.equal(result.player.dead, true);
   assert.equal(result.player.gold, 20);
   assert.equal(result.player.bankGold, 100);
+});
+
+test("礦場分頁主畫面只顯示核心狀態", () => {
+  const player = chooseRunMode({ ...createPlayer(), gold: 12, bankGold: 30 }, "safe").player;
+  const embed = buildPanelEmbed(player, "礦場面板", "", null, "main").toJSON();
+  const value = embed.fields[0].value;
+
+  assert.match(value, /生命：/);
+  assert.match(value, /金幣：12 ｜ 銀行：30/);
+  assert.match(value, /深度：/);
+  assert.match(value, /路線：←/);
+  assert.doesNotMatch(value, /📦 資源/);
+  assert.doesNotMatch(value, /🎒 包包（/);
+});
+
+test("礦場分頁按鈕保留玩家狀態並標示目前頁面", () => {
+  const rows = buildPanelComponents("user-1", createPlayer(), {}, "bag").map((row) => row.toJSON());
+  const pageRow = rows.find((row) => row.components.some((component) => (
+    component.custom_id === `${CUSTOM_IDS.pagePrefix}:bag:user-1`
+  )));
+  const bagButton = pageRow.components.find((component) => component.custom_id === `${CUSTOM_IDS.pagePrefix}:bag:user-1`);
+  const mainButton = pageRow.components.find((component) => component.custom_id === `${CUSTOM_IDS.pagePrefix}:main:user-1`);
+
+  assert.equal(bagButton.style, 1);
+  assert.equal(mainButton.style, 2);
 });
 
 test("銀行只能在地面存入並可以領出", () => {

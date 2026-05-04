@@ -85,6 +85,10 @@ function getPanelTargetUserId(interaction) {
     const components = row.components || [];
     for (const component of components) {
       const customId = getButtonCustomId(component);
+      if (customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) {
+        const targetUserId = customId.split(":")[3];
+        return targetUserId && targetUserId !== "none" ? targetUserId : null;
+      }
       if (customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`)) {
         const targetUserId = customId.split(":")[2];
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
@@ -92,6 +96,23 @@ function getPanelTargetUserId(interaction) {
     }
   }
   return null;
+}
+
+function getCurrentHudPage(interaction) {
+  if (interaction.customId && interaction.customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) {
+    return interaction.customId.split(":")[2] || "main";
+  }
+  const rows = interaction.message && interaction.message.components ? interaction.message.components : [];
+  for (const row of rows) {
+    const components = row.components || [];
+    for (const component of components) {
+      const customId = getButtonCustomId(component);
+      if (!customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) continue;
+      const style = component.style || (component.data && component.data.style);
+      if (style === 1) return customId.split(":")[2] || "main";
+    }
+  }
+  return "main";
 }
 
 client.once(Events.ClientReady, (readyClient) => {
@@ -282,6 +303,22 @@ async function handleMiningButton(interaction) {
   let files = [];
   let componentTargetId = panelTargetUserId;
   let componentPlayer = null;
+  const hudPage = getCurrentHudPage(interaction);
+
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) {
+    const progress = getCommunityProgress(await loadPlayers());
+    const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
+    componentPlayer = player;
+    embed = buildPanelEmbed(player, "礦場面板", "", interaction.user, hudPage);
+    files = buildHudFiles(player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
+    });
+    return;
+  }
 
   if (interaction.customId.startsWith(`${CUSTOM_IDS.modePrefix}:`) || interaction.customId === CUSTOM_IDS.modeDouble || interaction.customId === CUSTOM_IDS.modeSafe) {
     const mode = interaction.customId.startsWith(`${CUSTOM_IDS.modePrefix}:`)
@@ -292,7 +329,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseRunMode(player, mode, Math.random);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "下礦方式", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -302,7 +339,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = rerollRunModeOptions(player, Math.random);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "刷新詞條", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "刷新詞條", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -323,7 +360,7 @@ async function handleMiningButton(interaction) {
       );
       players[panelTargetUserId] = outcome.player;
       componentPlayer = outcome.player;
-      embed = buildMiningEmbed(outcome, interaction.user);
+      embed = buildMiningEmbed(outcome, interaction.user, hudPage);
       files = buildHudFiles(outcome.player, outcome);
       return outcome;
     });
@@ -333,7 +370,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseMinorBuff(player, "gold");
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -343,7 +380,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = chooseMinorBuff(player, "bomb");
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -362,7 +399,7 @@ async function handleMiningButton(interaction) {
       embeds: collectionResponse.embeds,
       files: collectionResponse.files,
       attachments: [],
-      components: buildPanelComponents(componentTargetId, componentPlayer, progress)
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
     });
     return;
   }
@@ -377,7 +414,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = depositBank(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -387,7 +424,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = withdrawBank(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -412,7 +449,7 @@ async function handleMiningButton(interaction) {
         : result.message;
       players[panelTargetUserId] = result.player;
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, result.title, message, interaction.user);
+      embed = buildPanelEmbed(result.player, result.title, message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result;
     });
@@ -422,7 +459,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = exchange(player, 1);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "兌換", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "兌換", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -447,13 +484,13 @@ async function handleMiningButton(interaction) {
     const progress = getCommunityProgress(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
     componentPlayer = player;
-    embed = buildPanelEmbed(player, "礦場面板", "已返回礦場面板。", interaction.user);
+    embed = buildPanelEmbed(player, "礦場面板", "已返回礦場面板。", interaction.user, hudPage);
     files = buildHudFiles(player);
     await interaction.editReply({
       embeds: [embed],
       files,
       attachments: [],
-      components: buildPanelComponents(componentTargetId, componentPlayer, progress)
+      components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
     });
     return;
   }
@@ -507,7 +544,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = drinkHealingPotion(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "治療藥水", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "治療藥水", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -517,7 +554,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = removeRust(player, 1);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "除鏽", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "除鏽", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -527,7 +564,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = discardItem(player, "rusty", 1);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "丟棄", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "丟棄", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -537,7 +574,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = returnToSurface(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "返回地面", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "返回地面", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -547,7 +584,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = revive(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "復活", result.message, interaction.user);
+      embed = buildPanelEmbed(result.player, "復活", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -560,7 +597,7 @@ async function handleMiningButton(interaction) {
     if (!targetUserId || targetUserId === "none" || targetUserId === interaction.user.id) {
       const player = await updatePlayer(interaction.user.id, (current) => getPlayer(current));
       componentPlayer = player;
-      embed = buildPanelEmbed(player, "救援", "不能救援自己，請讓其他玩家幫你。", interaction.user);
+      embed = buildPanelEmbed(player, "救援", "不能救援自己，請讓其他玩家幫你。", interaction.user, hudPage);
       files = buildHudFiles(player);
     } else {
       const result = await updatePlayers((players) => {
@@ -569,7 +606,7 @@ async function handleMiningButton(interaction) {
         players[targetUserId] = rescue.target;
         return rescue;
       });
-      embed = buildPanelEmbed(result.target, "救援", result.message, interaction.user);
+      embed = buildPanelEmbed(result.target, "救援", result.message, interaction.user, hudPage);
       componentPlayer = result.target;
       files = buildHudFiles(result.target);
     }
@@ -580,7 +617,7 @@ async function handleMiningButton(interaction) {
     embeds: [embed || buildPanelEmbed(null)],
     files,
     attachments: [],
-    components: buildPanelComponents(componentTargetId, componentPlayer, progress)
+    components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
   });
 }
 
