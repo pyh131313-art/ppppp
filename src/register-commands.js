@@ -4,10 +4,11 @@ require("dotenv").config();
 
 const { REST, Routes } = require("discord.js");
 const { commandJson } = require("./commands");
+const { cleanEnvValue } = require("./env");
 
-const token = process.env.DISCORD_TOKEN;
-const clientId = process.env.DISCORD_CLIENT_ID;
-const guildId = process.env.DISCORD_GUILD_ID;
+const token = cleanEnvValue(process.env.DISCORD_TOKEN);
+const clientId = cleanEnvValue(process.env.DISCORD_CLIENT_ID);
+const guildId = cleanEnvValue(process.env.DISCORD_GUILD_ID);
 
 if (!token || !clientId) {
   throw new Error("請先在 .env 設定 DISCORD_TOKEN 和 DISCORD_CLIENT_ID。");

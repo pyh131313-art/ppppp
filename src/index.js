@@ -3,6 +3,7 @@
 require("dotenv").config();
 
 const { Client, Events, GatewayIntentBits } = require("discord.js");
+const { cleanEnvValue } = require("./env");
 const {
   buyShopItem,
   chooseMinorBuff,
@@ -44,7 +45,7 @@ const {
   isMiningUiButton
 } = require("./ui");
 
-const token = process.env.DISCORD_TOKEN;
+const token = cleanEnvValue(process.env.DISCORD_TOKEN);
 
 if (!token) {
   throw new Error("請先在 .env 設定 DISCORD_TOKEN。");
