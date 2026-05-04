@@ -485,9 +485,9 @@ function buildPanelEmbed(playerInput, title = "礦場面板", message = "選擇�
   const event = player.pendingEvent ? getRandomEvent(player.pendingEvent) : null;
   const compact = player.uiMode === "compact";
   const eventText = !compact && event ? `\n\n目前事件：${event.title}\n${event.description}` : "";
-  const selectionText = compact ? "" : buildRunModeSelectionText(player);
+  const selectionText = buildRunModeSelectionText(player);
   const description = compact
-    ? (message || " ")
+    ? `${message || ""}${selectionText}` || " "
     : `${message}\n\n生鏽紀念幣離開礦坑會消失，除鏽成功才帶得走。${selectionText}${eventText}`;
   const embed = new EmbedBuilder()
     .setColor(color)

@@ -132,6 +132,21 @@ test("詞條選擇畫面會顯示短說明且選擇後不顯示", () => {
   assert.doesNotMatch(chosenEmbed.description, /按下方數字選擇/);
 });
 
+test("精簡 UI 的詞條選擇畫面也會顯示短說明", () => {
+  const choosing = setUiMode({
+    ...createPlayer(),
+    runModeOptions: ["double", "safe"]
+  }, "compact").player;
+  const choosingEmbed = buildPanelEmbed(choosing, "礦場面板", "").toJSON();
+
+  assert.match(choosingEmbed.description, /① 雙倍採集\n採集x2｜死亡扣金x2/);
+  assert.match(choosingEmbed.description, /② 安全血量\n生命\+2｜鏽幣-50%/);
+  assert.match(choosingEmbed.description, /👉 按下方數字選擇/);
+
+  const chosenEmbed = buildPanelEmbed(chooseRunMode(choosing, "double").player, "下礦方式", "").toJSON();
+  assert.doesNotMatch(chosenEmbed.description, /採集x2/);
+});
+
 test("精簡 UI 只顯示生命深度包包和路線", () => {
   const player = setUiMode({
     ...chooseRunMode(createPlayer(), "safe").player,
