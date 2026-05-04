@@ -263,6 +263,14 @@ function buildBagGrid(playerInput) {
   return rows.join("\n");
 }
 
+function buildChargeBar(playerInput) {
+  const player = getPlayer(playerInput);
+  const value = Math.max(0, Math.min(100, player.chargeValue || 0));
+  const filled = Math.floor(value / 10);
+  const bar = `${"🟩".repeat(filled)}${"⬛".repeat(10 - filled)}`;
+  return value >= 100 ? `蓄力：${bar} 可爆發` : `蓄力：${bar} ${value}/100`;
+}
+
 function buildStatusEffects(playerInput, curse = null) {
   const player = getPlayer(playerInput);
   const effects = [];
@@ -280,7 +288,7 @@ function buildStatusEffects(playerInput, curse = null) {
     effects.push(`連擊：${player.comboCount}｜最高 ${player.maxCombo}`);
     if (player.comboCount >= 3) effects.push(player.comboCount >= 5 ? "危險提升 x2" : "危險提升 x1.5");
   }
-  effects.push(`蓄力：${player.chargeValue || 0}/100`);
+  effects.push(buildChargeBar(player));
   return effects.length ? effects.join("\n") : "無";
 }
 
@@ -456,6 +464,8 @@ function buildCompactHudBlock(playerInput) {
     "",
     `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,
     buildBagGrid(player),
+    "",
+    buildChargeBar(player),
     "",
     "路線：",
     digPathText

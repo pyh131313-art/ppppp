@@ -167,6 +167,7 @@ test("精簡 UI 只顯示生命深度包包和路線", () => {
   assert.match(value, /深度：12｜最深48/);
   assert.match(value, /🎒 包包（1\/12）/);
   assert.match(value, /⛏️ ⬛ ⬛ ⬛/);
+  assert.match(value, /蓄力：⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ 0\/100/);
   assert.match(value, /路線：\n←/);
   assert.doesNotMatch(value, /金幣：/);
   assert.doesNotMatch(value, /銀行/);
@@ -174,6 +175,16 @@ test("精簡 UI 只顯示生命深度包包和路線", () => {
   assert.doesNotMatch(value, /磁條/);
   assert.doesNotMatch(value, /狀態效果/);
   assert.doesNotMatch(value, /礦洞/);
+});
+
+test("蓄力滿時會顯示可爆發能量條", () => {
+  const embed = buildPanelEmbed({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    chargeValue: 100
+  }, "礦場面板", "", null, "detail").toJSON();
+  const value = embed.fields[0].value;
+
+  assert.match(value, /蓄力：🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 可爆發/);
 });
 
 test("銀行只能在地面存入並可以領出", () => {
