@@ -2,29 +2,14 @@
 
 require("dotenv").config();
 
-const { REST, Routes } = require("discord.js");
-const { commandJson } = require("./commands");
 const { cleanEnvValue } = require("./env");
-
-const token = cleanEnvValue(process.env.DISCORD_TOKEN);
-const clientId = cleanEnvValue(process.env.DISCORD_CLIENT_ID);
-const guildId = cleanEnvValue(process.env.DISCORD_GUILD_ID);
-
-if (!token || !clientId) {
-  throw new Error("請先在 .env 設定 DISCORD_TOKEN 和 DISCORD_CLIENT_ID。");
-}
-
-const rest = new REST({ version: "10" }).setToken(token);
+const { registerApplicationCommands } = require("./register-app-commands");
 
 async function main() {
-  const route = guildId
-    ? Routes.applicationGuildCommands(clientId, guildId)
-    : Routes.applicationCommands(clientId);
-
-  await rest.put(route, { body: commandJson });
-
-  const scope = guildId ? `伺服器 ${guildId}` : "全域";
-  console.log(`已註冊 ${commandJson.length} 個 slash commands 到${scope}。`);
+  if (!cleanEnvValue(process.env.DISCORD_TOKEN) || !cleanEnvValue(process.env.DISCORD_CLIENT_ID)) {
+    throw new Error("請先在 .env 設定 DISCORD_TOKEN 和 DISCORD_CLIENT_ID。");
+  }
+  await registerApplicationCommands();
 }
 
 main().catch((error) => {

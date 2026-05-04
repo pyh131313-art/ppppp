@@ -4,6 +4,7 @@ require("dotenv").config();
 
 const { Client, Events, GatewayIntentBits } = require("discord.js");
 const { cleanEnvValue } = require("./env");
+const { registerApplicationCommands } = require("./register-app-commands");
 const {
   buyShopItem,
   chooseMinorBuff,
@@ -122,8 +123,13 @@ function getCurrentHudPage(interaction) {
   return "main";
 }
 
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
   console.log(`已登入：${readyClient.user.tag}`);
+  try {
+    await registerApplicationCommands();
+  } catch (error) {
+    console.error("註冊 slash commands 失敗：", error);
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
