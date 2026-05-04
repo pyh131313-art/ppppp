@@ -8,6 +8,7 @@ const path = require("node:path");
 
 const tempDir = path.join(os.tmpdir(), `mining-storage-test-${process.pid}`);
 process.env.DATA_FILE = path.join(tempDir, "players.json");
+process.env.STORAGE_BACKEND = "json";
 
 const {
   BACKUP_FILE,
