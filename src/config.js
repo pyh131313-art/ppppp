@@ -13,7 +13,8 @@ const CONFIG = {
       rusty: 6,
       junk: 6,
       empty: 16,
-      bomb: 10
+      bomb: 10,
+      stalactite: 4
     },
     gemWeights: {
       redGem: 32,

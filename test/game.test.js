@@ -273,7 +273,7 @@ test("可以丟棄生鏽紀念幣和正式紀念幣", () => {
 
 test("生鏽紀念幣一次只會掉一枚", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
-  const result = mine(start, () => 0.66);
+  const result = mine({ ...start, forcedNextResult: "rusty" }, () => 0.66);
 
   assert.equal(result.kind, "rusty");
   assert.equal(result.player.rusty, 1);
@@ -425,6 +425,16 @@ test("寶石礦洞的鐘乳石會扣一滴血", () => {
   assert.equal(result.kind, "stalactite");
   assert.equal(result.player.bombs, 1);
   assert.equal(result.player.dead, false);
+});
+
+test("普通礦洞也會出現鐘乳石並扣一滴血", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const result = mine({ ...start, forcedNextResult: "stalactite" }, () => 0.99, 1000);
+
+  assert.equal(result.kind, "stalactite");
+  assert.equal(result.player.bombs, 1);
+  assert.equal(result.player.dead, false);
+  assert.match(result.message, /鐘乳石/);
 });
 
 test("寶石礦洞的白金破爛佔五格包包", () => {

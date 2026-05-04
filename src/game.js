@@ -1361,6 +1361,28 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
     return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}${damage.dodged ? damage.message : `你被炸傷了。${damageAmount > 1 ? `大爆炸扣 ${formatHpValue(damage.damage || 1)} 滴血。` : ""}生命損傷 ${formatHpValue(player.bombs)}/${maxBombs}。`}`, recordMessage, random);
   }
 
+  if (result === "stalactite") {
+    const damage = addBombDamage(player, now, 2);
+    if (damage.dead) {
+      return {
+        kind: "dead",
+        player,
+        title: "鐘乳石砸落",
+        message: `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}鐘乳石從頭頂砸落，扣 ${formatHpValue(damage.damage || 1)} 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
+      };
+    }
+
+    return buildOutcome(
+      "stalactite",
+      player,
+      "鐘乳石砸落",
+      `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}鐘乳石從頭頂砸落，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
+      recordMessage,
+      random
+    );
+  }
+
   if (result === "junk") {
     const amount = gatherMultiplier;
     const requiredSlots = amount * 3;
