@@ -65,6 +65,8 @@ const CUSTOM_IDS = {
   rescuePrefix: "mine_ui:rescue"
 };
 
+const STACK_SIZE = 10;
+
 const HUD_PAGES = {
   main: "主",
   bag: "背包",
@@ -172,54 +174,36 @@ function buildHudPage(playerInput, page = "main") {
 function getBagSlots(playerInput) {
   const player = getPlayer(playerInput);
   const capacity = getBagCapacity(player);
+  const makeStackSlots = (amount, icon, label) => (
+    Array.from({ length: Math.ceil(Math.max(0, amount || 0) / STACK_SIZE) }, (_, index) => {
+      const count = Math.min(STACK_SIZE, amount - index * STACK_SIZE);
+      return {
+        icon,
+        label: `${label} x${count}`
+      };
+    })
+  );
   const rustySlots = Array.from({ length: player.rusty }, () => ({
     icon: "🟤",
     label: "生鏽紀念幣"
   }));
-  const oreSlots = Array.from({ length: player.ore }, () => ({
-    icon: "⛏️",
-    label: "礦石"
-  }));
-  const goldOreSlots = Array.from({ length: player.goldOre }, () => ({
-    icon: "🟨",
-    label: "金礦石"
-  }));
-  const platinumOreSlots = Array.from({ length: player.platinumOre }, () => ({
-    icon: "◻️",
-    label: "鉑金礦石"
-  }));
+  const oreSlots = makeStackSlots(player.ore, "⛏️", "礦石");
+  const goldOreSlots = makeStackSlots(player.goldOre, "🟨", "金礦石");
+  const platinumOreSlots = makeStackSlots(player.platinumOre, "◻️", "鉑金礦石");
   const goldBlockSlots = Array.from({ length: player.goldBlock }, () => ({
     icon: "🧈",
     label: "金塊"
   }));
-  const oreIngotSlots = Array.from({ length: player.oreIngot }, () => ({
-    icon: "🔶",
-    label: "礦錠"
-  }));
-  const goldOreIngotSlots = Array.from({ length: player.goldOreIngot }, () => ({
-    icon: "🔷",
-    label: "金錠"
-  }));
-  const platinumOreIngotSlots = Array.from({ length: player.platinumOreIngot }, () => ({
-    icon: "🔳",
-    label: "鉑金錠"
-  }));
+  const oreIngotSlots = makeStackSlots(player.oreIngot, "🔶", "礦錠");
+  const goldOreIngotSlots = makeStackSlots(player.goldOreIngot, "🔷", "金錠");
+  const platinumOreIngotSlots = makeStackSlots(player.platinumOreIngot, "🔳", "鉑金錠");
   const bombItemSlots = Array.from({ length: player.bombItem }, () => ({
     icon: "💣",
     label: "完整炸彈"
   }));
-  const redGemSlots = Array.from({ length: player.redGem }, () => ({
-    icon: "🔴",
-    label: "紅寶石"
-  }));
-  const blueGemSlots = Array.from({ length: player.blueGem }, () => ({
-    icon: "🔵",
-    label: "藍寶石"
-  }));
-  const greenGemSlots = Array.from({ length: player.greenGem }, () => ({
-    icon: "🟢",
-    label: "綠寶石"
-  }));
+  const redGemSlots = makeStackSlots(player.redGem, "🔴", "紅寶石");
+  const blueGemSlots = makeStackSlots(player.blueGem, "🔵", "藍寶石");
+  const greenGemSlots = makeStackSlots(player.greenGem, "🟢", "綠寶石");
   const junkSlots = Array.from({ length: player.junk * 3 }, (_, index) => ({
     icon: "🧱",
     label: `超級破爛 ${Math.floor(index / 3) + 1}/佔3格`

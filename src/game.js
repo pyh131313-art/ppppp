@@ -39,6 +39,18 @@ const {
 const { CONFIG } = require("./config");
 
 const BAG_CAPACITY = 12;
+const ITEM_STACK_SIZE = 10;
+const STACKABLE_ITEM_KEYS = new Set([
+  "ore",
+  "goldOre",
+  "platinumOre",
+  "oreIngot",
+  "goldOreIngot",
+  "platinumOreIngot",
+  "redGem",
+  "blueGem",
+  "greenGem"
+]);
 
 function createPlayer() {
   return {
@@ -168,7 +180,7 @@ function healBombDamage(player, amount = 1) {
 
 function addOreReward(player, amount, preferred = "ore") {
   const target = getOreTargetForMode(preferred, player);
-  const gained = Math.min(amount, getBagFreeSlots(player));
+  const gained = Math.min(amount, getItemFreeAmount(player, target));
   if (gained > 0) player[target] += gained;
   return { target, gained };
 }
@@ -738,19 +750,32 @@ function getCollectionUniqueCount(playerInput) {
 function getBagUsedSlots(playerInput) {
   const player = getPlayer(playerInput);
   return player.rusty
-    + player.ore
-    + player.goldOre
-    + player.platinumOre
+    + getItemUsedSlots("ore", player.ore)
+    + getItemUsedSlots("goldOre", player.goldOre)
+    + getItemUsedSlots("platinumOre", player.platinumOre)
     + player.goldBlock
-    + player.oreIngot
-    + player.goldOreIngot
-    + player.platinumOreIngot
+    + getItemUsedSlots("oreIngot", player.oreIngot)
+    + getItemUsedSlots("goldOreIngot", player.goldOreIngot)
+    + getItemUsedSlots("platinumOreIngot", player.platinumOreIngot)
     + player.bombItem
-    + player.redGem
-    + player.blueGem
-    + player.greenGem
+    + getItemUsedSlots("redGem", player.redGem)
+    + getItemUsedSlots("blueGem", player.blueGem)
+    + getItemUsedSlots("greenGem", player.greenGem)
     + player.junk * 3
     + player.platinumJunk * 5;
+}
+
+function getItemUsedSlots(itemId, amount) {
+  if (STACKABLE_ITEM_KEYS.has(itemId)) {
+    return Math.ceil(Math.max(0, amount || 0) / ITEM_STACK_SIZE);
+  }
+  return Math.max(0, amount || 0);
+}
+
+function getBagUsedSlotsWithout(playerInput, itemId) {
+  const player = getPlayer(playerInput);
+  if (!Object.prototype.hasOwnProperty.call(player, itemId)) return getBagUsedSlots(player);
+  return getBagUsedSlots(player) - getItemUsedSlots(itemId, player[itemId]);
 }
 
 function getBagCapacity(playerInput) {
@@ -760,6 +785,14 @@ function getBagCapacity(playerInput) {
 
 function getBagFreeSlots(playerInput) {
   return Math.max(0, getBagCapacity(playerInput) - getBagUsedSlots(playerInput));
+}
+
+function getItemFreeAmount(playerInput, itemId) {
+  const player = getPlayer(playerInput);
+  if (!STACKABLE_ITEM_KEYS.has(itemId)) return getBagFreeSlots(player);
+  const otherUsedSlots = getBagUsedSlotsWithout(player, itemId);
+  const maxSlotsForItem = Math.max(0, getBagCapacity(player) - otherUsedSlots);
+  return Math.max(0, maxSlotsForItem * ITEM_STACK_SIZE - (player[itemId] || 0));
 }
 
 function awardFromPool(player, pool, random = Math.random) {
@@ -876,8 +909,8 @@ function applyRewardBonus(player, reward, bonusAmount) {
     player.gold += amount;
     return amount;
   }
-  const freeSlots = getBagFreeSlots(player);
-  const gained = Math.min(amount, freeSlots);
+  const freeAmount = getItemFreeAmount(player, reward.kind);
+  const gained = Math.min(amount, freeAmount);
   if (gained > 0 && Object.prototype.hasOwnProperty.call(player, reward.kind)) {
     player[reward.kind] += gained;
   }
@@ -896,7 +929,7 @@ function upgradeReward(player, reward) {
   };
   const target = upgrades[reward.kind];
   if (!target || !Object.prototype.hasOwnProperty.call(player, target)) return "";
-  const amount = Math.min(reward.amount, getBagFreeSlots(player));
+  const amount = Math.min(reward.amount, getItemFreeAmount(player, target));
   if (amount <= 0) return "";
   player[target] += amount;
   player.runRewardStats.critBonus += getRewardGoldValue(target, amount);
@@ -914,7 +947,7 @@ function applyJackpot(player, random = Math.random) {
   }
   if (roll < 0.8) {
     const target = player.depth >= 30 ? "platinumOre" : "goldOre";
-    const amount = Math.min(2, getBagFreeSlots(player));
+    const amount = Math.min(2, getItemFreeAmount(player, target));
     if (amount > 0) player[target] += amount;
     player.runRewardStats.burstBonus += getRewardGoldValue(target, amount);
     return `💎 JACKPOT！！！+${amount} ${getOreName(target)}`;
@@ -982,11 +1015,14 @@ function applyPostDigFun(player, kind, random = Math.random) {
     player.chargeBurst = null;
   }
 
-  if (player.chargeBurst === "resource" && !player.dead && getBagFreeSlots(player) > 0) {
+  if (player.chargeBurst === "resource" && !player.dead) {
     const target = player.depth >= 30 ? "platinumOre" : "goldOre";
-    player[target] += 1;
-    player.runRewardStats.burstBonus += getRewardGoldValue(target, 1);
-    messages.push(`⚡ 資源爆發！+1 ${getOreName(target)}`);
+    const amount = Math.min(1, getItemFreeAmount(player, target));
+    if (amount > 0) {
+      player[target] += amount;
+      player.runRewardStats.burstBonus += getRewardGoldValue(target, amount);
+      messages.push(`⚡ 資源爆發！+${amount} ${getOreName(target)}`);
+    }
     player.chargeBurst = null;
   }
 
@@ -1047,8 +1083,8 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
 
   if (result === "redGem" || result === "blueGem" || result === "greenGem") {
     const amount = Math.max(1, Math.floor(getGemAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
-    const freeSlots = getBagFreeSlots(player);
-    if (freeSlots <= 0) {
+    const freeAmount = getItemFreeAmount(player, result);
+    if (freeAmount <= 0) {
       return {
         kind: "full",
         player,
@@ -1057,7 +1093,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       };
     }
 
-    const gained = Math.min(amount, freeSlots);
+    const gained = Math.min(amount, freeAmount);
     player[result] += gained;
     const name = result === "redGem" ? "紅寶石" : result === "blueGem" ? "藍寶石" : "綠寶石";
     player.lastReward = makeReward(result, gained);
@@ -1204,8 +1240,9 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
 
   if (result === "ore") {
     const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
-    const freeSlots = getBagFreeSlots(player);
-    if (freeSlots <= 0) {
+    const target = getOreTargetForMode("ore", player);
+    const freeAmount = getItemFreeAmount(player, target);
+    if (freeAmount <= 0) {
       return {
         kind: "full",
         player,
@@ -1214,8 +1251,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       };
     }
 
-    const target = getOreTargetForMode("ore", player);
-    const gained = Math.min(amount, freeSlots);
+    const gained = Math.min(amount, freeAmount);
     player[target] += gained;
     player.lastReward = makeReward(target, gained);
     return buildOutcome(
@@ -1230,10 +1266,10 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
 
   if (result === "goldOre" || result === "platinumOre") {
     const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
-    const freeSlots = getBagFreeSlots(player);
     const target = getOreTargetForMode(result, player);
+    const freeAmount = getItemFreeAmount(player, target);
     const name = getOreName(target);
-    if (freeSlots <= 0) {
+    if (freeAmount <= 0) {
       return {
         kind: "full",
         player,
@@ -1242,7 +1278,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       };
     }
 
-    const gained = Math.min(amount, freeSlots);
+    const gained = Math.min(amount, freeAmount);
     player[target] += gained;
     player.lastReward = makeReward(target, gained);
     return buildOutcome(
@@ -1361,13 +1397,12 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     if (choice === "risk") {
       if (random() < 0.6) {
         const amount = 2 + getDepthBonus(player.depth);
-        const gained = Math.min(amount, getBagFreeSlots(player));
-        player.ore += gained;
+        const reward = addOreReward(player, amount, "ore");
         return {
           ok: true,
           player,
           title: event.title,
-          message: `你敲開礦牆，拿到 ${gained} 塊礦石。${gained < amount ? "包包不夠，有些放不下。" : ""}`
+          message: `你敲開礦牆，拿到 ${reward.gained} 塊${getOreName(reward.target)}。${reward.gained < amount ? "包包不夠，有些放不下。" : ""}`
         };
       }
 
@@ -1393,15 +1428,14 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
   if (eventId === "collapse_warning") {
     if (choice === "risk") {
       const gold = 15 + getDepthBonus(player.depth) * 5;
-      const ore = Math.min(2, getBagFreeSlots(player));
+      const oreReward = addOreReward(player, 2, "ore");
       player.gold += gold;
-      player.ore += ore;
       const damage = random() < 0.45 ? addBombDamage(player, now).message : "這次沒有被砸中。";
       return {
         ok: true,
         player,
         title: event.title,
-        message: `你硬挖一波，獲得 ${gold} 金幣和 ${ore} 塊礦石。${damage}`
+        message: `你硬挖一波，獲得 ${gold} 金幣和 ${oreReward.gained} 塊${getOreName(oreReward.target)}。${damage}`
       };
     }
 
@@ -1483,14 +1517,13 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
 
       if (roll < 0.65) {
         const gold = 20 + getDepthBonus(player.depth) * 5;
-        const ore = Math.min(2, getBagFreeSlots(player));
+        const oreReward = addOreReward(player, 2, "ore");
         player.gold += gold;
-        player.ore += ore;
         return {
           ok: true,
           player,
           title: event.title,
-          message: `你翻到補給，獲得 ${gold} 金幣和 ${ore} 塊礦石。`
+          message: `你翻到補給，獲得 ${gold} 金幣和 ${oreReward.gained} 塊${getOreName(oreReward.target)}。`
         };
       }
 

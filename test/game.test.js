@@ -428,15 +428,35 @@ test("寶石礦洞的白金破爛佔五格包包", () => {
   assert.equal(getBagUsedSlots(result.player), 5);
 });
 
-test("礦石會佔用包包格子", () => {
+test("礦石金屬錠和寶石每十個佔一格", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    ore: 2,
+    ore: 11,
     goldOre: 1,
-    platinumOre: 1
+    platinumOre: 1,
+    oreIngot: 10,
+    goldOreIngot: 1,
+    platinumOreIngot: 1,
+    redGem: 10,
+    blueGem: 1,
+    greenGem: 1
   };
 
-  assert.equal(getBagUsedSlots(player), 4);
+  assert.equal(getBagUsedSlots(player), 10);
+});
+
+test("同一組堆疊未滿十個時包包滿仍可放入", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    ore: 9,
+    rusty: 11
+  };
+  const mined = mine({ ...player, forcedNextResult: "ore" }, () => 0.5);
+
+  assert.equal(getBagUsedSlots(player), 12);
+  assert.equal(mined.kind, "ore");
+  assert.equal(mined.player.ore, 10);
+  assert.equal(getBagUsedSlots(mined.player), 12);
 });
 
 test("正式紀念幣放在集幣冊不佔包包", () => {
@@ -465,7 +485,8 @@ test("超級破爛佔三格且返回地面清除", () => {
 test("超級破爛需要三格空間", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    ore: 10
+    ore: 100,
+    rusty: 2
   };
   const result = mine(player, () => 0.7);
 
