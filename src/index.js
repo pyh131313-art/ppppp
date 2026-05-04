@@ -52,6 +52,15 @@ if (!token) {
   throw new Error("請先在 .env 設定 DISCORD_TOKEN。");
 }
 
+function logInteractionError(error, interaction, context = "interaction") {
+  const commandName = interaction && interaction.isChatInputCommand && interaction.isChatInputCommand()
+    ? interaction.commandName
+    : null;
+  const customId = interaction && interaction.customId ? interaction.customId : null;
+  console.error(`[${context}] user=${interaction && interaction.user ? interaction.user.id : "unknown"} command=${commandName || "-"} customId=${customId || "-"} error=`);
+  console.error(error);
+}
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -301,7 +310,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     await interaction.reply({ content: "未知指令。", ephemeral: true });
   } catch (error) {
-    console.error(error);
+    logInteractionError(error, interaction, "command");
     const payload = {
       content: "指令執行時發生錯誤，請稍後再試。",
       ephemeral: true
