@@ -186,7 +186,8 @@ const CONFIG = {
     },
     bombProof: {
       label: "防爆外套",
-      bombWeightMultiplier: 0.75
+      bombWeightMultiplier: 0.75,
+      bombDodgeChance: 0.25
     },
     fireDragonPickaxe: {
       label: "火龍十字鎬",
@@ -199,6 +200,29 @@ const CONFIG = {
       label: "絲綢之觸",
       rawGoblinMultiplier: 1.7,
       bombCaptureChance: 0.4
+    },
+    chainBlast: {
+      label: "連鎖爆破",
+      chainBlast: true
+    },
+    refiningInstinct: {
+      label: "精煉本能",
+      refiningInstinct: true,
+      goldMultiplierBonus: -0.3
+    },
+    greedyLoop: {
+      label: "貪婪循環",
+      greedyLoop: true
+    },
+    dangerSense: {
+      label: "危險感知",
+      dangerSense: true,
+      emptyWeightMultiplier: 1.4
+    },
+    anomalousBackpack: {
+      label: "異常背包",
+      bagBonusSlots: 6,
+      anomalousBackpack: true
     }
   },
   minorBuffs: {

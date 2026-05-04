@@ -1,5 +1,27 @@
 "use strict";
 
+const {
+  getEventTriggerChance,
+  rollEventTrigger,
+  shouldCheckEvent,
+  updateEventState
+} = require("./eventPitySystem");
+const {
+  getRandomEvent,
+  getRandomEvents,
+  pickRandomEvent
+} = require("./eventSystem");
+const {
+  applyTraitWeights,
+  canSenseDanger,
+  consumeChainBlastReward,
+  createTraitState,
+  getTraitGoldMultiplier,
+  normalizeTraitState,
+  onDamageTaken,
+  onGoldGained,
+  shouldRefineOre
+} = require("./traitSystem");
 const { CONFIG } = require("./config");
 
 const BAG_CAPACITY = 12;
@@ -42,6 +64,14 @@ function createPlayer() {
     nextBuffDepth: 5,
     pendingEvent: null,
     nextEventDepth: 4,
+    eventMissCount: 0,
+    tempEffects: [],
+    forcedNextResult: null,
+    goldBeast: null,
+    returnBlessing: false,
+    rescueBonusCount: 0,
+    traitState: createTraitState(),
+    tempMaxHp: 0,
     bagBonusSlots: 0,
     stats: {
       bestDepth: 0,
@@ -69,6 +99,11 @@ function getPlayer(player) {
   next.digPathOptions = {
     ...(player && player.digPathOptions ? player.digPathOptions : {})
   };
+  next.tempEffects = Array.isArray(player && player.tempEffects)
+    ? player.tempEffects.map((effect) => ({ ...effect }))
+    : [];
+  next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
+  next.traitState = normalizeTraitState(player && player.traitState);
   next.stats = {
     ...createPlayer().stats,
     ...(player && player.stats ? player.stats : {})
@@ -87,6 +122,53 @@ function rollWeighted(weights, random = Math.random) {
   }
 
   return entries[entries.length - 1][0];
+}
+
+function addTempEffect(player, effect) {
+  player.tempEffects.push({ ...effect });
+}
+
+function getEffectMultiplier(playerInput, key) {
+  const player = getPlayer(playerInput);
+  return player.tempEffects.reduce((multiplier, effect) => {
+    if (!effect || !effect[key]) return multiplier;
+    return multiplier * effect[key];
+  }, 1);
+}
+
+function tickTempEffects(player) {
+  player.tempEffects = player.tempEffects
+    .map((effect) => ({ ...effect, remaining: Math.max(0, (effect.remaining || 0) - 1) }))
+    .filter((effect) => effect.remaining > 0);
+}
+
+function healBombDamage(player, amount = 1) {
+  const before = player.bombs;
+  player.bombs = Math.max(0, player.bombs - amount);
+  return before - player.bombs;
+}
+
+function addOreReward(player, amount, preferred = "ore") {
+  const target = getOreTargetForMode(preferred, player);
+  const gained = Math.min(amount, getBagFreeSlots(player));
+  if (gained > 0) player[target] += gained;
+  return { target, gained };
+}
+
+function getJunkFreeSlots(player) {
+  return Math.floor(getBagFreeSlots(player) / 3);
+}
+
+function consumeRandomGem(player, random = Math.random) {
+  const gems = [
+    ["redGem", "紅寶石"],
+    ["blueGem", "藍寶石"],
+    ["greenGem", "綠寶石"]
+  ].filter(([key]) => player[key] > 0);
+  if (gems.length === 0) return null;
+  const [key, name] = gems[Math.floor(random() * gems.length)];
+  player[key] -= 1;
+  return { key, name };
 }
 
 function getDigPathIds() {
@@ -169,14 +251,21 @@ function getMiningWeights(playerInput, digPath = null) {
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
   if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
   if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
+  weights.gold *= getEffectMultiplier(player, "goldWeightMultiplier");
+  weights.ore *= getEffectMultiplier(player, "oreWeightMultiplier");
+  weights.goldOre *= getEffectMultiplier(player, "oreWeightMultiplier");
+  weights.platinumOre *= getEffectMultiplier(player, "oreWeightMultiplier");
+  weights.junk *= getEffectMultiplier(player, "junkWeightMultiplier");
+  weights.empty *= getEffectMultiplier(player, "emptyWeightMultiplier");
+  weights.bomb *= getEffectMultiplier(player, "bombWeightMultiplier");
   weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
-  return applyDigPathWeights(weights, player, digPath);
+  return applyTraitWeights(applyDigPathWeights(weights, player, digPath), player, CONFIG);
 }
 
 function getMaxBombs(playerInput) {
   const player = getPlayer(playerInput);
   const mode = getMode(player);
-  return CONFIG.mining.baseHp + (mode && mode.extraHp ? mode.extraHp : 0);
+  return CONFIG.mining.baseHp + (mode && mode.extraHp ? mode.extraHp : 0) + (player.tempMaxHp || 0);
 }
 
 function getDepthLabel(depth) {
@@ -207,7 +296,7 @@ function getMode(playerInput) {
 
 function getOreTargetForMode(kind, playerInput) {
   const player = getPlayer(playerInput);
-  if (player.runMode !== "fireDragonPickaxe") return kind;
+  if (player.runMode !== "fireDragonPickaxe" && !shouldRefineOre(player, CONFIG)) return kind;
   if (kind === "ore") return "oreIngot";
   if (kind === "goldOre") return "goldOreIngot";
   if (kind === "platinumOre") return "platinumOreIngot";
@@ -352,6 +441,13 @@ function resetRunState(player, random = Math.random) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
+  player.eventMissCount = 0;
+  player.tempEffects = [];
+  player.forcedNextResult = null;
+  player.goldBeast = null;
+  player.returnBlessing = false;
+  player.tempMaxHp = 0;
+  player.traitState = createTraitState();
   player.bagBonusSlots = 0;
   player.digPathOptions = {};
   player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
@@ -459,7 +555,21 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
+  player.eventMissCount = 0;
   player.bagBonusSlots = config.bagBonusSlots || 0;
+  player.tempEffects = [];
+  player.forcedNextResult = null;
+  player.goldBeast = null;
+  player.returnBlessing = false;
+  player.tempMaxHp = 0;
+  player.traitState = createTraitState();
+  if (player.rescueBonusCount > 0) {
+    for (let i = 0; i < player.rescueBonusCount; i += 1) {
+      const buff = random && random() < 0.5 ? "gold" : "bomb";
+      player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
+    }
+    player.rescueBonusCount = 0;
+  }
   player.digPathOptions = refreshDigPathOptions(player, random || Math.random).digPathOptions;
 
   return {
@@ -612,41 +722,6 @@ function awardRustCollectible(player, random = Math.random) {
   return awardFromPool(player, getRustCollectibles(), random);
 }
 
-const RANDOM_EVENTS = {
-  cracked_wall: {
-    title: "裂開的礦牆",
-    description: "牆縫後面有亮光，但石層很不穩。"
-  },
-  collapse_warning: {
-    title: "坍塌前兆",
-    description: "頭頂開始掉碎石，繼續貪可能賺，也可能出事。"
-  },
-  ancient_rust: {
-    title: "古老除鏽機",
-    description: "角落有一台舊機器，似乎可以處理生鏽紀念幣。"
-  },
-  lost_backpack: {
-    title: "遺失的背包",
-    description: "地上有一個被丟下的背包，裡面可能有補給，也可能有破爛。"
-  },
-  goblin_purchase: {
-    title: "地精收購",
-    description: "一個地精說想收購你的礦石，但你看不出牠是好是壞。"
-  },
-  cave_roach: {
-    title: "超大洞穴蟑螂",
-    description: "一隻超大洞穴蟑螂趴在路邊，牠看起來很餓，而且很想被摸頭。"
-  }
-};
-
-function getRandomEvent(eventId) {
-  return RANDOM_EVENTS[eventId] || null;
-}
-
-function getRandomEvents() {
-  return RANDOM_EVENTS;
-}
-
 function setDepthRecord(player) {
   if (player.depth <= player.stats.bestDepth) return "";
   player.stats.bestDepth = player.depth;
@@ -654,18 +729,29 @@ function setDepthRecord(player) {
 }
 
 function maybeTriggerRandomEvent(player, random = Math.random) {
-  if (player.dead || player.pendingEvent || player.depth < player.nextEventDepth) return "";
-  player.nextEventDepth += 4;
-  if (random() >= 0.55) return "";
+  if (player.dead || player.pendingEvent || player.caveType === "gem" || !shouldCheckEvent(player.depth, player)) return "";
+  const triggered = rollEventTrigger(player, random);
+  const nextState = updateEventState(triggered, player);
+  player.eventMissCount = nextState.eventMissCount;
+  player.nextEventDepth = nextState.nextEventDepth;
+  if (!triggered) return "";
 
-  const eventIds = Object.keys(RANDOM_EVENTS);
-  const eventId = eventIds[Math.floor(random() * eventIds.length)] || eventIds[0];
+  const eventId = pickRandomEvent(player, random);
   player.pendingEvent = eventId;
   const event = getRandomEvent(eventId);
   return `\n\n事件出現：${event.title}。\n${event.description}`;
 }
 
 function addBombDamage(player, now = Date.now(), amount = 1) {
+  const mode = getMode(player);
+  if (mode && mode.bombDodgeChance && Math.random() < mode.bombDodgeChance) {
+    return {
+      dead: false,
+      dodged: true,
+      message: "防爆外套替你擋下爆炸，沒有受到傷害。"
+    };
+  }
+  onDamageTaken(player);
   player.bombs += amount;
   const maxBombs = getMaxBombs(player);
   if (player.bombs < maxBombs) {
@@ -684,8 +770,21 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     };
   }
 
+  if (player.returnBlessing) {
+    const lostGold = Math.min(player.gold, Math.ceil(player.gold / 2));
+    player.gold -= lostGold;
+    player.returnBlessing = false;
+    resetRunState(player);
+    return {
+      dead: false,
+      returned: true,
+      message: `歸還祝福啟動，你沒有死亡並被送回地表，但失去 ${lostGold} 枚金幣。`
+    };
+  }
+
   const lostGold = applyDeathPenalty(player);
   player.dead = true;
+  player.goldBeast = null;
   player.deathAt = now;
   player.lastDeathLostGold = lostGold;
   player.stats.deaths += 1;
@@ -700,6 +799,7 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     ? ""
     : maybeTriggerRandomEvent(player, random);
   if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
+    tickTempEffects(player);
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
   }
   return {
@@ -716,12 +816,45 @@ function getGemAmount(depth, random = Math.random) {
   return 1 + Math.floor(random() * (2 + bonus));
 }
 
+function processLayerStartEffects(player, random = Math.random, now = Date.now()) {
+  const messages = [];
+  for (const effect of player.tempEffects) {
+    if (effect.hurtChance && random() < effect.hurtChance) {
+      const damage = addBombDamage(player, now);
+      messages.push(`臨時效果反噬，${damage.message}`);
+      if (damage.dead) break;
+    }
+  }
+
+  if (!player.dead && player.runMode === "anomalousBackpack" && random() < 0.2) {
+    if (getBagFreeSlots(player) >= 3) {
+      player.junk += 1;
+      messages.push("異常背包吐出 1 個超級破爛。");
+    } else {
+      messages.push("異常背包想吐出破爛，但包包塞不下。");
+    }
+  }
+
+  if (!player.dead && player.goldBeast && player.depth >= player.goldBeast.returnDepth) {
+    const roll = random();
+    const multiplier = roll < 0.5 ? 1.5 : roll < 0.85 ? 2 : 3;
+    const reward = Math.floor(player.goldBeast.amount * multiplier);
+    player.gold += reward;
+    player.goldBeast = null;
+    messages.push(`吞金獸回來了，吐出 ${reward} 金幣。`);
+  }
+
+  return messages.join("\n");
+}
+
 function mineGemCave(player, random = Math.random, now = Date.now(), recordMessage = "", digPath = null) {
   const pathPrefix = getDigPathPrefix(player, digPath);
   const result = rollWeighted(applyDigPathWeights(CONFIG.mining.gemWeights, player, digPath), random);
   const mode = player.runMode ? CONFIG.runModes[player.runMode] : null;
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
-  const digPathRewardMultiplier = getDigPathRewardMultiplier(player, digPath);
+  const digPathRewardMultiplier = getDigPathRewardMultiplier(player, digPath)
+    * getEffectMultiplier(player, "rewardMultiplier")
+    * consumeChainBlastReward(player);
 
   if (result === "redGem" || result === "blueGem" || result === "greenGem") {
     const amount = Math.max(1, Math.floor(getGemAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
@@ -755,7 +888,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
         kind: "dead",
         player,
         title: "鐘乳石砸落",
-        message: `${pathPrefix}鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `${pathPrefix}鐘乳石砸中你，直接扣 2 滴血。${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
@@ -830,19 +963,35 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   player.stats.totalMines += 1;
   const mode = getMode(player);
   const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
-  player.depth += depthStep;
+  const repeatLayer = player.tempEffects.some((effect) => effect.id === "repeat_layer");
+  if (!repeatLayer) player.depth += depthStep;
   const recordMessage = setDepthRecord(player);
-  if (player.caveType === "gem") {
-    return mineGemCave(player, random, now, recordMessage, digPath);
+  const layerEffectMessage = processLayerStartEffects(player, random, now);
+  if (player.dead) {
+    return {
+      kind: "dead",
+      player,
+      title: "礦坑反噬",
+      message: `${layerEffectMessage}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
+    };
   }
-  const result = rollWeighted(getMiningWeights(player, digPath), random);
+  if (player.caveType === "gem") {
+    const outcome = mineGemCave(player, random, now, recordMessage, digPath);
+    if (layerEffectMessage) outcome.message = `${layerEffectMessage}\n${outcome.message}`;
+    return outcome;
+  }
+  let result = player.forcedNextResult || rollWeighted(getMiningWeights(player, digPath), random);
+  player.forcedNextResult = null;
+  if (result === "gold_or_ore") result = random() < 0.5 ? "gold" : "ore";
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
   const goldMultiplier = 1
     + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
     + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
+  const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player);
 
   if (result === "gold") {
-    const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier * digPathRewardMultiplier));
+    const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier * getTraitGoldMultiplier(player, CONFIG) * digPathRewardMultiplier * rewardMultiplier));
     if (player.runMode === "fireDragonPickaxe") {
       if (getBagFreeSlots(player) <= 0) {
         return {
@@ -857,18 +1006,19 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       return buildOutcome("goldBlock", player, "燒成金塊", `${pathPrefix}火龍十字鎬把金幣燒成 ${gained} 個金塊，會佔包包格子。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`, recordMessage, random);
     }
     player.gold += amount;
-    return buildOutcome("gold", player, "挖到金幣", `${pathPrefix}你挖到了 ${amount} 枚金幣。`, recordMessage, random);
+    onGoldGained(player);
+    return buildOutcome("gold", player, "挖到金幣", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}你挖到了 ${amount} 枚金幣。`, recordMessage, random);
   }
 
   if (result === "ore") {
-    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
     const freeSlots = getBagFreeSlots(player);
     if (freeSlots <= 0) {
       return {
         kind: "full",
         player,
         title: "包包已滿",
-        message: `${pathPrefix}你挖到礦石，但包包已滿，放不下。`
+        message: `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}你挖到礦石，但包包已滿，放不下。`
       };
     }
 
@@ -879,14 +1029,14 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       target,
       player,
       target === "ore" ? "挖到礦石" : "燒成礦錠",
-      `${pathPrefix}你挖到了 ${gained} 塊${getOreName(target)}。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
+      `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}你挖到了 ${gained} 塊${getOreName(target)}。返回地面時會自動換成金幣。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`,
       recordMessage,
       random
     );
   }
 
   if (result === "goldOre" || result === "platinumOre") {
-    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier));
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
     const freeSlots = getBagFreeSlots(player);
     const target = getOreTargetForMode(result, player);
     const name = getOreName(target);
@@ -936,6 +1086,9 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "bomb") {
+    if (canSenseDanger(player, random)) {
+      return buildOutcome("empty", player, "危險感知", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}危險感知讓你提前發現炸彈，你繞開了它。`, recordMessage, random);
+    }
     if (player.runMode === "silkTouch" && random() < CONFIG.runModes.silkTouch.bombCaptureChance) {
       if (getBagFreeSlots(player) <= 0) {
         return {
@@ -956,12 +1109,12 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
         kind: "dead",
         player,
         title: damageAmount > 1 ? "大爆炸" : "爆炸",
-        message: `${pathPrefix}你挖到炸彈，${damageAmount > 1 ? "火龍十字鎬引發大爆炸，" : ""}${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人花 ${CONFIG.revive.rescueCostGold} 金幣救援。${recordMessage ? `\n${recordMessage}` : ""}`,
+        message: `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}你挖到炸彈，${damageAmount > 1 ? "火龍十字鎬引發大爆炸，" : ""}${damage.message}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。${recordMessage ? `\n${recordMessage}` : ""}`,
         recordMessage
       };
     }
 
-    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${pathPrefix}你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`, recordMessage, random);
+    return buildOutcome("bomb", player, damageAmount > 1 ? "大爆炸" : "挖到炸彈", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}${damage.dodged ? damage.message : `你被炸傷了。${damageAmount > 1 ? "大爆炸扣 2 滴血。" : ""}炸彈次數 ${player.bombs}/${maxBombs}。`}`, recordMessage, random);
   }
 
   if (result === "junk") {
@@ -1268,6 +1421,235 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     };
   }
 
+  if (eventId === "unstable_powder") {
+    if (choice === "safe") {
+      addTempEffect(player, { id: "powder_safe", remaining: 3, bombWeightMultiplier: 0.85 });
+      return { ok: true, player, title: event.title, message: "你繞開火藥堆，接下來 3 層炸彈權重 -15%。" };
+    }
+    if (choice === "extreme") {
+      const damage = addBombDamage(player, now);
+      addTempEffect(player, { id: "powder_extreme", remaining: 3, rewardMultiplier: 1.8, bombWeightMultiplier: 1.4 });
+      return { ok: true, player, title: event.title, message: `你點燃火藥衝刺，${damage.message}接下來 3 層收益 +80%，炸彈 +40%。` };
+    }
+    if (random() < 0.5) {
+      const gold = 30 + getDepthBonus(player.depth) * 10;
+      const ore = addOreReward(player, 2 + getDepthBonus(player.depth)).gained;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `你拆出資源，獲得 ${gold} 金幣和 ${ore} 塊礦石。` };
+    }
+    const damage = addBombDamage(player, now);
+    return { ok: true, player, title: event.title, message: `火藥直接炸開，${damage.message}` };
+  }
+
+  if (eventId === "underground_stream") {
+    if (choice === "safe") {
+      addTempEffect(player, { id: "stream_safe", remaining: 3, emptyWeightMultiplier: 1.2 });
+      return { ok: true, player, title: event.title, message: "你沿水繞路，接下來 3 層空挖 +20%。" };
+    }
+    if (choice === "extreme") {
+      addTempEffect(player, { id: "stream_extreme", remaining: 3, rewardMultiplier: 1.4, hurtChance: 0.25 });
+      return { ok: true, player, title: event.title, message: "你衝進水脈，接下來 3 層收益 +40%，每層 25% 扣血。" };
+    }
+    player.forcedNextResult = "gold_or_ore";
+    return { ok: true, player, title: event.title, message: "你順著水脈開挖，下一層必出金幣或礦石。" };
+  }
+
+  if (eventId === "miner_remains") {
+    if (choice === "safe") {
+      const healed = healBombDamage(player, 1);
+      return { ok: true, player, title: event.title, message: healed > 0 ? "你找到急救品，回復 1 點生命。" : "你找到急救品，但生命已滿。" };
+    }
+    if (choice === "extreme") {
+      player.bagBonusSlots += 2;
+      addTempEffect(player, { id: "remains_extreme", remaining: 3, junkWeightMultiplier: 1.6 });
+      return { ok: true, player, title: event.title, message: `你背上殘骸包，包包 +2，接下來 3 層破爛 +60%。目前 ${getBagCapacity(player)} 格。` };
+    }
+    if (random() < 0.5) {
+      const gold = 25 + getDepthBonus(player.depth) * 8;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `你翻到資源，獲得 ${gold} 金幣。` };
+    }
+    if (getBagFreeSlots(player) >= 3) player.junk += 1;
+    return { ok: true, player, title: event.title, message: "你翻到一包超級破爛。" };
+  }
+
+  if (eventId === "magnetic_anomaly") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你遠離磁場，沒有發生任何事。" };
+    if (choice === "extreme") {
+      addTempEffect(player, { id: "magnetic_extreme", remaining: 1, rewardMultiplier: 2 });
+      player.forcedNextResult = "bomb";
+      return { ok: true, player, title: event.title, message: "你衝進磁場中心，下一層收益 x2，但下一次必出炸彈。" };
+    }
+    addTempEffect(player, { id: "magnetic_risk", remaining: 3, goldWeightMultiplier: 1.4 });
+    return { ok: true, player, title: event.title, message: "你追著金光走，接下來 3 層金幣權重 +40%。" };
+  }
+
+  if (eventId === "crack_whisper") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你不理會低語，繼續前進。" };
+    if (choice === "extreme") {
+      player.depth += 2;
+      const damage = addBombDamage(player, now);
+      addTempEffect(player, { id: "whisper_extreme", remaining: 3, bombWeightMultiplier: 1.25 });
+      return { ok: true, player, title: event.title, message: `你跳入裂縫前進到第 ${player.depth} 層，${damage.message}接下來 3 層炸彈 +25%。` };
+    }
+    player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
+    const options = getDigPathOptions(player).map((path) => `${path.side === "left" ? "左" : "右"}:${path.label}`).join("｜");
+    return { ok: true, player, title: event.title, message: `低語顯示下一層路線：${options}。` };
+  }
+
+  if (eventId === "lost_supply_cache") {
+    if (choice === "safe") {
+      const healed = healBombDamage(player, 1);
+      return { ok: true, player, title: event.title, message: healed > 0 ? "你拿到急救品，回復 1 點生命。" : "你拿到急救品，但生命已滿。" };
+    }
+    if (choice === "extreme") {
+      player.bagBonusSlots += 4;
+      if (getBagFreeSlots(player) >= 3) player.junk += 1;
+      return { ok: true, player, title: event.title, message: `你整箱扛走，包包 +4，並加入 1 個超級破爛。目前 ${getBagCapacity(player)} 格。` };
+    }
+    const roll = random();
+    if (roll < 0.34) {
+      const gold = 30 + getDepthBonus(player.depth) * 10;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `你找到資源，獲得 ${gold} 金幣。` };
+    }
+    if (roll < 0.67) {
+      player.bagBonusSlots += 2;
+      return { ok: true, player, title: event.title, message: `你找到備用袋，包包 +2，目前 ${getBagCapacity(player)} 格。` };
+    }
+    if (getBagFreeSlots(player) >= 3) player.junk += 1;
+    return { ok: true, player, title: event.title, message: "你撬出一包超級破爛。" };
+  }
+
+  if (eventId === "explosive_core") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你標記礦核後離開，沒有觸發爆炸。" };
+    if (choice === "extreme") {
+      addTempEffect(player, { id: "core_extreme", remaining: 1, rewardMultiplier: 2 });
+      addTempEffect(player, { id: "core_bomb", remaining: 2, bombWeightMultiplier: 1.5 });
+      return { ok: true, player, title: event.title, message: "你強挖核心，本層收益 x2，接下來 2 層炸彈 +50%。" };
+    }
+    const oreKind = player.depth >= 30 ? "platinumOre" : "goldOre";
+    const reward = addOreReward(player, 1 + getDepthBonus(player.depth), oreKind);
+    return { ok: true, player, title: event.title, message: `你小心採集，獲得 ${reward.gained} 塊${getOreName(reward.target)}。` };
+  }
+
+  if (eventId === "corrosive_gas") {
+    if (choice === "safe") return { ...returnToSurface(player), title: event.title };
+    if (choice === "extreme") {
+      addTempEffect(player, { id: "gas_extreme", remaining: 4, rewardMultiplier: 1.6, hurtChance: 0.2 });
+      return { ok: true, player, title: event.title, message: "你硬闖毒霧，接下來 4 層收益 +60%，每層 20% 扣血。" };
+    }
+    const message = random() < 0.5 ? "你摀住口鼻通過，這次沒事。" : `你吸入腐蝕氣體，${addBombDamage(player, now).message}`;
+    return { ok: true, player, title: event.title, message };
+  }
+
+  if (eventId === "goblin_black_market") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你離開黑市，沒有交易。" };
+    if (choice === "extreme") {
+      if (random() < 0.5) {
+        const gold = 120 + player.depth * 8;
+        player.gold += gold;
+        return { ok: true, player, title: event.title, message: `你豪賭成功，獲得 ${gold} 金幣。` };
+      }
+      return { ok: true, player, title: event.title, message: `你豪賭失敗，${addBombDamage(player, now, 2).message}` };
+    }
+    if (random() < 0.6) {
+      const gold = 45 + player.depth * 4;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `黑市交易成功，賺到 ${gold} 金幣。` };
+    }
+    const stolen = Math.min(player.gold, 40 + getDepthBonus(player.depth) * 10);
+    player.gold -= stolen;
+    return { ok: true, player, title: event.title, message: `你被地精搶走 ${stolen} 金幣。` };
+  }
+
+  if (eventId === "time_dislocation") {
+    if (choice === "risk") {
+      player.depth += 3;
+      const recordMessage = setDepthRecord(player);
+      return { ok: true, player, title: event.title, message: `時間快進，你直接抵達第 ${player.depth} 層。${recordMessage}` };
+    }
+    if (choice === "extreme") {
+      addTempEffect(player, { id: "repeat_layer", remaining: 1 });
+      return { ok: true, player, title: event.title, message: "時間折返，下一次挖礦會重複當前層。" };
+    }
+    return { ok: true, player, title: event.title, message: "你穩住時間感，正常繼續挖。" };
+  }
+
+  if (eventId === "ancient_curse") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你立刻退開，避開了詛咒。" };
+    if (choice === "extreme") {
+      const damage = addBombDamage(player, now);
+      addTempEffect(player, { id: "ancient_curse", remaining: 4 });
+      return { ok: true, player, title: event.title, message: `你破壞遺跡，${damage.message}古代詛咒纏身，4 層內不能返回地表。` };
+    }
+    addTempEffect(player, { id: "ancient_curse", remaining: 4 });
+    return { ok: true, player, title: event.title, message: "古代詛咒纏上你，接下來 4 層內不能主動返回地表。" };
+  }
+
+  if (eventId === "ancient_blessing") {
+    const roll = random();
+    if (roll < 0.4) {
+      const gold = 80 + player.depth * 5;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `古代祝福賜予你 ${gold} 金幣。` };
+    }
+    const gem = roll < 0.6 ? "redGem" : roll < 0.8 ? "blueGem" : "greenGem";
+    player[gem] += 1;
+    const name = gem === "redGem" ? "紅寶石" : gem === "blueGem" ? "藍寶石" : "綠寶石";
+    return { ok: true, player, title: event.title, message: `古代祝福賜予你 1 顆${name}。` };
+  }
+
+  if (eventId === "scrap_recycler") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你沒有出售廢品。" };
+    const soldJunk = player.junk;
+    const soldPlatinumJunk = player.platinumJunk;
+    const payout = soldJunk * 20 + soldPlatinumJunk * 40;
+    player.junk = 0;
+    player.platinumJunk = 0;
+    player.gold += payout;
+    return { ok: true, player, title: event.title, message: `回收商收走 ${soldJunk} 個超級破爛和 ${soldPlatinumJunk} 個白金破爛，支付 ${payout} 金幣。` };
+  }
+
+  if (eventId === "life_spring") {
+    const healed = healBombDamage(player, choice === "extreme" ? 2 : 1);
+    return { ok: true, player, title: event.title, message: healed > 0 ? `生命之泉回復 ${healed} 點生命。` : "生命之泉很溫暖，但你生命已滿。" };
+  }
+
+  if (eventId === "life_altar") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你離開生命祭壇。" };
+    const gem = consumeRandomGem(player, random);
+    if (!gem) return { ok: false, player, title: event.title, message: "你沒有寶石可以獻上。" };
+    if (random() < 0.5) {
+      player.tempMaxHp = (player.tempMaxHp || 0) + 2;
+      healBombDamage(player, 2);
+      return { ok: true, player, title: event.title, message: `你獻上${gem.name}，獲得生命祝福：本輪最大生命 +2，目前生命也回復 2。` };
+    }
+    player.returnBlessing = true;
+    return { ok: true, player, title: event.title, message: `你獻上${gem.name}，獲得歸還祝福：本輪死亡時會返回地表並損失身上金幣 1/2。` };
+  }
+
+  if (eventId === "gambler") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你拒絕賭局。" };
+    const wager = Math.min(200, Math.floor(player.gold / 2));
+    if (wager <= 0) return { ok: false, player, title: event.title, message: "你沒有足夠金幣下注。" };
+    player.gold -= wager;
+    if (random() < 0.5) {
+      player.gold += wager * 2;
+      return { ok: true, player, title: event.title, message: `你下注 ${wager} 金幣並獲勝，拿回 ${wager * 2} 金幣。` };
+    }
+    return { ok: true, player, title: event.title, message: `你下注 ${wager} 金幣但輸了。` };
+  }
+
+  if (eventId === "gold_eater") {
+    if (choice === "safe") return { ok: true, player, title: event.title, message: "你沒有餵食吞金獸。" };
+    if (player.gold <= 0) return { ok: false, player, title: event.title, message: "你身上沒有金幣可以餵。" };
+    player.goldBeast = { amount: player.gold, returnDepth: player.depth + 8 };
+    const fed = player.gold;
+    player.gold = 0;
+    return { ok: true, player, title: event.title, message: `你餵給吞金獸 ${fed} 金幣。牠會在第 ${player.goldBeast.returnDepth} 層回來。` };
+  }
+
   return {
     ok: false,
     player,
@@ -1506,6 +1888,14 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
 
 function returnToSurface(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
+  const curse = player.tempEffects.find((effect) => effect.id === "ancient_curse" && effect.remaining > 0);
+  if (curse) {
+    return {
+      ok: false,
+      player,
+      message: `古代詛咒尚未解除，你還無法返回地面。剩餘 ${curse.remaining} 層。`
+    };
+  }
   const lostRusty = player.rusty;
   const soldOre = player.ore;
   const soldGoldOre = player.goldOre;
@@ -1727,20 +2117,11 @@ function rescuePlayer(rescuerInput, targetInput, now = Date.now(), random = Math
     };
   }
 
-  if (rescuer.gold < CONFIG.revive.rescueCostGold) {
-    return {
-      ok: false,
-      rescuer,
-      target,
-      message: `救援需要 ${CONFIG.revive.rescueCostGold} 金幣，你目前只有 ${rescuer.gold} 金幣。`
-    };
-  }
-
   const rescueRefund = target.deathAt && now - target.deathAt <= CONFIG.revive.rescueRefundAfterMs
     ? target.lastDeathLostGold || 0
     : 0;
 
-  rescuer.gold -= CONFIG.revive.rescueCostGold;
+  rescuer.rescueBonusCount = (rescuer.rescueBonusCount || 0) + 1;
   target.gold += rescueRefund;
   target.dead = false;
   resetRunState(target, random);
@@ -1751,7 +2132,7 @@ function rescuePlayer(rescuerInput, targetInput, now = Date.now(), random = Math
     ok: true,
     rescuer,
     target,
-    message: `救援成功，花費 ${CONFIG.revive.rescueCostGold} 金幣。${rescueRefund > 0 ? `3 分鐘內救起，退回 ${rescueRefund} 枚死亡損失金幣。` : ""}`
+    message: `救援成功。救援者下次下礦會隨機獲得 1 個小詞條。${rescueRefund > 0 ? `3 分鐘內救起，退回 ${rescueRefund} 枚死亡損失金幣。` : ""}`
   };
 }
 

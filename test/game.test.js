@@ -31,6 +31,10 @@ const {
   transferCollectible,
   withdrawBank
 } = require("../src/game");
+const {
+  getEventTriggerChance,
+  updateEventState
+} = require("../src/eventPitySystem");
 
 test("挖到兩次炸彈會死亡", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
@@ -352,10 +356,10 @@ test("地表會刷新兩個初始詞條並只能選本輪出現的", () => {
   const chosen = chooseRunMode(player, options[0]);
 
   assert.equal(options.length, 2);
-  assert.deepEqual(options, ["silkTouch", "fireDragonPickaxe"]);
+  assert.deepEqual(options, ["anomalousBackpack", "dangerSense"]);
   assert.equal(blocked.ok, false);
   assert.equal(chosen.ok, true);
-  assert.equal(chosen.player.runMode, "silkTouch");
+  assert.equal(chosen.player.runMode, "anomalousBackpack");
   assert.deepEqual(chosen.player.runModeOptions, []);
 });
 
@@ -369,7 +373,7 @@ test("返回地面會刷新下一輪初始詞條", () => {
   );
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.player.runModeOptions, ["silkTouch", "fireDragonPickaxe"]);
+  assert.deepEqual(result.player.runModeOptions, ["anomalousBackpack", "dangerSense"]);
 });
 
 test("地表可以花十金幣刷新初始詞條", () => {
@@ -378,7 +382,7 @@ test("地表可以花十金幣刷新初始詞條", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 15);
-  assert.deepEqual(result.player.runModeOptions, ["silkTouch", "fireDragonPickaxe"]);
+  assert.deepEqual(result.player.runModeOptions, ["anomalousBackpack", "dangerSense"]);
 });
 
 test("下礦後不能刷新初始詞條且金幣不足會被擋下", () => {
@@ -389,6 +393,47 @@ test("下礦後不能刷新初始詞條且金幣不足會被擋下", () => {
   assert.match(poor.message, /需要 10 金幣/);
   assert.equal(inMine.ok, false);
   assert.match(inMine.message, /礦坑/);
+});
+
+test("事件保底連續未觸發後第四次必定觸發", () => {
+  let state = { eventMissCount: 0, nextEventDepth: 4 };
+  assert.equal(getEventTriggerChance(state), 0.45);
+  state = updateEventState(false, state);
+  assert.equal(getEventTriggerChance(state), 0.65);
+  state = updateEventState(false, state);
+  assert.equal(Number(getEventTriggerChance(state).toFixed(2)), 0.85);
+  state = updateEventState(false, state);
+  assert.equal(getEventTriggerChance(state), 1);
+});
+
+test("新事件極端選項會套用臨時效果", () => {
+  const result = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "unstable_powder" },
+    "extreme",
+    () => 0.99,
+    1000
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.tempEffects.some((effect) => effect.id === "powder_extreme"), true);
+  assert.equal(result.player.bombs, 1);
+});
+
+test("連鎖爆破踩炸彈會堆疊並在下一次收益後歸零", () => {
+  const bombed = mine(
+    { ...createPlayer(), runMode: "chainBlast", caveType: "normal" },
+    () => 0.99,
+    1000
+  );
+  const rewarded = mine(
+    { ...bombed.player, bombs: 0 },
+    () => 0,
+    2000
+  );
+
+  assert.equal(bombed.player.traitState.chainBlast, 1);
+  assert.equal(rewarded.kind, "gold");
+  assert.equal(rewarded.player.traitState.chainBlast, 0);
 });
 
 test("火龍十字鎬每次深入會跳兩層並錯過部分小磁條層", () => {
@@ -801,14 +846,15 @@ test("死亡十分鐘後可以免費復活", () => {
   assert.equal(result.player.gold, 0);
 });
 
-test("其他玩家可以花金幣救援死亡玩家", () => {
+test("其他玩家可以免費救援並取得下次下礦小詞條", () => {
   const result = rescuePlayer(
     { ...createPlayer(), gold: 20 },
     { ...createPlayer(), dead: true, bombs: 2, ore: 3, rusty: 1, runMode: "double" }
   );
 
   assert.equal(result.ok, true);
-  assert.equal(result.rescuer.gold, 0);
+  assert.equal(result.rescuer.gold, 20);
+  assert.equal(result.rescuer.rescueBonusCount, 1);
   assert.equal(result.target.dead, false);
   assert.equal(result.target.bombs, 0);
   assert.equal(result.target.ore, 0);

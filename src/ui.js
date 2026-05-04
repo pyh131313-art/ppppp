@@ -46,6 +46,7 @@ const CUSTOM_IDS = {
   bankWithdraw: "mine_ui:bank_withdraw",
   eventRisk: "mine_ui:event:risk",
   eventSafe: "mine_ui:event:safe",
+  eventExtreme: "mine_ui:event:extreme",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyOne: "mine_ui:shop_buy_one",
   shopOpen: "mine_ui:shop_open",
@@ -87,6 +88,7 @@ function buildQuickStatus(playerInput) {
   const digPathText = digPaths.length
     ? `左:${digPaths[0].label}｜右:${digPaths[1].label}`
     : "尚未生成";
+  const curse = player.tempEffects.find((effect) => effect.id === "ancient_curse" && effect.remaining > 0);
   return [
     `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
     `道具 🧪${player.healingPotion} 🗿${player.undyingTotem}`,
@@ -100,9 +102,10 @@ function buildQuickStatus(playerInput) {
     `路線 ${digPathText}`,
     `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
     `事件 ${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
+    curse ? `詛咒 剩餘${curse.remaining}層` : null,
     `礦洞 ${getCaveLabel(player)}`,
     `深度 ${player.depth}｜最深 ${player.stats.bestDepth}｜${getDepthLabel(player.depth)}`
-  ];
+  ].filter(Boolean);
 }
 
 function getBagSlots(playerInput) {
@@ -543,42 +546,8 @@ function makeButton(customId, label, style = ButtonStyle.Secondary, emoji = null
 }
 
 function getEventButtonLabels(eventId) {
-  if (eventId === "cracked_wall") {
-    return {
-      risk: "敲開礦牆",
-      safe: "繞路前進"
-    };
-  }
-  if (eventId === "collapse_warning") {
-    return {
-      risk: "硬挖一波",
-      safe: "立刻撤退"
-    };
-  }
-  if (eventId === "ancient_rust") {
-    return {
-      risk: "免費除鏽",
-      safe: "穩定除鏽"
-    };
-  }
-  if (eventId === "lost_backpack") {
-    return {
-      risk: "翻找背包",
-      safe: "只拿背帶"
-    };
-  }
-  if (eventId === "goblin_purchase") {
-    return {
-      risk: "接受收購",
-      safe: "拒絕收購"
-    };
-  }
-  if (eventId === "cave_roach") {
-    return {
-      risk: "摸頭餵食",
-      safe: "慢慢退開"
-    };
-  }
+  const event = getRandomEvent(eventId);
+  if (event && event.buttons) return event.buttons;
   return {
     risk: "冒險選項",
     safe: "保守選項"
@@ -608,7 +577,8 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     const labels = getEventButtonLabels(player.pendingEvent);
     addRow(
       makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
-      makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭")
+      makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭"),
+      labels.extreme ? makeButton(CUSTOM_IDS.eventExtreme, labels.extreme, ButtonStyle.Danger, "🔥") : null
     );
   }
 

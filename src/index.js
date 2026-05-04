@@ -393,8 +393,12 @@ async function handleMiningButton(interaction) {
     });
   }
 
-  if (interaction.customId === CUSTOM_IDS.eventRisk || interaction.customId === CUSTOM_IDS.eventSafe) {
-    const choice = interaction.customId === CUSTOM_IDS.eventRisk ? "risk" : "safe";
+  if (interaction.customId === CUSTOM_IDS.eventRisk || interaction.customId === CUSTOM_IDS.eventSafe || interaction.customId === CUSTOM_IDS.eventExtreme) {
+    const choice = interaction.customId === CUSTOM_IDS.eventRisk
+      ? "risk"
+      : interaction.customId === CUSTOM_IDS.eventExtreme
+        ? "extreme"
+        : "safe";
     await updatePlayers((players) => {
       const previousBestDepth = getGlobalBestDepth(players);
       const result = resolveRandomEvent(players[panelTargetUserId], choice);
