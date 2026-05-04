@@ -86,26 +86,35 @@ function buildQuickStatus(playerInput) {
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   const digPaths = player.runMode ? getDigPathOptions(player) : [];
   const digPathText = digPaths.length
-    ? `左:${digPaths[0].label}｜右:${digPaths[1].label}`
-    : "尚未生成";
+    ? `← ${digPaths[0].label} ｜ ${digPaths[1].label} →`
+    : "無";
   const curse = player.tempEffects.find((effect) => effect.id === "ancient_curse" && effect.remaining > 0);
   return [
-    `金幣 ${player.gold}｜銀行 ${player.bankGold}`,
-    `道具 🧪${player.healingPotion} 🗿${player.undyingTotem}`,
-    `礦石 ⛏️${player.ore} 🟨${player.goldOre} ◻️${player.platinumOre}`,
-    `加工 🧈${player.goldBlock} 🔶${player.oreIngot} 🔷${player.goldOreIngot} 🔳${player.platinumOreIngot} 💣${player.bombItem}`,
-    `寶石 🔴${player.redGem} 🔵${player.blueGem} 🟢${player.greenGem}`,
-    `破爛 ${player.junk}｜白金 ${player.platinumJunk}`,
-    `包包 ${getBagUsedSlots(player)}/${getBagCapacity(player)}`,
-    `生命 ${"♥".repeat(hp)}${".".repeat(maxHp - hp)} ${hp}/${maxHp}`,
-    `方式 ${getRunModeLabel(player)}`,
-    `路線 ${digPathText}`,
-    `磁條 金幣+${player.minorBuffs.gold * 5}% 防爆${player.minorBuffs.bomb}`,
-    `事件 ${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
-    curse ? `詛咒 剩餘${curse.remaining}層` : null,
-    `礦洞 ${getCaveLabel(player)}`,
-    `深度 ${player.depth}｜最深 ${player.stats.bestDepth}｜${getDepthLabel(player.depth)}`
-  ].filter(Boolean);
+    "🎒 狀態",
+    `生命：${"❤️".repeat(hp)}${"🤍".repeat(maxHp - hp)} (${hp}/${maxHp})`,
+    `金幣：${player.gold} ｜ 銀行：${player.bankGold}`,
+    `深度：${player.depth} / 最深${player.stats.bestDepth}（${getDepthLabel(player.depth)}）`,
+    "",
+    "⚙️ 配置",
+    `詞條：${getRunModeLabel(player)}`,
+    `路線：${digPathText}`,
+    `磁條：金幣+${player.minorBuffs.gold * 5}%｜防爆${player.minorBuffs.bomb}`,
+    "",
+    "📦 資源",
+    `礦石：${player.ore}｜金礦：${player.goldOre}｜鉑金：${player.platinumOre}`,
+    `加工：${player.goldBlock + player.oreIngot}｜金錠：${player.goldOreIngot}｜鉑金錠：${player.platinumOreIngot}`,
+    `寶石：🔴${player.redGem} 🔵${player.blueGem} 🟢${player.greenGem}`,
+    `特殊：💣${player.bombItem}｜鏽${player.rusty}｜破爛${player.junk}｜白金${player.platinumJunk}`,
+    "",
+    `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,
+    buildBagGrid(player),
+    "",
+    "📌 狀態效果",
+    buildStatusEffects(player, curse),
+    "",
+    "🧭 礦洞",
+    getCaveLabel(player)
+  ].filter((line) => line !== null);
 }
 
 function getBagSlots(playerInput) {
@@ -189,15 +198,51 @@ function getBagSlots(playerInput) {
 function buildBagGrid(playerInput) {
   const slots = getBagSlots(playerInput);
   const capacity = getBagCapacity(playerInput);
-  const cells = Array.from({ length: capacity }, (_, index) => {
+  const cellCount = Math.max(16, Math.ceil(capacity / 4) * 4);
+  const cells = Array.from({ length: cellCount }, (_, index) => {
+    if (index >= capacity) return "　";
     const slot = slots[index];
-    return `${String(index + 1).padStart(2, "0")} ${slot ? slot.icon : "⬛"}`;
+    return slot ? slot.icon : "⬛";
   });
   const rows = [];
   for (let index = 0; index < cells.length; index += 4) {
-    rows.push(cells.slice(index, index + 4).join("　"));
+    rows.push(cells.slice(index, index + 4).join(" "));
   }
   return rows.join("\n");
+}
+
+function buildStatusEffects(playerInput, curse = null) {
+  const player = getPlayer(playerInput);
+  const effects = [];
+  if (player.pendingEvent) effects.push(`事件：${getRandomEvent(player.pendingEvent).title}`);
+  if (curse) effects.push(`古代詛咒：${curse.remaining}層`);
+  if (player.tempEffects.length > 0) {
+    effects.push(...player.tempEffects
+      .filter((effect) => effect.id !== "ancient_curse")
+      .map((effect) => `${formatEffectName(effect.id)}：${effect.remaining}層`));
+  }
+  if (player.goldBeast) effects.push(`吞金獸：第${player.goldBeast.returnDepth}層`);
+  if (player.returnBlessing) effects.push("歸還祝福");
+  if (player.rescueBonusCount > 0) effects.push(`救援小詞條 x${player.rescueBonusCount}`);
+  return effects.length ? effects.join("\n") : "無";
+}
+
+function formatEffectName(effectId) {
+  const map = {
+    powder_safe: "避開火藥",
+    powder_extreme: "火藥衝刺",
+    stream_safe: "地下水脈",
+    stream_extreme: "水脈衝刺",
+    remains_extreme: "殘骸包",
+    magnetic_extreme: "磁場中心",
+    magnetic_risk: "異常磁場",
+    whisper_extreme: "裂縫低語",
+    core_extreme: "爆裂礦核",
+    core_bomb: "礦核危險",
+    gas_extreme: "腐蝕氣體",
+    repeat_layer: "時間錯位"
+  };
+  return map[effectId] || effectId;
 }
 
 function buildBagList(playerInput) {
@@ -338,17 +383,8 @@ function buildIdleMineScene() {
 }
 
 function buildHudBlock(playerInput, mineLines) {
-  const slots = getBagSlots(playerInput);
-  const capacity = getBagCapacity(playerInput);
-  const bagCells = Array.from({ length: capacity }, (_, index) => {
-    const slot = slots[index];
-    return `背包${index + 1}:${slot ? slot.icon : "⬛"}`;
-  });
-  const bagRows = [];
-  for (let index = 0; index < bagCells.length; index += 4) {
-    bagRows.push(bagCells.slice(index, index + 4).join("　"));
-  }
-  return [...mineLines, "", ...buildQuickStatus(playerInput), "", "包包", ...bagRows].join("\n");
+  void mineLines;
+  return ["⛏️【礦井探險】", "", ...buildQuickStatus(playerInput)].join("\n");
 }
 
 function getDisplayName(user) {
