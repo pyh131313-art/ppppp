@@ -324,7 +324,7 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) {
     const progress = getCommunityProgress(await loadPlayers());
-    const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
+    const player = await updatePlayer(panelTargetUserId, (current) => setUiMode(current, "full").player);
     componentPlayer = player;
     embed = buildPanelEmbed(player, "礦場面板", "", interaction.user, hudPage);
     files = buildHudFiles(player);

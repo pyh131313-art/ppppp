@@ -678,9 +678,9 @@ function makePageButton(page, activePage, targetUserId = null) {
   );
 }
 
-function makeUiModeButton(mode, playerInput, targetUserId = null) {
+function makeUiModeButton(mode, playerInput, targetUserId = null, activeOverride = null) {
   const player = getPlayer(playerInput);
-  const active = player.uiMode === mode;
+  const active = activeOverride === null ? player.uiMode === mode : activeOverride;
   const idTarget = targetUserId || "none";
   return makeButton(
     `${CUSTOM_IDS.uiModePrefix}:${mode}:${idTarget}`,
@@ -732,17 +732,14 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     makePageButton("main", hudPage, targetUserId),
     makePageButton("bag", hudPage, targetUserId),
     makePageButton("resources", hudPage, targetUserId),
-    makePageButton("detail", hudPage, targetUserId)
+    makePageButton("detail", hudPage, targetUserId),
+    makeUiModeButton("compact", player, targetUserId, player.uiMode === "compact")
   );
 
   if (player.dead) {
     addRow(
       makeButton(rescueId, "救援", ButtonStyle.Success, "💚"),
       makeButton(CUSTOM_IDS.revive, "自己復活", ButtonStyle.Success, "💚")
-    );
-    addRow(
-      makeUiModeButton("full", player, targetUserId),
-      makeUiModeButton("compact", player, targetUserId)
     );
     return rows;
   }
@@ -762,10 +759,6 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
     );
     addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
-    addRow(
-      makeUiModeButton("full", player, targetUserId),
-      makeUiModeButton("compact", player, targetUserId)
-    );
     return rows;
   }
 

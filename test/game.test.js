@@ -103,6 +103,17 @@ test("礦場分頁按鈕保留玩家狀態並標示目前頁面", () => {
   assert.equal(mainButton.style, 2);
 });
 
+test("精簡模式按鈕整合在分頁列", () => {
+  const rows = buildPanelComponents("user-1", setUiMode(createPlayer(), "compact").player, {}, "main").map((row) => row.toJSON());
+  const pageRow = rows[0];
+  const compactButton = pageRow.components.find((component) => component.custom_id === `${CUSTOM_IDS.uiModePrefix}:compact:user-1`);
+
+  assert.equal(pageRow.components.length, 5);
+  assert.equal(compactButton.label, "精簡");
+  assert.equal(compactButton.style, 1);
+  assert.equal(rows.every((row) => row.components.every((component) => component.label !== "完整")), true);
+});
+
 test("詞條選擇畫面會顯示短說明且選擇後不顯示", () => {
   const choosing = {
     ...createPlayer(),
