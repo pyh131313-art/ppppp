@@ -670,7 +670,7 @@ function makeButton(customId, label, style = ButtonStyle.Secondary, emoji = null
 
 function makePageButton(page, activePage, targetUserId = null) {
   const idTarget = targetUserId || "none";
-  const active = normalizeHudPage(activePage) === page;
+  const active = activePage !== null && normalizeHudPage(activePage) === page;
   return makeButton(
     `${CUSTOM_IDS.pagePrefix}:${page}:${idTarget}`,
     HUD_PAGES[page],
@@ -700,7 +700,7 @@ function getEventButtonLabels(eventId) {
 
 function buildPanelComponents(targetUserId = null, playerInput = null, progressInput = {}, page = "main") {
   const player = getPlayer(playerInput);
-  const hudPage = normalizeHudPage(page);
+  const hudPage = player.uiMode === "compact" ? null : normalizeHudPage(page);
   const modeNumbers = ["①", "②"];
   const progress = {
     healingPotionUnlocked: false,

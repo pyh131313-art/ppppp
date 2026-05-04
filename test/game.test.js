@@ -107,10 +107,12 @@ test("精簡模式按鈕整合在分頁列", () => {
   const rows = buildPanelComponents("user-1", setUiMode(createPlayer(), "compact").player, {}, "main").map((row) => row.toJSON());
   const pageRow = rows[0];
   const compactButton = pageRow.components.find((component) => component.custom_id === `${CUSTOM_IDS.uiModePrefix}:compact:user-1`);
+  const activeButtons = pageRow.components.filter((component) => component.style === 1);
 
   assert.equal(pageRow.components.length, 5);
   assert.equal(compactButton.label, "精簡");
   assert.equal(compactButton.style, 1);
+  assert.deepEqual(activeButtons.map((component) => component.label), ["精簡"]);
   assert.equal(rows.every((row) => row.components.every((component) => component.label !== "完整")), true);
 });
 
