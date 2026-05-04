@@ -22,6 +22,20 @@ const {
   onGoldGained,
   shouldRefineOre
 } = require("./traitSystem");
+const {
+  POSITIVE_KINDS,
+  addCharge,
+  applyRiskScaling,
+  calculateFinalReward,
+  createFunState,
+  getComboBonusMultiplier,
+  normalizeFunState,
+  resetFunRunState,
+  rollCrit,
+  rollJackpot,
+  triggerCharge,
+  updateCombo
+} = require("./funSystem");
 const { CONFIG } = require("./config");
 
 const BAG_CAPACITY = 12;
@@ -71,6 +85,7 @@ function createPlayer() {
     goldBeast: null,
     returnBlessing: false,
     rescueBonusCount: 0,
+    ...createFunState(),
     traitState: createTraitState(),
     tempMaxHp: 0,
     bagBonusSlots: 0,
@@ -105,6 +120,7 @@ function getPlayer(player) {
     ? player.tempEffects.map((effect) => ({ ...effect }))
     : [];
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
+  Object.assign(next, normalizeFunState(player || {}));
   next.traitState = normalizeTraitState(player && player.traitState);
   next.stats = {
     ...createPlayer().stats,
@@ -317,6 +333,32 @@ function getOreName(kind) {
   return names[kind] || "礦物";
 }
 
+function getRewardGoldValue(kind, amount) {
+  const values = {
+    gold: 1,
+    ore: CONFIG.ore.goldPerOre,
+    goldOre: CONFIG.ore.goldPerGoldOre,
+    platinumOre: CONFIG.ore.goldPerPlatinumOre,
+    goldBlock: CONFIG.ore.goldPerGoldBlock,
+    oreIngot: CONFIG.ore.goldPerOreIngot,
+    goldOreIngot: CONFIG.ore.goldPerGoldOreIngot,
+    platinumOreIngot: CONFIG.ore.goldPerPlatinumOreIngot,
+    redGem: CONFIG.ore.redGemGold,
+    blueGem: CONFIG.ore.blueGemGold,
+    greenGem: CONFIG.ore.greenGemGold,
+    bombItem: CONFIG.ore.goldPerBombItem
+  };
+  return Math.max(0, Math.floor((values[kind] || 0) * amount));
+}
+
+function makeReward(kind, amount, baseValue = null) {
+  return {
+    kind,
+    amount: Math.max(0, Math.floor(amount || 0)),
+    baseValue
+  };
+}
+
 function applyDeathPenalty(player) {
   const mode = getMode(player);
   const multiplier = mode && mode.deathPenaltyMultiplier ? mode.deathPenaltyMultiplier : 1;
@@ -448,6 +490,7 @@ function resetRunState(player, random = Math.random) {
   player.forcedNextResult = null;
   player.goldBeast = null;
   player.returnBlessing = false;
+  resetFunRunState(player);
   player.tempMaxHp = 0;
   player.traitState = createTraitState();
   player.bagBonusSlots = 0;
@@ -797,6 +840,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
 
   const lostGold = applyDeathPenalty(player);
   player.dead = true;
+  player.comboCount = 0;
   player.goldBeast = null;
   player.deathAt = now;
   player.lastDeathLostGold = lostGold;
@@ -815,13 +859,145 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     tickTempEffects(player);
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
   }
+  const funMessage = applyPostDigFun(player, kind, random);
   return {
     kind,
     player,
     title,
-    message: `${message}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
+    message: `${message}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
     recordMessage
   };
+}
+
+function applyRewardBonus(player, reward, bonusAmount) {
+  const amount = Math.max(0, Math.floor(bonusAmount || 0));
+  if (!reward || amount <= 0) return 0;
+  if (reward.kind === "gold") {
+    player.gold += amount;
+    return amount;
+  }
+  const freeSlots = getBagFreeSlots(player);
+  const gained = Math.min(amount, freeSlots);
+  if (gained > 0 && Object.prototype.hasOwnProperty.call(player, reward.kind)) {
+    player[reward.kind] += gained;
+  }
+  return gained;
+}
+
+function upgradeReward(player, reward) {
+  if (!reward || reward.amount <= 0) return "";
+  const upgrades = {
+    ore: "goldOre",
+    goldOre: "platinumOre",
+    oreIngot: "goldOreIngot",
+    goldOreIngot: "platinumOreIngot",
+    redGem: "greenGem",
+    blueGem: "greenGem"
+  };
+  const target = upgrades[reward.kind];
+  if (!target || !Object.prototype.hasOwnProperty.call(player, target)) return "";
+  const amount = Math.min(reward.amount, getBagFreeSlots(player));
+  if (amount <= 0) return "";
+  player[target] += amount;
+  player.runRewardStats.critBonus += getRewardGoldValue(target, amount);
+  return `✨ 高級資源！+${amount} ${getOreName(target)}`;
+}
+
+function applyJackpot(player, random = Math.random) {
+  const roll = random();
+  player.jackpotCount += 1;
+  if (roll < 0.5) {
+    const gold = 200 + Math.floor(random() * 301);
+    player.gold += gold;
+    player.runRewardStats.burstBonus += gold;
+    return `💎 JACKPOT！！！+${gold} 金幣`;
+  }
+  if (roll < 0.8) {
+    const target = player.depth >= 30 ? "platinumOre" : "goldOre";
+    const amount = Math.min(2, getBagFreeSlots(player));
+    if (amount > 0) player[target] += amount;
+    player.runRewardStats.burstBonus += getRewardGoldValue(target, amount);
+    return `💎 JACKPOT！！！+${amount} ${getOreName(target)}`;
+  }
+  player.depth += 2;
+  const recordMessage = setDepthRecord(player);
+  return `💎 JACKPOT！！！深度 +2${recordMessage ? `\n${recordMessage}` : ""}`;
+}
+
+function applyPostDigFun(player, kind, random = Math.random) {
+  if (kind === "blocked" || !player.runMode) return "";
+  const messages = [];
+  const reward = player.lastReward || null;
+  delete player.lastReward;
+  addCharge(player, 12);
+
+  const combo = updateCombo(player, kind);
+  const positive = POSITIVE_KINDS.has(kind) && reward && reward.amount > 0;
+  if (positive) {
+    const baseValue = reward.baseValue === null || reward.baseValue === undefined
+      ? getRewardGoldValue(reward.kind, reward.amount)
+      : reward.baseValue;
+    player.runRewardStats.baseReward += baseValue;
+    const comboBonusRate = getComboBonusMultiplier(combo);
+    const comboBonus = Math.floor(reward.amount * comboBonusRate);
+    const comboGained = applyRewardBonus(player, reward, comboBonus);
+    if (combo >= 2) {
+      messages.push(`🔥 ${combo}連擊！`);
+      player.runRewardStats.comboBonus += getRewardGoldValue(reward.kind, comboGained);
+    }
+
+    const risk = applyRiskScaling(combo);
+    const riskBonus = Math.floor(reward.amount * Math.max(0, risk.rewardMultiplier - 1));
+    const riskGained = applyRewardBonus(player, reward, riskBonus);
+    if (riskGained > 0 && combo > 0) {
+      player.runRewardStats.riskBonus += getRewardGoldValue(reward.kind, riskGained);
+      if (combo >= 3) messages.push(`⚠️ ${risk.dangerLabel}`);
+    }
+
+    if (player.chargeBurst === "reward") {
+      const burstBonus = reward.amount * 2;
+      const burstGained = applyRewardBonus(player, reward, burstBonus);
+      player.runRewardStats.burstBonus += getRewardGoldValue(reward.kind, burstGained);
+      messages.push(`⚡ 收益爆發！x3`);
+      player.chargeBurst = null;
+    }
+
+    const crit = rollCrit(random);
+    if (crit.crit) {
+      const critGained = applyRewardBonus(player, reward, reward.amount);
+      player.critCount += 1;
+      player.runRewardStats.critBonus += getRewardGoldValue(reward.kind, critGained);
+      messages.push(reward.kind === "gold" ? `💥 爆擊！+${critGained} 金幣` : `💥 爆擊！+${critGained} ${getOreName(reward.kind)}`);
+      if (crit.upgrade) {
+        const upgraded = upgradeReward(player, reward);
+        if (upgraded) messages.push(upgraded);
+      }
+    }
+
+    if (rollJackpot(random)) messages.push(applyJackpot(player, random));
+  }
+
+  if (!positive && player.chargeBurst === "safe" && kind === "bomb") {
+    messages.push("⚡ 穩定爆發吸收了爆炸。");
+    player.chargeBurst = null;
+  }
+
+  if (player.chargeBurst === "resource" && !player.dead && getBagFreeSlots(player) > 0) {
+    const target = player.depth >= 30 ? "platinumOre" : "goldOre";
+    player[target] += 1;
+    player.runRewardStats.burstBonus += getRewardGoldValue(target, 1);
+    messages.push(`⚡ 資源爆發！+1 ${getOreName(target)}`);
+    player.chargeBurst = null;
+  }
+
+  const risk = applyRiskScaling(player.comboCount || 0);
+  if (!player.dead && risk.bombMultiplier > 1 && random() < 0.04 * (risk.bombMultiplier - 1)) {
+    const damage = addBombDamage(player);
+    messages.push(`⚠️ 風險連鎖反噬，${damage.message}`);
+  }
+
+  if ((player.chargeValue || 0) >= 100) messages.push("⚡ 蓄力已滿，可使用爆發。");
+  return messages.join("\n");
 }
 
 function getGemAmount(depth, random = Math.random) {
@@ -884,6 +1060,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
     const gained = Math.min(amount, freeSlots);
     player[result] += gained;
     const name = result === "redGem" ? "紅寶石" : result === "blueGem" ? "藍寶石" : "綠寶石";
+    player.lastReward = makeReward(result, gained);
     return buildOutcome(
       result,
       player,
@@ -1016,9 +1193,11 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       }
       const gained = Math.min(amount, getBagFreeSlots(player));
       player.goldBlock += gained;
+      player.lastReward = makeReward("goldBlock", gained);
       return buildOutcome("goldBlock", player, "燒成金塊", `${pathPrefix}火龍十字鎬把金幣燒成 ${gained} 個金塊，會佔包包格子。${gained < amount ? "有一些因為包包滿了放不下。" : ""}`, recordMessage, random);
     }
     player.gold += amount;
+    player.lastReward = makeReward("gold", amount, amount);
     onGoldGained(player);
     return buildOutcome("gold", player, "挖到金幣", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}你挖到了 ${amount} 枚金幣。`, recordMessage, random);
   }
@@ -1038,6 +1217,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
     const target = getOreTargetForMode("ore", player);
     const gained = Math.min(amount, freeSlots);
     player[target] += gained;
+    player.lastReward = makeReward(target, gained);
     return buildOutcome(
       target,
       player,
@@ -1064,6 +1244,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
 
     const gained = Math.min(amount, freeSlots);
     player[target] += gained;
+    player.lastReward = makeReward(target, gained);
     return buildOutcome(
       target,
       player,
@@ -1099,6 +1280,10 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "bomb") {
+    if (player.chargeBurst === "safe") {
+      player.chargeBurst = null;
+      return buildOutcome("empty", player, "穩定爆發", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}⚡ 穩定爆發吸收了炸彈，這一層沒有受到傷害。`, recordMessage, random);
+    }
     if (canSenseDanger(player, random)) {
       return buildOutcome("empty", player, "危險感知", `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}危險感知讓你提前發現炸彈，你繞開了它。`, recordMessage, random);
     }
@@ -1932,6 +2117,8 @@ function returnToSurface(playerInput, random = Math.random) {
   const gemGold = soldRedGem * CONFIG.ore.redGemGold
     + soldBlueGem * CONFIG.ore.blueGemGold
     + soldGreenGem * CONFIG.ore.greenGemGold;
+  const baseReward = oreGold + goldOreGold + platinumOreGold + goldBlockGold + oreIngotGold + goldOreIngotGold + platinumOreIngotGold + bombItemGold + gemGold;
+  const finalReward = calculateFinalReward(player, baseReward);
   const clearedJunk = player.junk;
   const clearedPlatinumJunk = player.platinumJunk;
   const clearedBombs = player.bombs;
@@ -1949,13 +2136,16 @@ function returnToSurface(playerInput, random = Math.random) {
   player.redGem = 0;
   player.blueGem = 0;
   player.greenGem = 0;
-  player.gold += oreGold + goldOreGold + platinumOreGold + goldBlockGold + oreIngotGold + goldOreIngotGold + platinumOreIngotGold + bombItemGold + gemGold;
+  player.gold += baseReward;
   resetRunState(player, random);
+  const settlementMessage = baseReward + finalReward.critBonus + finalReward.comboBonus + finalReward.riskBonus + finalReward.burstBonus > 0
+    ? `\n\n💰 探險結算：\n基礎收益：${baseReward}\n爆擊加成：+${finalReward.critBonus}\n連擊加成：+${finalReward.comboBonus}\n風險加成：+${finalReward.riskBonus}\n爆發加成：+${finalReward.burstBonus}\n\n👉 總收益：${finalReward.total} 金幣！\n最高連擊：${finalReward.maxCombo}｜爆擊次數：${finalReward.critCount}｜Jackpot：${finalReward.jackpotCount}`
+    : "";
 
   return {
     ok: true,
     player,
-    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${soldGoldBlock > 0 ? `${soldGoldBlock} 個金塊換成 ${goldBlockGold} 金幣。` : ""}${soldOreIngot + soldGoldOreIngot + soldPlatinumOreIngot > 0 ? `錠換成 ${oreIngotGold + goldOreIngotGold + platinumOreIngotGold} 金幣。` : ""}${soldBombItem > 0 ? `${soldBombItem} 顆完整炸彈換成 ${bombItemGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}`
+    message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${soldGoldBlock > 0 ? `${soldGoldBlock} 個金塊換成 ${goldBlockGold} 金幣。` : ""}${soldOreIngot + soldGoldOreIngot + soldPlatinumOreIngot > 0 ? `錠換成 ${oreIngotGold + goldOreIngotGold + platinumOreIngotGold} 金幣。` : ""}${soldBombItem > 0 ? `${soldBombItem} 顆完整炸彈換成 ${bombItemGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}${settlementMessage}`
   };
 }
 
@@ -2252,6 +2442,7 @@ module.exports = {
   revive,
   setUiMode,
   shimmerCollectible,
+  triggerCharge,
   rollWeighted,
   transferCollectible,
   withdrawBank

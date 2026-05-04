@@ -26,6 +26,7 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  triggerCharge,
   transferCollectible,
   withdrawBank
 } = require("./game");
@@ -414,6 +415,17 @@ async function handleMiningButton(interaction) {
       const result = chooseMinorBuff(player, "bomb");
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "小磁條", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.chargePrefix}:`)) {
+    const type = interaction.customId.split(":")[2];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = triggerCharge(player, type);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "蓄力爆發", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });

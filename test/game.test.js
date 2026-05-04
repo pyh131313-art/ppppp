@@ -29,6 +29,7 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  triggerCharge,
   transferCollectible,
   withdrawBank
 } = require("../src/game");
@@ -323,13 +324,36 @@ test("本次包包擴容返回地面後重置", () => {
 test("礦石返回地面會自動換成金幣", () => {
   const rolls = [0.5, 0.5];
   const start = chooseRunMode(createPlayer(), "safe").player;
-  const mined = mine(start, () => rolls.shift() ?? 0);
+  const mined = mine(start, () => rolls.shift() ?? 0.99);
   const result = returnToSurface(mined.player);
 
   assert.equal(mined.kind, "ore");
   assert.equal(mined.player.ore, 2);
   assert.equal(result.player.ore, 0);
   assert.equal(result.player.gold, 16);
+});
+
+test("返回地面會顯示拆分結算爆發", () => {
+  const result = returnToSurface({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    ore: 2,
+    maxCombo: 5,
+    critCount: 3,
+    jackpotCount: 1,
+    runRewardStats: {
+      baseReward: 16,
+      critBonus: 80,
+      comboBonus: 120,
+      riskBonus: 90,
+      burstBonus: 200
+    }
+  });
+
+  assert.match(result.message, /💰 探險結算：/);
+  assert.match(result.message, /基礎收益：16/);
+  assert.match(result.message, /爆擊加成：\+80/);
+  assert.match(result.message, /👉 總收益：506 金幣！/);
+  assert.match(result.message, /最高連擊：5｜爆擊次數：3｜Jackpot：1/);
 });
 
 test("15 層後會掉金礦石並返回地面換高價金幣", () => {
@@ -357,14 +381,15 @@ test("30 層後會掉鉑金礦石並返回地面換更高價金幣", () => {
   const result = returnToSurface(mined.player);
 
   assert.equal(mined.kind, "platinumOre");
-  assert.equal(amount, 7);
+  assert.equal(amount, 8);
   assert.equal(result.player.platinumOre, 0);
   assert.equal(result.player.gold, amount * 260);
 });
 
 test("寶石礦洞只會挖到寶石並返回地面換高價金幣", () => {
   const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
-  const mined = mine(start, () => 0);
+  const rolls = [0, 0, 0.99, 0.99, 0.99, 0.99];
+  const mined = mine(start, () => rolls.shift() ?? 0.99);
   const result = returnToSurface(mined.player);
 
   assert.equal(mined.kind, "redGem");
@@ -509,6 +534,55 @@ test("事件保底連續未觸發後第四次必定觸發", () => {
   assert.equal(getEventTriggerChance(state), 1);
 });
 
+test("爆擊會在原掉落後額外加成並累積蓄力", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const rolls = [0, 0, 0.99, 0.99, 0.05, 0.99, 0.99];
+  const result = mine(start, () => rolls.shift() ?? 0.99);
+
+  assert.equal(result.kind, "gold");
+  assert.equal(result.player.critCount, 1);
+  assert.equal(result.player.chargeValue, 12);
+  assert.match(result.message, /💥 爆擊/);
+});
+
+test("連擊會累積並在失敗結果重置", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const firstRolls = [0, 0, 0.99, 0.99, 0.99, 0.99];
+  const first = mine(start, () => firstRolls.shift() ?? 0.99);
+  const secondRolls = [0, 0, 0.99, 0.99, 0.99, 0.99];
+  const second = mine(first.player, () => secondRolls.shift() ?? 0.99);
+  const bomb = mine({ ...second.player, forcedNextResult: "bomb" }, () => 0.99);
+
+  assert.equal(first.player.comboCount, 1);
+  assert.equal(second.player.comboCount, 2);
+  assert.match(second.message, /🔥 2連擊/);
+  assert.equal(bomb.player.comboCount, 0);
+});
+
+test("蓄力爆發可以主動觸發下一鏟加成", () => {
+  const charged = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    chargeValue: 100
+  };
+  const triggered = triggerCharge(charged, "reward");
+  const rolls = [0, 0, 0.99, 0.99, 0.99, 0.99];
+  const mined = mine(triggered.player, () => rolls.shift() ?? 0.99);
+
+  assert.equal(triggered.ok, true);
+  assert.equal(triggered.player.chargeBurst, "reward");
+  assert.equal(mined.player.chargeBurst, null);
+  assert.match(mined.message, /⚡ 收益爆發！x3/);
+});
+
+test("Jackpot 會以醒目訊息給極端成功", () => {
+  const start = chooseRunMode(createPlayer(), "safe").player;
+  const rolls = [0, 0, 0.99, 0.99, 0.99, 0, 0, 0];
+  const result = mine(start, () => rolls.shift() ?? 0.99);
+
+  assert.equal(result.player.jackpotCount, 1);
+  assert.match(result.message, /💎 JACKPOT！！！/);
+});
+
 test("新事件極端選項會套用臨時效果", () => {
   const result = resolveRandomEvent(
     { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "unstable_powder" },
@@ -562,14 +636,16 @@ test("火龍十字鎬會把金幣和礦物燒成更高地表價值的物品", ()
     { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
     "fireDragonPickaxe"
   ).player;
-  const goldBlock = mine(goldRun, () => 0);
+  const goldRolls = [0, 0, 0.99, 0.99, 0.99, 0.99];
+  const goldBlock = mine(goldRun, () => goldRolls.shift() ?? 0.99);
   const goldReturn = returnToSurface(goldBlock.player);
 
   const oreRun = chooseRunMode(
     { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
     "fireDragonPickaxe"
   ).player;
-  const oreIngot = mine(oreRun, () => 0.5);
+  const oreRolls = [0.5, 0.5, 0.99, 0.99, 0.99, 0.99];
+  const oreIngot = mine(oreRun, () => oreRolls.shift() ?? 0.99);
   const oreReturn = returnToSurface(oreIngot.player);
 
   assert.equal(goldBlock.kind, "goldBlock");

@@ -36,6 +36,7 @@ const CUSTOM_IDS = {
   mineRight: "mine_ui:mine_right",
   pagePrefix: "mine_ui:page",
   uiModePrefix: "mine_ui:ui",
+  chargePrefix: "mine_ui:charge",
   rerollModes: "mine_ui:reroll_modes",
   modePrefix: "mine_ui:mode",
   modeDouble: "mine_ui:mode_double",
@@ -275,6 +276,11 @@ function buildStatusEffects(playerInput, curse = null) {
   if (player.goldBeast) effects.push(`吞金獸：第${player.goldBeast.returnDepth}層`);
   if (player.returnBlessing) effects.push("歸還祝福");
   if (player.rescueBonusCount > 0) effects.push(`救援小詞條 x${player.rescueBonusCount}`);
+  if (player.comboCount > 0) {
+    effects.push(`連擊：${player.comboCount}｜最高 ${player.maxCombo}`);
+    if (player.comboCount >= 3) effects.push(player.comboCount >= 5 ? "危險提升 x2" : "危險提升 x1.5");
+  }
+  effects.push(`蓄力：${player.chargeValue || 0}/100`);
   return effects.length ? effects.join("\n") : "無";
 }
 
@@ -776,6 +782,13 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
       makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
     );
+    if (!player.pendingEvent && (player.chargeValue || 0) >= 100) {
+      addRow(
+        makeButton(`${CUSTOM_IDS.chargePrefix}:reward`, "收益爆發", ButtonStyle.Success, "⚡"),
+        makeButton(`${CUSTOM_IDS.chargePrefix}:safe`, "穩定爆發", ButtonStyle.Success, "🛡️"),
+        makeButton(`${CUSTOM_IDS.chargePrefix}:resource`, "資源爆發", ButtonStyle.Success, "💎")
+      );
+    }
     if (canChooseMinorBuff(player)) {
       addRow(
         makeButton(CUSTOM_IDS.buffGold, "金幣磁條", ButtonStyle.Secondary, "🧲"),
