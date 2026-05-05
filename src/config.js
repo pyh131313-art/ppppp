@@ -248,6 +248,43 @@ const CONFIG = {
       shortDescription: "包包+6｜每層20%破爛",
       bagBonusSlots: 6,
       anomalousBackpack: true
+    },
+    chickenBlood: {
+      name: "雞血沸騰",
+      label: "雞血沸騰",
+      shortDescription: "生命+1｜前5層收益+30%",
+      extraHp: 1,
+      earlyRewardMultiplier: 1.3,
+      oneTimeChickenTrait: true
+    },
+    goldCrownLuck: {
+      name: "金冠賭運",
+      label: "金冠賭運",
+      shortDescription: "爆擊率+10%",
+      critChanceBonus: 0.1,
+      oneTimeChickenTrait: true
+    },
+    cuckooCharm: {
+      name: "咕咕護符",
+      label: "咕咕護符",
+      shortDescription: "第一次炸彈減傷",
+      firstBombDamageReduction: true,
+      oneTimeChickenTrait: true
+    },
+    comebackChickenSoul: {
+      name: "逆轉雞魂",
+      label: "逆轉雞魂",
+      shortDescription: "低血收益+50%",
+      lowHpRewardMultiplier: 1.5,
+      oneTimeChickenTrait: true
+    },
+    roastChickenScent: {
+      name: "烤雞餘香",
+      label: "烤雞餘香",
+      shortDescription: "包包+3｜破爛轉金",
+      bagBonusSlots: 3,
+      junkToGold: true,
+      oneTimeChickenTrait: true
     }
   },
   minorBuffs: {

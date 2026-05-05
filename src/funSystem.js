@@ -69,10 +69,11 @@ function resetFunRunState(player) {
   player.runRewardStats = createFunState().runRewardStats;
 }
 
-function rollCrit(random = Math.random) {
+function rollCrit(random = Math.random, bonusChance = 0) {
   const roll = random();
+  const critChance = 0.1 + Math.max(0, bonusChance || 0);
   return {
-    crit: roll < 0.1,
+    crit: roll < critChance,
     upgrade: roll < 0.02
   };
 }

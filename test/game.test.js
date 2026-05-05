@@ -463,6 +463,32 @@ test("礦石金屬錠和寶石每十個佔一格", () => {
   assert.equal(getBagUsedSlots(player), 10);
 });
 
+test("擴容之心會永久增加兩格包包", () => {
+  assert.equal(getBagCapacity({ ...createPlayer(), expansionHeart: true }), 14);
+});
+
+test("賽雞一次性詞條會在選到後消耗詞條權", () => {
+  const chosen = chooseRunMode({
+    ...createPlayer(),
+    chickenTraitTickets: 1,
+    runModeOptions: ["chickenBlood", "safe"]
+  }, "chickenBlood").player;
+
+  assert.equal(chosen.runMode, "chickenBlood");
+  assert.equal(chosen.chickenTraitTickets, 0);
+});
+
+test("烤雞生命加成會套用到下一局下礦並消耗", () => {
+  const chosen = chooseRunMode({
+    ...createPlayer(),
+    chickenRoastHpBonus: 1,
+    runModeOptions: ["double", "safe"]
+  }, "double").player;
+
+  assert.equal(chosen.tempMaxHp, 1);
+  assert.equal(chosen.chickenRoastHpBonus, 0);
+});
+
 test("同一組堆疊未滿十個時包包滿仍可放入", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,

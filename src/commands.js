@@ -16,7 +16,10 @@ const commands = [
       .addChoices(
         { name: "完整", value: "full" },
         { name: "精簡", value: "compact" }
-      ))
+      )),
+  new SlashCommandBuilder()
+    .setName("賽雞場")
+    .setDescription("開啟賽雞場，購票下注看雞衝線。")
 ];
 
 module.exports = {

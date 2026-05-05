@@ -41,6 +41,13 @@ const { CONFIG } = require("./config");
 const BAG_CAPACITY = 12;
 const ITEM_STACK_SIZE = 10;
 const DAMAGE_PER_HIT = 0.5;
+const CHICKEN_TRAIT_IDS = [
+  "chickenBlood",
+  "goldCrownLuck",
+  "cuckooCharm",
+  "comebackChickenSoul",
+  "roastChickenScent"
+];
 const STACKABLE_ITEM_KEYS = new Set([
   "ore",
   "goldOre",
@@ -98,6 +105,10 @@ function createPlayer() {
     goldBeast: null,
     returnBlessing: false,
     rescueBonusCount: 0,
+    expansionHeart: false,
+    chickenTraitTickets: 0,
+    chickenRoastHpBonus: 0,
+    chickenAmuletUsed: false,
     ...createFunState(),
     traitState: createTraitState(),
     tempMaxHp: 0,
@@ -303,6 +314,16 @@ function getMaxBombs(playerInput) {
   return CONFIG.mining.baseHp + (mode && mode.extraHp ? mode.extraHp : 0) + (player.tempMaxHp || 0);
 }
 
+function getModeRewardMultiplier(playerInput) {
+  const player = getPlayer(playerInput);
+  const mode = getMode(player);
+  if (!mode) return 1;
+  let multiplier = 1;
+  if (mode.earlyRewardMultiplier && player.depth <= 5) multiplier *= mode.earlyRewardMultiplier;
+  if (mode.lowHpRewardMultiplier && getMaxBombs(player) - player.bombs <= 1) multiplier *= mode.lowHpRewardMultiplier;
+  return multiplier;
+}
+
 function getDepthLabel(depth) {
   if (depth >= 10) return "危險礦層";
   if (depth >= 7) return "古代礦層";
@@ -408,17 +429,31 @@ function isInMine(playerInput) {
   );
 }
 
-function getRunModeIds() {
-  return Object.keys(CONFIG.runModes);
+function getRunModeIds(includeChickenTraits = false) {
+  return Object.keys(CONFIG.runModes).filter((id) => (
+    includeChickenTraits || !CONFIG.runModes[id].oneTimeChickenTrait
+  ));
 }
 
 function refreshRunModeOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
-  const pool = getRunModeIds();
+  const basePool = getRunModeIds(false);
+  const chickenPool = CHICKEN_TRAIT_IDS.filter((id) => CONFIG.runModes[id]);
   const options = [];
-  while (options.length < 2 && pool.length > 0) {
+  while (options.length < 2 && (basePool.length > 0 || chickenPool.length > 0)) {
+    const useChickenTrait = (player.chickenTraitTickets || 0) > 0
+      && chickenPool.length > 0
+      && random() < 0.35;
+    const pool = useChickenTrait ? chickenPool : basePool;
+    if (pool.length === 0) break;
     const index = Math.floor(random() * pool.length);
-    options.push(pool.splice(index, 1)[0]);
+    const [picked] = pool.splice(index, 1);
+    if (picked && !options.includes(picked)) options.push(picked);
+  }
+  while (options.length < 2 && basePool.length > 0) {
+    const index = Math.floor(random() * basePool.length);
+    const [picked] = basePool.splice(index, 1);
+    if (picked && !options.includes(picked)) options.push(picked);
   }
   player.runModeOptions = options;
   return player;
@@ -426,7 +461,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
 
 function getRunModeOptions(playerInput) {
   const player = getPlayer(playerInput);
-  const ids = player.runModeOptions.length >= 2 ? player.runModeOptions : getRunModeIds().slice(0, 2);
+  const ids = player.runModeOptions.length >= 2 ? player.runModeOptions : getRunModeIds(false).slice(0, 2);
   return ids
     .map((id) => ({
       id,
@@ -507,6 +542,7 @@ function resetRunState(player, random = Math.random) {
   player.forcedNextResult = null;
   player.goldBeast = null;
   player.returnBlessing = false;
+  player.chickenAmuletUsed = false;
   resetFunRunState(player);
   player.tempMaxHp = 0;
   player.traitState = createTraitState();
@@ -635,7 +671,15 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.goldBeast = null;
   player.returnBlessing = false;
   player.tempMaxHp = 0;
+  if (player.chickenRoastHpBonus > 0) {
+    player.tempMaxHp += 1;
+    player.chickenRoastHpBonus -= 1;
+  }
+  player.chickenAmuletUsed = false;
   player.traitState = createTraitState();
+  if (config.oneTimeChickenTrait) {
+    player.chickenTraitTickets = Math.max(0, (player.chickenTraitTickets || 0) - 1);
+  }
   if (player.rescueBonusCount > 0) {
     for (let i = 0; i < player.rescueBonusCount; i += 1) {
       const buff = random && random() < 0.5 ? "gold" : "bomb";
@@ -785,7 +829,9 @@ function getBagUsedSlotsWithout(playerInput, itemId) {
 
 function getBagCapacity(playerInput) {
   const player = getPlayer(playerInput);
-  return BAG_CAPACITY + Math.max(0, player.bagBonusSlots || 0);
+  return BAG_CAPACITY
+    + Math.max(0, player.bagBonusSlots || 0)
+    + (player.expansionHeart ? 2 : 0);
 }
 
 function getBagFreeSlots(playerInput) {
@@ -837,8 +883,20 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
 }
 
 function addBombDamage(player, now = Date.now(), amount = 1) {
-  const damageValue = amount * DAMAGE_PER_HIT;
+  let damageAmount = amount;
   const mode = getMode(player);
+  if (mode && mode.firstBombDamageReduction && !player.chickenAmuletUsed) {
+    player.chickenAmuletUsed = true;
+    damageAmount = Math.max(0, amount - 1);
+    if (damageAmount <= 0) {
+      return {
+        dead: false,
+        damage: 0,
+        message: "咕咕護符替你擋下第一次爆炸，沒有受到傷害。"
+      };
+    }
+  }
+  const actualDamageValue = damageAmount * DAMAGE_PER_HIT;
   if (mode && mode.bombDodgeChance && Math.random() < mode.bombDodgeChance) {
     return {
       dead: false,
@@ -847,13 +905,13 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     };
   }
   onDamageTaken(player);
-  player.bombs += damageValue;
+  player.bombs += actualDamageValue;
   const maxBombs = getMaxBombs(player);
   if (player.bombs < maxBombs) {
     return {
       dead: false,
-      damage: damageValue,
-      message: `受到 ${formatHpValue(damageValue)} 點傷害，生命損傷 ${formatHpValue(player.bombs)}/${maxBombs}。`
+      damage: actualDamageValue,
+      message: `受到 ${formatHpValue(actualDamageValue)} 點傷害，生命損傷 ${formatHpValue(player.bombs)}/${maxBombs}。`
     };
   }
 
@@ -862,7 +920,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     player.bombs = Math.max(0, maxBombs - 1);
     return {
       dead: false,
-      damage: damageValue,
+      damage: actualDamageValue,
       message: `不死圖騰發光碎裂，替你擋下死亡。你原地復活，生命剩 1/${maxBombs}。`
     };
   }
@@ -875,7 +933,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
     return {
       dead: false,
       returned: true,
-      damage: damageValue,
+      damage: actualDamageValue,
       message: `歸還祝福啟動，你沒有死亡並被送回地表，但失去 ${lostGold} 枚金幣。`
     };
   }
@@ -889,7 +947,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
   player.stats.deaths += 1;
   return {
     dead: true,
-    damage: damageValue,
+    damage: actualDamageValue,
     message: `死亡，損失 ${lostGold} 枚金幣。`
   };
 }
@@ -970,6 +1028,7 @@ function applyJackpot(player, random = Math.random) {
 function applyPostDigFun(player, kind, random = Math.random) {
   if (kind === "blocked" || !player.runMode) return "";
   const messages = [];
+  const mode = getMode(player);
   const reward = player.lastReward || null;
   delete player.lastReward;
   addCharge(player, 12);
@@ -1005,7 +1064,7 @@ function applyPostDigFun(player, kind, random = Math.random) {
       player.chargeBurst = null;
     }
 
-    const crit = rollCrit(random);
+    const crit = rollCrit(random, mode && mode.critChanceBonus ? mode.critChanceBonus : 0);
     if (crit.crit) {
       const critGained = applyRewardBonus(player, reward, reward.amount);
       player.critCount += 1;
@@ -1224,7 +1283,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   const goldMultiplier = 1
     + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
     + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
-  const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player);
+  const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player) * getModeRewardMultiplier(player);
 
   if (result === "gold") {
     const amount = Math.max(1, Math.floor(getGoldAmount(player.depth, random) * gatherMultiplier * goldMultiplier * getTraitGoldMultiplier(player, CONFIG) * digPathRewardMultiplier * rewardMultiplier));
@@ -1384,6 +1443,13 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "junk") {
+    if (mode && mode.junkToGold) {
+      const amount = Math.max(1, Math.floor(30 * gatherMultiplier * rewardMultiplier));
+      player.gold += amount;
+      player.lastReward = makeReward("gold", amount, amount);
+      onGoldGained(player);
+      return buildOutcome("gold", player, "破爛轉金", `${pathPrefix}烤雞餘香把破爛味變成財運，獲得 ${amount} 金幣。`, recordMessage, random);
+    }
     const amount = gatherMultiplier;
     const requiredSlots = amount * 3;
     if (getBagFreeSlots(player) < requiredSlots) {

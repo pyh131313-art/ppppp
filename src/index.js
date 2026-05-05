@@ -34,6 +34,21 @@ const {
 } = require("./game");
 const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
+  FRAME_COUNT,
+  RACE_CUSTOM_IDS,
+  RACING_MS,
+  beginRace,
+  buildRaceComponents,
+  buildRaceEmbed,
+  buyTicket,
+  getRaceState,
+  isRaceComponent,
+  roastChicken,
+  settleRace,
+  startRace,
+  updateRaceFrame
+} = require("./chickenRace");
+const {
   CUSTOM_IDS,
   buildCollectionResponse,
   buildHudFiles,
@@ -64,6 +79,55 @@ function logInteractionError(error, interaction, context = "interaction") {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
+
+function clearRaceTimers(race) {
+  if (!race || !Array.isArray(race.timers)) return;
+  for (const timer of race.timers) clearTimeout(timer);
+  race.timers = [];
+}
+
+async function editRaceMessage(race, message = "") {
+  if (!race || !race.message) return;
+  await race.message.edit({
+    embeds: [buildRaceEmbed(race, message)],
+    components: buildRaceComponents(race)
+  });
+}
+
+function scheduleRaceBettingEnd(race) {
+  clearRaceTimers(race);
+  race.timers.push(setTimeout(() => {
+    startRaceAnimation(race).catch((error) => console.error("賽雞自動開賽失敗：", error));
+  }, Math.max(1000, race.bettingEndsAt - Date.now())));
+}
+
+async function startRaceAnimation(race) {
+  if (!race || race.status !== "betting") return;
+  clearRaceTimers(race);
+  beginRace(race, Math.random);
+  await editRaceMessage(race, "🏁 賽雞開始！");
+  const interval = Math.floor(RACING_MS / FRAME_COUNT);
+  for (let frame = 1; frame < FRAME_COUNT; frame += 1) {
+    race.timers.push(setTimeout(() => {
+      updateRaceFrame(race, frame, Math.random);
+      editRaceMessage(race).catch((error) => console.error("賽雞更新失敗：", error));
+    }, interval * frame));
+  }
+  race.timers.push(setTimeout(() => {
+    finishRace(race).catch((error) => console.error("賽雞結算失敗：", error));
+  }, RACING_MS));
+}
+
+async function finishRace(race) {
+  if (!race || race.status === "settled") return;
+  clearRaceTimers(race);
+  let settled = null;
+  await updatePlayers((players) => {
+    settled = settleRace(race, players, Math.random);
+    return settled.players;
+  });
+  await editRaceMessage(race, settled.message);
+}
 
 function makeReply(title, body) {
   return `**${title}**\n${body}`;
@@ -143,6 +207,11 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    if ((interaction.isButton() || interaction.isStringSelectMenu()) && isRaceComponent(interaction.customId)) {
+      await handleChickenRaceInteraction(interaction);
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isMiningUiButton(interaction.customId)) {
       await handleMiningButton(interaction);
       return;
@@ -173,6 +242,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return result.player;
       });
       await interaction.editReply(result.message);
+      return;
+    }
+
+    if (name === "賽雞場") {
+      await interaction.deferReply();
+      const race = startRace(Date.now(), Math.random);
+      await interaction.editReply({
+        embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 3 分鐘。")],
+        components: buildRaceComponents(race)
+      });
+      race.message = await interaction.fetchReply();
+      scheduleRaceBettingEnd(race);
       return;
     }
 
@@ -320,6 +401,43 @@ client.on(Events.InteractionCreate, async (interaction) => {
     else await interaction.reply(payload);
   }
 });
+
+async function handleChickenRaceInteraction(interaction) {
+  const race = getRaceState();
+  if (!race) {
+    await interaction.reply({ content: "目前沒有賽雞場，請使用 `/賽雞場` 開啟。", ephemeral: true });
+    return;
+  }
+
+  if (interaction.customId === RACE_CUSTOM_IDS.start) {
+    await interaction.deferUpdate();
+    await startRaceAnimation(race);
+    return;
+  }
+
+  if (interaction.customId.startsWith(`${RACE_CUSTOM_IDS.bet}:`)) {
+    const [, , betType, chickenId] = interaction.customId.split(":");
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = buyTicket(race, interaction.user.id, betType, chickenId, getPlayer(player));
+      return result.player;
+    });
+    await interaction.reply({ content: result.message, ephemeral: true });
+    await editRaceMessage(race, result.ok ? "票券已更新。" : "");
+    return;
+  }
+
+  if (interaction.customId.startsWith(`${RACE_CUSTOM_IDS.roast}:`)) {
+    const chickenId = interaction.customId.split(":")[2];
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = roastChicken(race, chickenId, getPlayer(player));
+      return result.player;
+    });
+    await interaction.reply({ content: result.message, ephemeral: true });
+    await editRaceMessage(race, result.ok ? "🍗 烤雞香味飄過賽道。" : "");
+  }
+}
 
 async function handleMiningButton(interaction) {
   const panelTargetUserId = getPanelTargetUserId(interaction) || interaction.user.id;
