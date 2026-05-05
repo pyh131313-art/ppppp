@@ -6,10 +6,12 @@ const assert = require("node:assert/strict");
 const {
   applyReward,
   beginRace,
+  buildRaceComponents,
   buyTicket,
   calculateResult,
   resetRaceState,
   roastChicken,
+  settleRace,
   startRace,
   updateRaceFrame
 } = require("../src/chickenRace");
@@ -97,4 +99,15 @@ test("賽雞結果會選出冠軍雞", () => {
 
   assert.equal(result.winner.id, race.runners[0].id);
   assert.equal(result.ticket.userId, "user1");
+});
+
+test("賽雞結算後會保留下一場刷新按鈕", () => {
+  resetRaceState();
+  const race = beginRace(startRace(5000, () => 0), () => 0);
+  race.runners[0].position = 10;
+  settleRace(race, {}, () => 0.99);
+  const rows = buildRaceComponents(race);
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].components[0].data.custom_id, "chicken_race:next");
 });

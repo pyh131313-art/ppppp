@@ -415,6 +415,18 @@ async function handleChickenRaceInteraction(interaction) {
     return;
   }
 
+  if (interaction.customId === RACE_CUSTOM_IDS.next) {
+    await interaction.deferUpdate();
+    const nextRace = startRace(Date.now(), Math.random);
+    nextRace.message = interaction.message;
+    await interaction.editReply({
+      embeds: [buildRaceEmbed(nextRace, "新一場賽雞開始，下注階段 3 分鐘。")],
+      components: buildRaceComponents(nextRace)
+    });
+    scheduleRaceBettingEnd(nextRace);
+    return;
+  }
+
   if (interaction.customId.startsWith(`${RACE_CUSTOM_IDS.bet}:`)) {
     const [, , betType, chickenId] = interaction.customId.split(":");
     let result = null;

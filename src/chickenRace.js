@@ -8,6 +8,7 @@ const RACE_CUSTOM_IDS = {
   prefix: "chicken_race",
   bet: "chicken_race:bet",
   start: "chicken_race:start",
+  next: "chicken_race:next",
   roast: "chicken_race:roast"
 };
 
@@ -299,7 +300,18 @@ function buildRaceEmbed(race, message = "") {
 }
 
 function buildRaceComponents(race) {
-  if (!race || race.status === "settled") return [];
+  if (!race) return [];
+  if (race.status === "settled") {
+    return [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(RACE_CUSTOM_IDS.next)
+          .setLabel("下一場")
+          .setEmoji("🔄")
+          .setStyle(ButtonStyle.Success)
+      )
+    ];
+  }
   if (race.status === "racing") return [];
   const rows = [];
   rows.push(new ActionRowBuilder().addComponents(...race.selectedChickens.map((chicken) => (
