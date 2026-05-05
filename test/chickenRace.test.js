@@ -9,6 +9,7 @@ const {
   buildRaceComponents,
   buyTicket,
   calculateResult,
+  getRaceState,
   resetRaceState,
   roastChicken,
   settleRace,
@@ -110,4 +111,14 @@ test("賽雞結算後會保留下一場刷新按鈕", () => {
 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].components[0].data.custom_id, "chicken_race:next");
+});
+
+test("不同伺服器的賽雞場狀態會分開保存", () => {
+  resetRaceState();
+  const guildA = startRace(6000, () => 0, "guild-a");
+  const guildB = startRace(7000, () => 0.9, "guild-b");
+
+  assert.notEqual(guildA.id, guildB.id);
+  assert.equal(getRaceState("guild-a").id, "6000");
+  assert.equal(getRaceState("guild-b").id, "7000");
 });

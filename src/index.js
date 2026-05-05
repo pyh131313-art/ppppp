@@ -247,7 +247,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "賽雞場") {
       await interaction.deferReply();
-      const race = startRace(Date.now(), Math.random);
+      const race = startRace(Date.now(), Math.random, interaction.guildId);
       await interaction.editReply({
         embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 3 分鐘。")],
         components: buildRaceComponents(race)
@@ -403,7 +403,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 async function handleChickenRaceInteraction(interaction) {
-  const race = getRaceState();
+  const race = getRaceState(interaction.guildId);
   if (!race) {
     await interaction.reply({ content: "目前沒有賽雞場，請使用 `/賽雞場` 開啟。", ephemeral: true });
     return;
@@ -417,7 +417,7 @@ async function handleChickenRaceInteraction(interaction) {
 
   if (interaction.customId === RACE_CUSTOM_IDS.next) {
     await interaction.deferUpdate();
-    const nextRace = startRace(Date.now(), Math.random);
+    const nextRace = startRace(Date.now(), Math.random, interaction.guildId);
     nextRace.message = interaction.message;
     await interaction.editReply({
       embeds: [buildRaceEmbed(nextRace, "新一場賽雞開始，下注階段 3 分鐘。")],

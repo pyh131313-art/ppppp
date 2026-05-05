@@ -39,7 +39,8 @@ const RACE_EVENTS = [
   "終點爆衝"
 ];
 
-let activeRace = null;
+const DEFAULT_RACE_SCOPE = "global";
+const activeRaces = new Map();
 const roastPenalties = {};
 
 function weightedSampleChickens(random = Math.random) {
@@ -67,22 +68,39 @@ function decayRoastPenalties() {
   }
 }
 
-function getRaceState() {
-  return activeRace;
+function normalizeRaceScope(scopeKey = DEFAULT_RACE_SCOPE) {
+  return scopeKey || DEFAULT_RACE_SCOPE;
 }
 
-function resetRaceState() {
-  if (activeRace && Array.isArray(activeRace.timers)) {
-    for (const timer of activeRace.timers) clearTimeout(timer);
+function getRaceState(scopeKey = DEFAULT_RACE_SCOPE) {
+  return activeRaces.get(normalizeRaceScope(scopeKey)) || null;
+}
+
+function resetRaceState(scopeKey = null) {
+  if (scopeKey === null) {
+    for (const race of activeRaces.values()) {
+      if (!race || !Array.isArray(race.timers)) continue;
+      for (const timer of race.timers) clearTimeout(timer);
+    }
+    activeRaces.clear();
+    return;
   }
-  activeRace = null;
+  const normalized = normalizeRaceScope(scopeKey);
+  const race = activeRaces.get(normalized);
+  if (race && Array.isArray(race.timers)) {
+    for (const timer of race.timers) clearTimeout(timer);
+  }
+  activeRaces.delete(normalized);
 }
 
-function startRace(now = Date.now(), random = Math.random) {
+function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RACE_SCOPE) {
+  const normalized = normalizeRaceScope(scopeKey);
+  const activeRace = activeRaces.get(normalized);
   if (activeRace && activeRace.status !== "settled") return activeRace;
   decayRoastPenalties();
-  activeRace = {
+  const race = {
     id: `${now}`,
+    scopeKey: normalized,
     status: "betting",
     createdAt: now,
     bettingEndsAt: now + BETTING_MS,
@@ -94,7 +112,8 @@ function startRace(now = Date.now(), random = Math.random) {
     message: null,
     timers: []
   };
-  return activeRace;
+  activeRaces.set(normalized, race);
+  return race;
 }
 
 function getChicken(race, chickenId) {
