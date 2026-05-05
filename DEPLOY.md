@@ -15,6 +15,12 @@ DISCORD_CLIENT_ID=1494439644207775795
 DISCORD_GUILD_ID=1313180465942888508
 ```
 
+如果要同時註冊多個伺服器，改用逗號分隔：
+
+```text
+DISCORD_GUILD_IDS=1313180465942888508,另一個伺服器ID
+```
+
 5. 確認 worker 有掛載 persistent disk：
 
 ```text
@@ -23,7 +29,7 @@ DATA_FILE: /var/data/players.json
 DATABASE_FILE: /var/data/players.sqlite
 ```
 
-6. 部署完成後，服務 log 看到 `已登入：傳送器#0051` 和 `已註冊 2 個 slash commands` 就成功。
+6. 部署完成後，服務 log 看到 `已登入：傳送器#0051` 和 `已註冊 3 個 slash commands` 就成功。
 
 玩家資料會優先存到 SQLite：`/var/data/players.sqlite`。第一次啟動時會自動把舊的 `/var/data/players.json` 匯入 SQLite。
 

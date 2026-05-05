@@ -33,6 +33,7 @@ cp .env.example .env
 DISCORD_TOKEN=你的_bot_token
 DISCORD_CLIENT_ID=你的_application_client_id
 DISCORD_GUILD_ID=你的測試伺服器_id
+# 多伺服器可改用：DISCORD_GUILD_IDS=伺服器1,伺服器2
 ```
 
 4. 註冊 slash commands：
