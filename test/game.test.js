@@ -528,7 +528,7 @@ test("進入地底營地會自動出售普通礦洞資源並保留反轉資源",
   assert.match(result.message, /跨區域結算/);
 });
 
-test("地底營地可以開始往上挖取得顛倒資源", () => {
+test("地底營地往上挖會先穿過回升礦道", () => {
   const player = {
     ...createPlayer(),
     runMode: "reversePrep",
@@ -540,9 +540,29 @@ test("地底營地可以開始往上挖取得顛倒資源", () => {
   const result = mine(player, () => 0.2, 1000);
 
   assert.equal(result.player.zone, "upward");
-  assert.equal(result.player.depth, -1);
+  assert.equal(result.player.depth, 99);
   assert.equal(result.player.runDepthProgress, 101);
-  assert.equal(result.player.invertedOre > 0 || result.player.invertedGem > 0, true);
+  assert.equal(result.title, "回升礦道");
+});
+
+test("上挖跨過地表後才進入反轉層並結算普通資源", () => {
+  const player = {
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: 0,
+    runDepthProgress: 200,
+    ore: 10
+  };
+  const result = mine(player, () => 0.2, 1000);
+
+  assert.equal(result.player.zone, "upward");
+  assert.equal(result.player.depth, -1);
+  assert.equal(result.player.runDepthProgress, 201);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.gold > 0, true);
+  assert.equal(result.player.invertedOre > 0, true);
+  assert.match(result.message, /跨區域結算/);
 });
 
 test("地底營地往上挖前可以選擇初始詞條", () => {
@@ -563,7 +583,7 @@ test("地底營地往上挖前可以選擇初始詞條", () => {
   assert.equal(chosen.player.zone, "undergroundCamp");
   assert.equal(chosen.player.depth, 100);
   assert.equal(result.player.zone, "upward");
-  assert.equal(result.player.depth, -1);
+  assert.equal(result.player.depth, 99);
 });
 
 test("地底營地已選詞條後仍可重選", () => {

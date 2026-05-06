@@ -130,7 +130,7 @@ function getAreaLabel(playerInput) {
   const player = getPlayer(playerInput);
   if (player.zone === "lavaPool") return "岩漿池";
   if (player.zone === "undergroundCamp") return "地底營地";
-  if (player.zone === "upward") return "反轉上挖層";
+  if (player.zone === "upward") return (player.depth || 0) >= 0 ? "回升礦道" : "反轉上挖層";
   if (player.zone === "skyCamp") return "天域營地";
   return getCaveLabel(player);
 }
@@ -1655,6 +1655,7 @@ function crossLavaPool(player, random = Math.random, now = Date.now()) {
 }
 
 function mineUpward(player, random = Math.random, now = Date.now()) {
+  const previousDepth = player.depth;
   player.depth -= 1;
   const recordMessage = addRunDepthProgress(player, 1);
   const layerEffectMessage = processLayerStartEffects(player, random, now);
@@ -1680,33 +1681,91 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
     };
   }
 
+  if (player.depth >= 0) {
+    const roll = random();
+    if (roll < 0.45) {
+      const preferredOre = player.depth >= 30 ? "platinumOre" : player.depth >= 15 ? "goldOre" : "ore";
+      const reward = addOreReward(player, 1 + Math.floor(random() * 3), preferredOre);
+      player.lastReward = makeReward(reward.target, reward.gained);
+      return {
+        kind: reward.gained > 0 ? reward.target : "full",
+        player,
+        title: "回升礦道",
+        message: `你往地表方向挖出 ${reward.gained} 個礦物。${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
+      };
+    }
+    if (roll < 0.7) {
+      const gained = Math.max(1, Math.floor((20 + player.depth) * getModeRewardMultiplier(player)));
+      onGoldGained(player, gained);
+      player.lastReward = makeReward("gold", gained);
+      return {
+        kind: "gold",
+        player,
+        title: "回升金脈",
+        message: `你在回升礦道撿到 ${gained} 金幣。${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
+      };
+    }
+    if (roll < 0.85) {
+      const damage = addBombDamage(player, now, 1);
+      return {
+        kind: player.dead ? "dead" : "stalactite",
+        player,
+        title: "鬆動岩層",
+        message: `上方碎岩掉落，${damage.message}${recordMessage ? `\n${recordMessage}` : ""}`,
+        recordMessage
+      };
+    }
+    return {
+      kind: "empty",
+      player,
+      title: "回升碎石",
+      message: `這一鏟只有往地表滑落的碎石。${recordMessage ? `\n${recordMessage}` : ""}`,
+      recordMessage
+    };
+  }
+
+  const boundarySettlement = previousDepth >= 0 && player.depth < 0
+    ? settleSellableResources(player, null, now)
+    : null;
+  if (boundarySettlement) Object.assign(player, boundarySettlement.player);
+
   const eventMessage = maybeTriggerRandomEvent(player, random);
   if (eventMessage) {
-    return buildOutcome("blocked", player, "反轉事件", `反轉層出現異常。${eventMessage}`, recordMessage, random);
+    return buildOutcome(
+      "blocked",
+      player,
+      "反轉事件",
+      `${boundarySettlement ? boundarySettlement.message : ""}\n反轉層出現異常。${eventMessage}`,
+      recordMessage,
+      random
+    );
   }
 
   const reverseMultiplier = getModeRewardMultiplier(player)
     * (1 + getMinorBuffEffectiveStacks(player, "reverse") * CONFIG.minorBuffs.reverse.reverseRewardBonus);
+  const boundaryMessage = boundarySettlement ? `${boundarySettlement.message}\n` : "";
   const roll = random();
   if (player.depth <= -1 && roll < 0.08) {
     const gained = addItemReward(player, "orichalcum", 1);
-    return buildOutcome("orichalcum", player, "奧利哈鋼", `你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, recordMessage, random);
+    return buildOutcome("orichalcum", player, "奧利哈鋼", `${boundaryMessage}你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, recordMessage, random);
   }
   if (roll < 0.45) {
     const gained = addItemReward(player, "invertedOre", Math.max(1, Math.floor((1 + random() * 3) * reverseMultiplier)));
     player.lastReward = makeReward("invertedOre", gained);
-    return buildOutcome("invertedOre", player, "顛倒礦石", `你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
+    return buildOutcome("invertedOre", player, "顛倒礦石", `${boundaryMessage}你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
   if (roll < 0.75) {
     const gained = addItemReward(player, "invertedGem", Math.max(1, Math.floor((1 + random() * 2) * reverseMultiplier)));
     player.lastReward = makeReward("invertedGem", gained);
-    return buildOutcome("invertedGem", player, "顛倒寶石", `你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
+    return buildOutcome("invertedGem", player, "顛倒寶石", `${boundaryMessage}你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
   if (roll < 0.88) {
     const damage = addBombDamage(player, now, 1);
-    return buildOutcome("stalactite", player, "空間亂流", `反轉亂流割過礦道，${damage.message}`, recordMessage, random);
+    return buildOutcome("stalactite", player, "空間亂流", `${boundaryMessage}反轉亂流割過礦道，${damage.message}`, recordMessage, random);
   }
-  return buildOutcome("empty", player, "反轉碎石", "這一鏟只有往上飄的碎石。", recordMessage, random);
+  return buildOutcome("empty", player, "反轉碎石", `${boundaryMessage}這一鏟只有往上飄的碎石。`, recordMessage, random);
 }
 
 function mineSkyDown(player, random = Math.random, now = Date.now()) {
@@ -1786,7 +1845,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
     }
     player.zone = "upward";
     player.caveType = null;
-    player.depth = 0;
+    player.depth = CONFIG.mining.lavaDepth;
     player.nextEventDepth = 4;
     player.eventMissCount = 0;
     player.nextBuffDepth = 5;
