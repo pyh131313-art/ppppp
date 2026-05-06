@@ -20,6 +20,7 @@ const {
   canChooseMinorBuff,
   getCaveLabel,
   getAreaLabel,
+  getChickenCompanionText,
   getDepthLabel,
   getDigPathOptions,
   getElevatorCost,
@@ -126,7 +127,8 @@ function buildCoreStatus(playerInput) {
     : player.zone === "lavaPool"
       ? "穿越岩漿池"
       : (digPaths.length ? digPaths.map(pathName).join(" ｜ ") : "無");
-  return { player, maxHp, hp, digPathText };
+  const companionText = getChickenCompanionText(player);
+  return { player, maxHp, hp, digPathText, companionText };
 }
 
 function formatHpValue(value) {
@@ -141,13 +143,14 @@ function buildHpIcons(hp, maxHp) {
 }
 
 function buildMainPage(playerInput) {
-  const { player, maxHp, hp, digPathText } = buildCoreStatus(playerInput);
+  const { player, maxHp, hp, digPathText, companionText } = buildCoreStatus(playerInput);
   return [
     "🎒 狀態",
     `生命：${buildHpIcons(hp, maxHp)} (${formatHpValue(hp)}/${maxHp})`,
     `金幣：${player.gold} ｜ 銀行：${player.bankGold}`,
     `深度：${player.depth}｜本趟${player.runDepthProgress || 0} / 最深${player.stats.bestDepth}（${getDepthLabel(player.depth)}）`,
     `區域：${getAreaLabel(player)}`,
+    `同行雞：${companionText}`,
     `路線：${digPathText}`
   ];
 }
@@ -507,12 +510,13 @@ function buildHudBlock(playerInput, mineLines, page = "main") {
 }
 
 function buildCompactHudBlock(playerInput) {
-  const { player, maxHp, hp, digPathText } = buildCoreStatus(playerInput);
+  const { player, maxHp, hp, digPathText, companionText } = buildCoreStatus(playerInput);
   return [
     "⛏️【礦井探險｜精簡】",
     "",
     `生命：${buildHpIcons(hp, maxHp)} ${formatHpValue(hp)}/${maxHp}`,
     `深度：${player.depth}｜本趟${player.runDepthProgress || 0}｜最深${player.stats.bestDepth}`,
+    `同行雞：${companionText}`,
     "",
     `🎒 包包（${getBagUsedSlots(player)}/${getBagCapacity(player)}）`,
     buildBagGrid(player),

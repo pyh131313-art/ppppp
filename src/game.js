@@ -379,6 +379,7 @@ function getMiningWeights(playerInput, digPath = null) {
   if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
   if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
   if (mode && mode.deepInstinct) weights.bomb *= 1.05 + Math.min(0.2, player.depth / 500);
+  if (getChickenMiningBonus(player).eventChanceBonus > 0) weights.empty *= 0.95;
   weights.gold *= getEffectMultiplier(player, "goldWeightMultiplier");
   weights.ore *= getEffectMultiplier(player, "oreWeightMultiplier");
   weights.goldOre *= getEffectMultiplier(player, "oreWeightMultiplier");
@@ -408,6 +409,7 @@ function getModeRewardMultiplier(playerInput) {
   if (mode.deepInstinct) multiplier *= 1 + Math.floor(Math.max(0, player.depth) / 10) * 0.1;
   if (mode.downRewardMultiplier && player.depth > 0) multiplier *= mode.downRewardMultiplier;
   if (mode.reverseRewardMultiplier && player.zone === "upward") multiplier *= mode.reverseRewardMultiplier;
+  multiplier *= getChickenMiningBonus(player).deepRewardMultiplier;
   return multiplier;
 }
 
@@ -438,6 +440,50 @@ function getOreAmount(depth, random = Math.random) {
 function getMode(playerInput) {
   const player = getPlayer(playerInput);
   return player.runMode ? CONFIG.runModes[player.runMode] || null : null;
+}
+
+function getChickenStageId(chicken) {
+  if (!chicken || !chicken.level) return null;
+  if (chicken.level <= 5) return "young";
+  if (chicken.level <= 15) return "mature";
+  return "complete";
+}
+
+function getChickenMiningBonus(playerInput) {
+  const player = getPlayer(playerInput);
+  const chicken = player.ownedChicken;
+  const stage = getChickenStageId(chicken);
+  if (!chicken || !stage) {
+    return {
+      goldMultiplierBonus: 0,
+      oreMultiplierBonus: 0,
+      critChanceBonus: 0,
+      eventChanceBonus: 0,
+      bombDodgeChance: 0,
+      deepRewardMultiplier: 1
+    };
+  }
+  const stageBonus = {
+    young: { goldMultiplierBonus: 0.03, oreMultiplierBonus: 0, critChanceBonus: 0 },
+    mature: { goldMultiplierBonus: 0.05, oreMultiplierBonus: 0.05, critChanceBonus: 0 },
+    complete: { goldMultiplierBonus: 0.08, oreMultiplierBonus: 0.08, critChanceBonus: 0.03 }
+  }[stage];
+  const personalityId = chicken.personalityId || "";
+  return {
+    ...stageBonus,
+    eventChanceBonus: personalityId === "chosen" ? 0.04 : 0,
+    bombDodgeChance: personalityId === "steady" ? 0.08 : 0,
+    deepRewardMultiplier: (personalityId === "sleepy" || personalityId === "veteran") && player.depth >= 20 ? 1.05 : 1
+  };
+}
+
+function getChickenCompanionText(playerInput) {
+  const player = getPlayer(playerInput);
+  const chicken = player.ownedChicken;
+  if (!chicken) return "無";
+  const stage = getChickenStageId(chicken);
+  const stageLabel = stage === "complete" ? "完全體" : stage === "mature" ? "成熟期" : "幼雞期";
+  return `${chicken.icon || "🐔"} ${chicken.name || "小咕"} Lv.${Math.max(1, Math.floor(chicken.level || 1))}｜${stageLabel}`;
 }
 
 function getOreTargetForMode(kind, playerInput) {
@@ -1421,7 +1467,8 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   if (player.dead || player.pendingEvent || !shouldCheckEvent(Math.abs(player.depth), player)) return "";
   const mode = getMode(player);
   player.eventChanceBonus = (mode && mode.eventChanceBonus ? mode.eventChanceBonus : 0)
-    + getMinorBuffEffectiveStacks(player, "event") * CONFIG.minorBuffs.event.eventChanceBonus;
+    + getMinorBuffEffectiveStacks(player, "event") * CONFIG.minorBuffs.event.eventChanceBonus
+    + getChickenMiningBonus(player).eventChanceBonus;
   const triggered = rollEventTrigger(player, random);
   const nextState = updateEventState(triggered, player);
   player.eventMissCount = nextState.eventMissCount;
@@ -1459,6 +1506,14 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
       dead: false,
       dodged: true,
       message: "防爆外套替你擋下爆炸，沒有受到傷害。"
+    };
+  }
+  const chickenBonus = getChickenMiningBonus(player);
+  if (chickenBonus.bombDodgeChance > 0 && Math.random() < chickenBonus.bombDodgeChance) {
+    return {
+      dead: false,
+      dodged: true,
+      message: `${player.ownedChicken.icon || "🐔"} ${player.ownedChicken.name || "你的雞"} 提前叫住你，避開了爆炸。`
     };
   }
   onDamageTaken(player);
@@ -1600,6 +1655,25 @@ function applyJackpot(player, random = Math.random) {
   return `💎 JACKPOT！！！深度 +2${recordMessage ? `\n${recordMessage}` : ""}`;
 }
 
+function applyChickenScavenge(player, random = Math.random) {
+  const chicken = player.ownedChicken;
+  if (!chicken || player.dead || !player.runMode) return "";
+  const roll = random();
+  if (roll < 0.41 || roll >= 0.45) return "";
+  if (roll < 0.425) {
+    const gold = 5 + Math.floor(Math.max(0, player.depth) / 5) * 3;
+    player.gold += gold;
+    player.runRewardStats.burstBonus += gold;
+    return `${chicken.icon || "🐔"} ${chicken.name || "你的雞"} 叼回 ${gold} 金幣。`;
+  }
+  const target = player.depth >= 30 ? "platinumOre" : player.depth >= 15 ? "goldOre" : "ore";
+  const amount = Math.min(1, getItemFreeAmount(player, target));
+  if (amount <= 0) return `${chicken.icon || "🐔"} ${chicken.name || "你的雞"} 找到礦石，但包包放不下。`;
+  player[target] += amount;
+  player.runRewardStats.burstBonus += getRewardGoldValue(target, amount);
+  return `${chicken.icon || "🐔"} ${chicken.name || "你的雞"} 叼回 1 塊${getOreName(target)}。`;
+}
+
 function applyPostDigFun(player, kind, random = Math.random) {
   if (kind === "blocked" || !player.runMode) return "";
   const messages = [];
@@ -1640,7 +1714,8 @@ function applyPostDigFun(player, kind, random = Math.random) {
     }
 
     const critBonus = (mode && mode.critChanceBonus ? mode.critChanceBonus : 0)
-      + getMinorBuffEffectiveStacks(player, "luck") * CONFIG.minorBuffs.luck.critChanceBonus;
+      + getMinorBuffEffectiveStacks(player, "luck") * CONFIG.minorBuffs.luck.critChanceBonus
+      + getChickenMiningBonus(player).critChanceBonus;
     const crit = rollCrit(random, critBonus);
     if (crit.crit) {
       const critGained = applyRewardBonus(player, reward, reward.amount);
@@ -1678,6 +1753,8 @@ function applyPostDigFun(player, kind, random = Math.random) {
     messages.push(`⚠️ 風險連鎖反噬，${damage.message}`);
   }
 
+  const scavengeMessage = applyChickenScavenge(player, random);
+  if (scavengeMessage) messages.push(scavengeMessage);
   if ((player.chargeValue || 0) >= 100) messages.push("⚡ 蓄力已滿，可使用爆發。");
   return messages.join("\n");
 }
@@ -2113,12 +2190,15 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   player.forcedNextResult = null;
   if (result === "gold_or_ore") result = random() < 0.5 ? "gold" : "ore";
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
+  const chickenBonus = getChickenMiningBonus(player);
   const goldMultiplier = 1
     + getMinorBuffEffectiveStacks(player, "gold") * CONFIG.minorBuffs.gold.goldMultiplierBonus
-    + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
+    + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0)
+    + chickenBonus.goldMultiplierBonus;
   const oreMultiplier = 1
     + (mode && mode.oreRewardMultiplier ? mode.oreRewardMultiplier - 1 : 0)
-    + getMinorBuffEffectiveStacks(player, "ore") * CONFIG.minorBuffs.ore.oreMultiplierBonus;
+    + getMinorBuffEffectiveStacks(player, "ore") * CONFIG.minorBuffs.ore.oreMultiplierBonus
+    + chickenBonus.oreMultiplierBonus;
   const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player) * getModeRewardMultiplier(player);
 
   if (result === "gold") {
@@ -3828,6 +3908,8 @@ module.exports = {
   getBagUsedSlots,
   getAreaLabel,
   getAwardCollectibles,
+  getChickenCompanionText,
+  getChickenMiningBonus,
   getCollectible,
   getCollectibles,
   getCollectionTotal,

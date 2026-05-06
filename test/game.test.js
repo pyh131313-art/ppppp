@@ -16,6 +16,7 @@ const {
   getBagCapacity,
   getCollectionTotal,
   getBagUsedSlots,
+  getChickenMiningBonus,
   getCommunityProgress,
   getDigPathOptions,
   getElevatorCost,
@@ -117,6 +118,27 @@ test("礦場分頁主畫面只顯示核心狀態", () => {
   assert.match(value, /路線：/);
   assert.doesNotMatch(value, /📦 資源/);
   assert.doesNotMatch(value, /🎒 包包（/);
+});
+
+test("養成雞會顯示同行並提供挖礦加成", () => {
+  const player = chooseRunMode({
+    ...createPlayer(),
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐓",
+      level: 16,
+      personalityId: "chosen"
+    }
+  }, "safe").player;
+  const bonus = getChickenMiningBonus(player);
+  const embed = buildPanelEmbed(player, "礦場面板", "", null, "main").toJSON();
+  const value = embed.fields[0].value;
+
+  assert.equal(bonus.goldMultiplierBonus, 0.08);
+  assert.equal(bonus.oreMultiplierBonus, 0.08);
+  assert.equal(bonus.critChanceBonus, 0.03);
+  assert.equal(bonus.eventChanceBonus, 0.04);
+  assert.match(value, /同行雞：🐓 阿咕霸王 Lv\.16｜完全體/);
 });
 
 test("礦場分頁按鈕保留玩家狀態並標示目前頁面", () => {
