@@ -349,14 +349,14 @@ function buildRaceEmbed(race, message = "") {
     return `<@${ticket.userId}>｜${ticket.betType === "noble" ? "✨ 高貴" : "普通"}｜${chicken ? chicken.name : ticket.chickenId}`;
   });
   const frame = race.raceFrames[race.raceFrames.length - 1] || race.selectedChickens.map((chicken) => `${chicken.emoji}${"—".repeat(14)}🏁`).join("\n");
-  return new EmbedBuilder()
-    .setColor(race.status === "settled" ? 0xfacc15 : 0xf97316)
-    .setTitle("賽雞場")
-    .setDescription([
+  const statusLabel = race.status === "betting" ? "預備階段" : race.status === "racing" ? "比賽階段" : "結算";
+  let descriptionLines = [];
+  if (race.status === "betting") {
+    descriptionLines = [
       message,
       "",
-      "🐔🐓🐔",
-      `狀態：${race.status === "betting" ? "下注中" : race.status === "racing" ? "比賽中" : "已結算"}`,
+      "【預備階段】",
+      "下注與烤雞調整中",
       `人數：${Object.keys(race.playersInMatch).length}`,
       `剩餘：${mm}:${ss}`,
       "",
@@ -365,12 +365,37 @@ function buildRaceEmbed(race, message = "") {
       "",
       "票：普通1000｜高貴10000",
       "",
-      "賽道：",
-      frame,
-      "",
-      "下注：",
+      "目前下注：",
       ...(tickets.length ? tickets : ["尚無下注"])
-    ].filter(Boolean).join("\n").slice(0, 4096));
+    ];
+  } else if (race.status === "racing") {
+    descriptionLines = [
+      message,
+      "",
+      "【比賽階段】",
+      "下注已鎖定，賽道推進中",
+      `人數：${Object.keys(race.playersInMatch).length}`,
+      `剩餘：${mm}:${ss}`,
+      "",
+      "賽道實況：",
+      frame
+    ];
+  } else {
+    descriptionLines = [
+      message,
+      "",
+      "【結算階段】",
+      "本場已結算，可直接開下一場。",
+      "",
+      "最終賽道：",
+      frame
+    ];
+  }
+  return new EmbedBuilder()
+    .setColor(race.status === "settled" ? 0xfacc15 : 0xf97316)
+    .setTitle("賽雞場")
+    .setDescription(descriptionLines.filter(Boolean).join("\n").slice(0, 4096))
+    .setFooter({ text: `狀態：${statusLabel}` });
 }
 
 function buildRaceComponents(race) {

@@ -7,6 +7,7 @@ const {
   applyReward,
   beginRace,
   buildRaceComponents,
+  buildRaceEmbed,
   buyTicket,
   calculateResult,
   getRaceState,
@@ -151,4 +152,20 @@ test("同一伺服器重複開賽雞只會回傳同一場", () => {
 
   assert.equal(second.id, first.id);
   assert.equal(getRaceState("guild-a").message.id, "message-1");
+});
+
+test("賽雞預備階段與比賽階段顯示分開", () => {
+  resetRaceState();
+  const race = startRace(10000, () => 0, "guild-a", "owner");
+  const bettingText = buildRaceEmbed(race, "準備中").data.description;
+  assert.match(bettingText, /【預備階段】/);
+  assert.match(bettingText, /出賽雞/);
+  assert.match(bettingText, /目前下注/);
+  assert.doesNotMatch(bettingText, /賽道實況/);
+
+  beginRace(race, () => 0);
+  const racingText = buildRaceEmbed(race, "開賽").data.description;
+  assert.match(racingText, /【比賽階段】/);
+  assert.match(racingText, /賽道實況/);
+  assert.doesNotMatch(racingText, /目前下注/);
 });
