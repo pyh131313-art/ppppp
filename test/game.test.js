@@ -57,6 +57,7 @@ const {
   buildBankComponents,
   buildPanelComponents,
   buildPanelEmbed,
+  buildShopComponents,
   CUSTOM_IDS
 } = require("../src/ui");
 const { pickRandomEvent } = require("../src/eventSystem");
@@ -851,6 +852,21 @@ test("地底營地未選詞條時顯示詞條按鈕與銀行", () => {
   assert.equal(customIds.some((id) => id.startsWith(`${CUSTOM_IDS.modePrefix}:`)), true);
   assert.equal(customIds.includes(CUSTOM_IDS.bankOpen), true);
   assert.equal(customIds.includes(CUSTOM_IDS.shopOpen), true);
+});
+
+test("商店介面提供批量購買按鈕", () => {
+  const rows = buildShopComponents({
+    healingPotionUnlocked: true,
+    undyingTotemUnlocked: true
+  }, createPlayer(), "player-1");
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:5`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:healingPotion:10`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:undyingTotem:5`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:zhongkui_peace`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:healingPotion`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:undyingTotem`), true);
 });
 
 test("地表可以花總資產一成回到地底營地", () => {

@@ -129,6 +129,7 @@ const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
 const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
+const SHOP_BUY_MODAL_PREFIX = "mine_ui:shop_buy_modal";
 const CHICKEN_RENAME_MODAL_PREFIX = "chicken_rename_modal";
 const OWNED_CHICKEN_ROAST_PREFIX = "owned_chicken_roast";
 
@@ -185,6 +186,28 @@ function buildStorageInputModal(action, targetUserId, issuerId, panelMessageId =
     new ActionRowBuilder().addComponents(itemInput),
     new ActionRowBuilder().addComponents(amountInput)
   );
+  return modal;
+}
+
+function buildShopBuyInputModal(itemId, targetUserId, issuerId, panelMessageId = "") {
+  const labels = {
+    healingPotion: ["購買治療藥水", "要買幾瓶治療藥水"],
+    undyingTotem: ["購買不死圖騰", "要買幾個不死圖騰"],
+    zhongkui_peace: ["購買商店紀念幣", "要買幾枚紀念幣"]
+  };
+  const [title, label] = labels[itemId] || ["購買商品", "要購買的數量"];
+  const modal = new ModalBuilder()
+    .setCustomId(`${SHOP_BUY_MODAL_PREFIX}:${itemId}:${targetUserId}:${issuerId}:${panelMessageId || "none"}`)
+    .setTitle(title);
+  const input = new TextInputBuilder()
+    .setCustomId("amount")
+    .setLabel(label)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("輸入正整數，例如 3")
+    .setRequired(true)
+    .setMinLength(1)
+    .setMaxLength(10);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
   return modal;
 }
 
@@ -462,6 +485,63 @@ async function handleStorageModalSubmit(interaction) {
   await interaction.reply({ content: result.message, ephemeral: true });
 }
 
+async function handleShopBuyModalSubmit(interaction) {
+  const [, , itemId, targetUserId, issuerId, panelMessageId] = interaction.customId.split(":");
+  if (interaction.user.id !== issuerId) {
+    await interaction.reply({ content: "只有發起按鈕的玩家可以送出這筆購買。", ephemeral: true });
+    return;
+  }
+
+  const beforePlayers = await loadPlayers();
+  const beforePlayer = getPlayer(beforePlayers[targetUserId]);
+  if (
+    beforePlayer.activeMinePanelMessageId
+    && panelMessageId
+    && panelMessageId !== "none"
+    && beforePlayer.activeMinePanelMessageId !== panelMessageId
+  ) {
+    await interaction.reply({ content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。", ephemeral: true });
+    return;
+  }
+
+  const amount = parseAmountInput(interaction.fields.getTextInputValue("amount"));
+  if (amount === null) {
+    await interaction.reply({ content: "請輸入正整數購買數量。", ephemeral: true });
+    return;
+  }
+
+  let result = null;
+  let shopProgress = null;
+  await updatePlayers((players) => {
+    const progress = getProgressWithGlobal(players);
+    result = buyShopItem(players[targetUserId], itemId, amount, progress);
+    const nextProgress = result.globalState
+      ? { ...progress, globalState: result.globalState }
+      : progress;
+    shopProgress = nextProgress;
+    players[targetUserId] = result.player;
+    if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+    return players;
+  });
+
+  const players = await loadPlayers();
+  const player = getPlayer(players[targetUserId]);
+  try {
+    if (interaction.message && interaction.message.edit && interaction.message.editable) {
+      await interaction.message.edit({
+        embeds: [buildShopEmbed(player, result.message, shopProgress)],
+        files: buildHudFiles(player),
+        attachments: [],
+        components: buildShopComponents(shopProgress, player, targetUserId)
+      });
+    }
+  } catch (error) {
+    console.error("更新商店面板失敗：", error);
+  }
+
+  await interaction.reply({ content: result.message, ephemeral: true });
+}
+
 function makeTradeComponents(tradeId) {
   return [
     new ActionRowBuilder().addComponents(
@@ -616,6 +696,25 @@ function getCurrentHudPage(interaction) {
   return "main";
 }
 
+function parseShopBuyButton(customId) {
+  if (customId === CUSTOM_IDS.shopBuyOne) {
+    const shopItem = getShopItems()[0];
+    return shopItem ? { itemId: shopItem.id, amount: 1 } : null;
+  }
+  if (customId === CUSTOM_IDS.shopBuyPotion) return { itemId: "healingPotion", amount: 1 };
+  if (customId === CUSTOM_IDS.shopBuyTotem) return { itemId: "undyingTotem", amount: 1 };
+  if (!customId || !customId.startsWith(`${CUSTOM_IDS.shopBuyPrefix}:`)) return null;
+  const [, , itemId, amountText] = customId.split(":");
+  const amount = Math.max(1, Math.min(99, Math.floor(Number(amountText) || 1)));
+  return itemId ? { itemId, amount } : null;
+}
+
+function parseShopCustomBuyButton(customId) {
+  if (!customId || !customId.startsWith(`${CUSTOM_IDS.shopBuyCustomPrefix}:`)) return null;
+  const [, , itemId] = customId.split(":");
+  return itemId || null;
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`已登入：${readyClient.user.tag}`);
   try {
@@ -634,6 +733,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith(`${STORAGE_MODAL_PREFIX}:`)) {
       await handleStorageModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${SHOP_BUY_MODAL_PREFIX}:`)) {
+      await handleShopBuyModalSubmit(interaction);
       return;
     }
 
@@ -1290,7 +1394,8 @@ async function handleMiningButton(interaction) {
     || interaction.customId === CUSTOM_IDS.exchangeOne;
   const openStorageModal = interaction.customId === CUSTOM_IDS.storageDeposit
     || interaction.customId === CUSTOM_IDS.storageWithdraw;
-  if (!openAmountModal && !openStorageModal) await interaction.deferUpdate();
+  const shopCustomBuyItemId = parseShopCustomBuyButton(interaction.customId);
+  if (!openAmountModal && !openStorageModal && !shopCustomBuyItemId) await interaction.deferUpdate();
   if (openAmountModal) {
     await interaction.showModal(buildAmountInputModal(
       interaction.customId === CUSTOM_IDS.bankDeposit || interaction.customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`)
@@ -1307,6 +1412,15 @@ async function handleMiningButton(interaction) {
   if (openStorageModal) {
     await interaction.showModal(buildStorageInputModal(
       interaction.customId === CUSTOM_IDS.storageDeposit ? "deposit" : "withdraw",
+      panelTargetUserId,
+      interaction.user.id,
+      panelMessageId
+    ));
+    return;
+  }
+  if (shopCustomBuyItemId) {
+    await interaction.showModal(buildShopBuyInputModal(
+      shopCustomBuyItemId,
       panelTargetUserId,
       interaction.user.id,
       panelMessageId
@@ -1536,14 +1650,12 @@ async function handleMiningButton(interaction) {
     return;
   }
 
-  if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
+  const shopBuyRequest = parseShopBuyButton(interaction.customId);
+  if (shopBuyRequest) {
     let shopProgress = null;
     await updatePlayers((players) => {
       const progress = getProgressWithGlobal(players);
-      const shopItem = getShopItems()[0];
-      const result = shopItem
-        ? buyShopItem(players[panelTargetUserId], shopItem.id, 1, progress)
-        : { player: getPlayer(players[panelTargetUserId]), message: "商店目前沒有商品。" };
+      const result = buyShopItem(players[panelTargetUserId], shopBuyRequest.itemId, shopBuyRequest.amount, progress);
       const nextProgress = result.globalState
         ? { ...progress, globalState: result.globalState }
         : progress;
@@ -1579,32 +1691,6 @@ async function handleMiningButton(interaction) {
       files,
       attachments: [],
       components: buildShopComponents(progress, componentPlayer, panelTargetUserId)
-    });
-    return;
-  }
-
-  if (interaction.customId === CUSTOM_IDS.shopBuyPotion || interaction.customId === CUSTOM_IDS.shopBuyTotem) {
-    const itemId = interaction.customId === CUSTOM_IDS.shopBuyPotion ? "healingPotion" : "undyingTotem";
-    let shopProgress = null;
-    await updatePlayers((players) => {
-      const progress = getProgressWithGlobal(players);
-      const result = buyShopItem(players[panelTargetUserId], itemId, 1, progress);
-      const nextProgress = result.globalState
-        ? { ...progress, globalState: result.globalState }
-        : progress;
-      shopProgress = nextProgress;
-      componentPlayer = result.player;
-      embed = buildShopEmbed(result.player, result.message, nextProgress);
-      files = buildHudFiles(result.player);
-      players[panelTargetUserId] = result.player;
-      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
-      return players;
-    });
-    await interaction.editReply({
-      embeds: [embed],
-      files,
-      attachments: [],
-      components: buildShopComponents(shopProgress, componentPlayer, panelTargetUserId)
     });
     return;
   }

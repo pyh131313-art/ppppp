@@ -83,6 +83,9 @@ test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   assert.match(frame, /🐔/);
   assert.doesNotMatch(frame, /超級無敵長名字/);
   assert.match(settled.message, /勝利/);
+  assert.match(settled.message, /🥈 .* \+\d+ EXP/);
+  assert.equal(settled.players.a.ownedChicken.exp > 0, true);
+  assert.equal(settled.players.b.ownedChicken.exp > 0, true);
   assert.equal(settled.players.a.ownedChicken.races + settled.players.b.ownedChicken.races, 2);
   clearBattle(battle.id);
   assert.match(createBattle("a", "b", players, 3000, () => 0, "guild").message, /冷卻/);

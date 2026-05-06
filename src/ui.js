@@ -59,6 +59,8 @@ const CUSTOM_IDS = {
   eventSafe: "mine_ui:event:safe",
   eventExtreme: "mine_ui:event:extreme",
   exchangeOne: "mine_ui:exchange_one",
+  shopBuyPrefix: "mine_ui:shop_buy",
+  shopBuyCustomPrefix: "mine_ui:shop_buy_custom",
   shopBuyOne: "mine_ui:shop_buy_one",
   shopOpen: "mine_ui:shop_open",
   shopBuyPotion: "mine_ui:shop_buy_potion",
@@ -948,17 +950,42 @@ function buildShopComponents(progressInput = {}, playerInput = null, targetUserI
     ...progressInput
   };
   const rows = [];
-  const firstRow = [
-    makeButton(CUSTOM_IDS.shopBuyOne, "購買商店紀念幣", ButtonStyle.Success, "🪙"),
-    makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙")
-  ];
+  const shopItem = getShopItems()[0];
+  const firstRow = [];
+  if (shopItem) {
+    firstRow.push(
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:${shopItem.id}:1`, `${shopItem.collectible.name} x1`, ButtonStyle.Success, "🪙"),
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:${shopItem.id}:5`, `${shopItem.collectible.name} x5`, ButtonStyle.Success, "🪙")
+    );
+  }
+  firstRow.push(makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"));
+  rows.push(new ActionRowBuilder().addComponents(...firstRow));
+  const consumableRow = [];
   if (progress.healingPotionUnlocked) {
-    firstRow.push(makeButton(CUSTOM_IDS.shopBuyPotion, "購買治療藥水", ButtonStyle.Success, "🧪"));
+    consumableRow.push(
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:healingPotion:1`, "藥水 x1", ButtonStyle.Success, "🧪"),
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:healingPotion:5`, "藥水 x5", ButtonStyle.Success, "🧪"),
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:healingPotion:10`, "藥水 x10", ButtonStyle.Success, "🧪")
+    );
   }
   if (progress.undyingTotemUnlocked) {
-    firstRow.push(makeButton(CUSTOM_IDS.shopBuyTotem, "購買不死圖騰", ButtonStyle.Success, "🗿"));
+    consumableRow.push(
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:undyingTotem:1`, "圖騰 x1", ButtonStyle.Success, "🗿"),
+      makeButton(`${CUSTOM_IDS.shopBuyPrefix}:undyingTotem:5`, "圖騰 x5", ButtonStyle.Success, "🗿")
+    );
   }
-  rows.push(new ActionRowBuilder().addComponents(...firstRow));
+  if (consumableRow.length > 0) rows.push(new ActionRowBuilder().addComponents(...consumableRow.slice(0, 5)));
+  const customAmountRow = [];
+  if (shopItem) {
+    customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:${shopItem.id}`, "指定買紀念幣", ButtonStyle.Primary, "🔢"));
+  }
+  if (progress.healingPotionUnlocked) {
+    customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:healingPotion`, "指定買藥水", ButtonStyle.Primary, "🔢"));
+  }
+  if (progress.undyingTotemUnlocked) {
+    customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:undyingTotem`, "指定買圖騰", ButtonStyle.Primary, "🔢"));
+  }
+  if (customAmountRow.length > 0) rows.push(new ActionRowBuilder().addComponents(...customAmountRow));
   const ownedCollectibles = getCollectibles()
     .filter((item) => (player.collection[item.id] || 0) > 0)
     .slice(0, 25);

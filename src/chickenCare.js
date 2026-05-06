@@ -740,6 +740,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     chicken.highestComeback = Math.max(chicken.highestComeback, stats.comeback || 0);
     const exp = 18 + (won ? 32 : 10) + (battle.isBoss ? 18 : 0) + (close ? 8 : 0) + Math.floor(runner.position / 3);
     const levelMessage = addChickenExp(player, exp, random);
+    runner.expGained = exp;
     if (battle.isBoss && won) {
       const boss = getBossById(battle.bossId);
       chicken.bossWins += 1;
@@ -759,6 +760,9 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     buildPkTrack(finalLoser),
     "",
     `🏆 勝利：${finalWinner.chicken.icon || "🐔"} ${finalWinner.chicken.name}${isBossUserId(finalWinner.userId) ? "" : `（<@${finalWinner.userId}>）`}`,
+    ...battle.runners
+      .filter((runner) => !isBossUserId(runner.userId))
+      .map((runner) => `${runner.userId === finalWinner.userId ? "🏆" : "🥈"} ${runner.chicken.icon || "🐔"} ${runner.chicken.name} +${runner.expGained || 0} EXP`),
     ...battle.runners.map((runner) => runner.levelMessage).filter(Boolean),
     ...battle.runners.map((runner) => runner.rewardMessage).filter(Boolean)
   ].join("\n");
