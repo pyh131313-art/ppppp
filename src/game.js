@@ -434,6 +434,12 @@ function ensureRunModeOptions(playerInput, random = Math.random) {
   return refreshRunModeOptions(player, random);
 }
 
+function refreshCampRunModeOptions(player, random = Math.random) {
+  player.runMode = null;
+  player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
+  return player;
+}
+
 function rerollRunModeOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const cost = CONFIG.mining.runModeRerollCostGold;
@@ -656,7 +662,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   }
 
   player.runMode = mode;
-  player.runModeOptions = [];
+  if (!choosingFromUndergroundCamp) player.runModeOptions = [];
   if (choosingFromUndergroundCamp) {
     player.caveType = null;
     player.zone = "undergroundCamp";
@@ -1628,10 +1634,10 @@ function crossLavaPool(player, random = Math.random, now = Date.now()) {
   if (player.lavaProgress >= CONFIG.mining.lavaRounds) {
     player.zone = "undergroundCamp";
     player.undergroundCampUnlocked = true;
-    player.runMode = null;
     player.depth = CONFIG.mining.lavaDepth;
     const settlement = settleSellableResources(player, null, now);
     Object.assign(player, settlement.player);
+    refreshCampRunModeOptions(player, random);
     const goldBeastMessage = resolveGoldBeastReturn(player, random, Boolean(player.goldBeast));
     return {
       kind: "blocked",
@@ -1663,9 +1669,9 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
   if (player.depth <= CONFIG.mining.skyDepth) {
     player.zone = "skyCamp";
     player.skyCampUnlocked = true;
-    player.runMode = null;
     const settlement = settleSellableResources(player, null, now);
     Object.assign(player, settlement.player);
+    refreshCampRunModeOptions(player, random);
     return {
       kind: "blocked",
       player,
@@ -1718,6 +1724,7 @@ function mineSkyDown(player, random = Math.random, now = Date.now()) {
     };
   }
   if (player.depth >= 0) {
+    player.zone = "upward";
     const result = returnToSurface(player, random, null, now);
     return {
       kind: "blocked",
@@ -3058,6 +3065,26 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
 
 function returnToSurface(playerInput, random = Math.random, globalStateInput = null, now = Date.now()) {
   const player = getPlayer(playerInput);
+  if (player.zone === "skyDown") {
+    const settlement = settleSellableResources(player, globalStateInput, now);
+    Object.assign(player, settlement.player);
+    player.zone = "skyCamp";
+    player.depth = CONFIG.mining.skyDepth;
+    player.runMode = null;
+    player.caveType = null;
+    player.runDepthProgress = 0;
+    player.pendingEvent = null;
+    player.nextEventDepth = 4;
+    player.eventMissCount = 0;
+    player.nextBuffDepth = 5;
+    refreshCampRunModeOptions(player, random);
+    return {
+      ok: true,
+      player,
+      globalState: settlement.globalState,
+      message: `【返回天上營地】\n你回到最近下來的天上營地。${settlement.total > 0 ? `\n\n本次自動結算：\n礦石收益：${settlement.oreGold}\n寶石收益：${settlement.gemGold}\n特殊收益：${settlement.specialGold}\n\n總獲得：${settlement.total} 金幣` : ""}\n\n本趟層數已重新計算。`
+    };
+  }
   if (player.zone === "undergroundCamp" || player.zone === "skyCamp") {
     const settlement = settleSellableResources(player, globalStateInput, now);
     Object.assign(player, settlement.player);

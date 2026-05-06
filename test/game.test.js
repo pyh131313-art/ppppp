@@ -522,6 +522,8 @@ test("進入地底營地會自動出售普通礦洞資源並保留反轉資源",
   assert.equal(result.player.bombItem, 0);
   assert.equal(result.player.redGem, 0);
   assert.equal(result.player.invertedOre, 3);
+  assert.equal(result.player.runMode, null);
+  assert.equal(result.player.runModeOptions.length, 2);
   assert.equal(result.player.gold > 0, true);
   assert.match(result.message, /跨區域結算/);
 });
@@ -564,6 +566,25 @@ test("地底營地往上挖前可以選擇初始詞條", () => {
   assert.equal(result.player.depth, -1);
 });
 
+test("地底營地已選詞條後仍可重選", () => {
+  const camp = ensureRunModeOptions({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    depth: 100,
+    runModeOptions: ["safe", "double"]
+  }, () => 0);
+  const first = chooseRunMode(camp, "safe", () => 0.99);
+  const second = chooseRunMode(first.player, "double", () => 0.99);
+  const rows = buildPanelComponents(null, second.player);
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(first.player.runMode, "safe");
+  assert.equal(second.player.runMode, "double");
+  assert.deepEqual(second.player.runModeOptions, ["safe", "double"]);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.modePrefix}:safe`), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.mine), true);
+});
+
 test("地底營地儲物箱可以存取特殊道具", () => {
   const opened = openUndergroundStorage({
     ...createPlayer(),
@@ -602,6 +623,33 @@ test("天上營地可以往下挖回地表並自動結算", () => {
   assert.equal(result.player.invertedGem, 2);
   assert.equal(result.player.gold > 0, true);
   assert.match(result.message, /回到地上營地/);
+});
+
+test("天上往下挖途中可以返回最近營地並重置本趟層數", () => {
+  const result = returnToSurface({
+    ...createPlayer(),
+    zone: "skyDown",
+    depth: -60,
+    runDepthProgress: 40,
+    ore: 10,
+    invertedGem: 2
+  }, () => 0, null, 1000);
+  const rows = buildPanelComponents(null, {
+    ...createPlayer(),
+    zone: "skyDown",
+    depth: -60
+  });
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.zone, "skyCamp");
+  assert.equal(result.player.depth, -100);
+  assert.equal(result.player.runDepthProgress, 0);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.invertedGem, 2);
+  assert.equal(result.player.runModeOptions.length, 2);
+  assert.match(result.message, /返回天上營地/);
+  assert.equal(customIds.includes(CUSTOM_IDS.returnSurface), true);
 });
 
 test("地底客棧目前顯示敬請期待", () => {
