@@ -299,7 +299,7 @@ async function startChickenBattleAnimation(battle) {
     try {
       let settled = null;
       await updatePlayers((currentPlayers) => {
-        settled = settleBattle(battle, currentPlayers, Math.random);
+        settled = settleBattle(battle, currentPlayers, Math.random, Date.now());
         return settled.players;
       });
       await editBattleMessage(battle, settled.players, settled.message);
@@ -834,20 +834,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       await interaction.editReply({
-        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！`)],
-        components: buildBattleComponents(created.battle)
+        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！直接開跑！`)],
+        components: []
       });
       created.battle.message = await interaction.fetchReply();
-      created.battle.timers.push(setTimeout(async () => {
-        const battle = getBattle(created.battle.id);
-        if (!battle || battle.status !== "pending") return;
-        clearBattle(battle.id);
-        try {
-          await interaction.editReply({ content: "賽雞 PK 挑戰已逾時。", embeds: [], components: [] });
-        } catch (error) {
-          console.error("賽雞 PK 逾時更新失敗：", error);
-        }
-      }, 60 * 1000));
+      await startChickenBattleAnimation(created.battle);
       return;
     }
 

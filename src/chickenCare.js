@@ -9,6 +9,7 @@ const CHICKEN_PANEL_PREFIX = "chicken_panel";
 const PK_FRAME_COUNT = 6;
 const PK_TRACK_LENGTH = 14;
 const PK_TIMEOUT_MS = 60 * 1000;
+const PK_COOLDOWN_MS = 30 * 1000;
 
 const PERSONALITIES = [
   { id: "charger", label: "🔥 暴衝型", speed: 1, sprint: 2, stability: -1, stamina: -1, openBurst: 0.18, latePenalty: 0.25 },
@@ -24,6 +25,7 @@ const PERSONALITIES = [
 const BASE_NAMES = ["小咕", "阿雞", "咕咕", "雞腿", "金冠", "小翅"];
 const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
+const chickenBattleCooldowns = new Map();
 
 function clampStat(value) {
   return Math.max(1, Math.min(20, Math.floor(value || 1)));
@@ -276,6 +278,12 @@ function createBattle(challengerId, targetId, players, now = Date.now(), random 
   if (activeBattleByPlayerId.has(challengerId) || activeBattleByPlayerId.has(targetId)) {
     return { ok: false, message: "其中一位玩家已經在賽雞 PK 中。" };
   }
+  const challengerCooldown = Math.max(0, (chickenBattleCooldowns.get(challengerId) || 0) - now);
+  const targetCooldown = Math.max(0, (chickenBattleCooldowns.get(targetId) || 0) - now);
+  const cooldown = Math.max(challengerCooldown, targetCooldown);
+  if (cooldown > 0) {
+    return { ok: false, message: `賽雞 PK 冷卻中，還要 ${Math.ceil(cooldown / 1000)} 秒。` };
+  }
   const challenger = ensureOwnedChicken(players[challengerId], random);
   const target = ensureOwnedChicken(players[targetId], random);
   players[challengerId] = challenger;
@@ -384,7 +392,7 @@ function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
   return frame;
 }
 
-function settleBattle(battle, players, random = Math.random) {
+function settleBattle(battle, players, random = Math.random, now = Date.now()) {
   if (!battle.runners) updateBattleFrame(battle, players, 0, random);
   battle.status = "settled";
   const sorted = [...battle.runners].sort((a, b) => b.position - a.position);
@@ -423,6 +431,8 @@ function settleBattle(battle, players, random = Math.random) {
   battle.result = { winnerId: finalWinner.userId, loserId: finalLoser.userId };
   activeBattleByPlayerId.delete(battle.challengerId);
   activeBattleByPlayerId.delete(battle.targetId);
+  chickenBattleCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
+  chickenBattleCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
   return { battle, players, message: finalFrame };
 }
 
@@ -455,6 +465,7 @@ module.exports = {
   CHICKEN_PK_PREFIX,
   CHICKEN_PANEL_PREFIX,
   CHICKEN_UPGRADE_PREFIX,
+  PK_COOLDOWN_MS,
   PK_FRAME_COUNT,
   PERSONALITIES,
   buildBattleComponents,
