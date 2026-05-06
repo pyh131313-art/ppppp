@@ -31,7 +31,10 @@ const EVOLUTION_TYPES = {
     activeSkill: "blazeDash",
     passiveSkill: "hotStart",
     title: "爆炎新星",
-    entryEffect: "🔥 火羽劃過賽道。"
+    entryEffect: "🔥 火羽劃過賽道。",
+    pointKey: "blaze",
+    mature: { minLevel: 6, minWins: 0, minPoints: 3 },
+    complete: { minLevel: 16, minWins: 8, minPoints: 12 }
   },
   iron: {
     name: "鐵壁雞",
@@ -39,7 +42,10 @@ const EVOLUTION_TYPES = {
     activeSkill: "guardStep",
     passiveSkill: "stableSteps",
     title: "鐵壁守門員",
-    entryEffect: "🛡️ 牠踏上賽道，腳步穩得嚇人。"
+    entryEffect: "🛡️ 牠踏上賽道，腳步穩得嚇人。",
+    pointKey: "iron",
+    mature: { minLevel: 6, minWins: 0, minPoints: 3 },
+    complete: { minLevel: 16, minWins: 8, minPoints: 12 }
   },
   miracle: {
     name: "奇蹟雞",
@@ -47,7 +53,10 @@ const EVOLUTION_TYPES = {
     activeSkill: "miracleComeback",
     passiveSkill: "lastHope",
     title: "逆轉之星",
-    entryEffect: "✨ 觀眾開始期待奇蹟。"
+    entryEffect: "✨ 觀眾開始期待奇蹟。",
+    pointKey: "miracle",
+    mature: { minLevel: 6, minWins: 3, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 12, minPoints: 14 }
   },
   trickster: {
     name: "惡作劇雞",
@@ -55,7 +64,10 @@ const EVOLUTION_TYPES = {
     activeSkill: "disruptCrow",
     passiveSkill: "sneakyPeck",
     title: "賽道惡作劇王",
-    entryEffect: "😈 牠看起來準備做壞事。"
+    entryEffect: "😈 牠看起來準備做壞事。",
+    pointKey: "trickster",
+    mature: { minLevel: 6, minWins: 2, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 10, minPoints: 14 }
   }
 };
 
@@ -286,18 +298,61 @@ function determineEvolutionType(chicken) {
   return Object.entries(statBias).sort((a, b) => b[1] - a[1])[0][0];
 }
 
+function getEvolutionRequirement(type, phase = "mature") {
+  const evolution = EVOLUTION_TYPES[type];
+  if (!evolution) return null;
+  return evolution[phase] || null;
+}
+
+function getEvolutionMissingRequirements(chicken, type, phase = "mature") {
+  normalizeChickenMeta(chicken);
+  const evolution = EVOLUTION_TYPES[type];
+  const requirement = getEvolutionRequirement(type, phase);
+  if (!evolution || !requirement) return ["找不到進化條件"];
+  const points = chicken.evolutionPoints[evolution.pointKey] || 0;
+  const missing = [];
+  if (chicken.level < requirement.minLevel) missing.push(`等級 ${chicken.level}/${requirement.minLevel}`);
+  if (chicken.wins < requirement.minWins) missing.push(`勝場 ${chicken.wins}/${requirement.minWins}`);
+  if (points < requirement.minPoints) missing.push(`${evolution.name}傾向 ${points}/${requirement.minPoints}`);
+  return missing;
+}
+
+function canEvolveTo(chicken, type, phase = "mature") {
+  return getEvolutionMissingRequirements(chicken, type, phase).length === 0;
+}
+
+function buildEvolutionProgress(chicken) {
+  normalizeChickenMeta(chicken);
+  const targetType = chicken.evolutionType || determineEvolutionType(chicken);
+  const evolution = EVOLUTION_TYPES[targetType];
+  if (!evolution) return "進化條件：無";
+  if (!chicken.evolutionType) {
+    const missing = getEvolutionMissingRequirements(chicken, targetType, "mature");
+    return missing.length
+      ? `進化目標：${evolution.name}\n還差：${missing.join("｜")}`
+      : `進化目標：${evolution.name}\n條件已達成，下次獲得經驗或比賽結算時進化`;
+  }
+  if (!chicken.titles.includes(evolution.title)) {
+    const missing = getEvolutionMissingRequirements(chicken, chicken.evolutionType, "complete");
+    return missing.length
+      ? `完全體：${evolution.title}\n還差：${missing.join("｜")}`
+      : `完全體：${evolution.title}\n條件已達成，下次獲得經驗或比賽結算時進化`;
+  }
+  return `完全體：${evolution.title}｜已完成`;
+}
+
 function applyChickenEvolution(chicken) {
   normalizeChickenMeta(chicken);
-  if (chicken.level < 6) return "";
   const nextType = chicken.evolutionType || determineEvolutionType(chicken);
   const evolution = EVOLUTION_TYPES[nextType];
   if (!evolution) return "";
+  if (!chicken.evolutionType && !canEvolveTo(chicken, nextType, "mature")) return "";
   const firstEvolution = chicken.evolutionType !== nextType;
   const wasComplete = chicken.titles.includes(evolution.title);
   chicken.evolutionType = nextType;
   chicken.activeSkill = chicken.activeSkill || evolution.activeSkill;
   chicken.passiveSkill = chicken.passiveSkill || evolution.passiveSkill;
-  if (chicken.level >= 16) {
+  if (canEvolveTo(chicken, nextType, "complete")) {
     chicken.icon = evolution.icon;
     chicken.frame = chicken.frame || evolution.title;
     chicken.entryEffect = chicken.entryEffect || evolution.entryEffect;
@@ -384,6 +439,7 @@ function formatOwnedChicken(playerInput) {
     `性格：${personality.label}`,
     `進化：${evolution ? evolution.name : "未定"}`,
     `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,
+    buildEvolutionProgress(chicken),
     "",
     `速度：${chicken.speed}`,
     `衝刺：${chicken.sprint}`,
@@ -738,6 +794,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     chicken.evolutionPoints.miracle += (stats.miracle || 0) + (stats.comeback || 0) + (close ? 1 : 0);
     chicken.evolutionPoints.trickster += stats.trickster || 0;
     chicken.highestComeback = Math.max(chicken.highestComeback, stats.comeback || 0);
+    const progressEvolutionMessage = applyChickenEvolution(chicken);
     const exp = 18 + (won ? 32 : 10) + (battle.isBoss ? 18 : 0) + (close ? 8 : 0) + Math.floor(runner.position / 3);
     const levelMessage = addChickenExp(player, exp, random);
     runner.expGained = exp;
@@ -750,7 +807,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
       runner.rewardMessage = `🏅 獲得稱號：${boss.rewardTitle}\n🎟️ 獲得稀有一次性詞條權 x1`;
     }
     players[runner.userId] = player;
-    runner.levelMessage = levelMessage;
+    runner.levelMessage = [progressEvolutionMessage, levelMessage].filter(Boolean).join("\n");
   }
   finalWinner.position = PK_TRACK_LENGTH;
   finalLoser.position = Math.max(0, Math.min(PK_TRACK_LENGTH - 2, finalLoser.position));
@@ -820,6 +877,7 @@ module.exports = {
   createBattle,
   createBossBattle,
   determineEvolutionType,
+  getEvolutionMissingRequirements,
   ensureOwnedChicken,
   formatOwnedChicken,
   getBattle,

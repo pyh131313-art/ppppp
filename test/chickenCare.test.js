@@ -13,6 +13,7 @@ const {
   determineEvolutionType,
   ensureOwnedChicken,
   formatOwnedChicken,
+  getEvolutionMissingRequirements,
   getChickenRequiredExp,
   getChickenStage,
   renameChicken,
@@ -60,6 +61,29 @@ test("進化方向會依行為點數與能力判定", () => {
   player.ownedChicken.stability = 14;
 
   assert.equal(determineEvolutionType(player.ownedChicken), "iron");
+});
+
+test("稀有進化需要勝場且面板會顯示缺少條件", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 6;
+  player.ownedChicken.wins = 1;
+  player.ownedChicken.evolutionPoints = { blaze: 0, iron: 0, miracle: 8, trickster: 0 };
+
+  assert.deepEqual(getEvolutionMissingRequirements(player.ownedChicken, "miracle", "mature"), ["勝場 1/3"]);
+  assert.match(formatOwnedChicken(player), /進化目標：奇蹟雞/);
+  assert.match(formatOwnedChicken(player), /還差：勝場 1\/3/);
+});
+
+test("完全體進化需要足夠勝場", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 16;
+  player.ownedChicken.wins = 8;
+  player.ownedChicken.evolutionType = "miracle";
+  player.ownedChicken.evolutionPoints = { blaze: 0, iron: 0, miracle: 20, trickster: 0 };
+
+  assert.deepEqual(getEvolutionMissingRequirements(player.ownedChicken, "miracle", "complete"), ["勝場 8/12"]);
+  assert.match(formatOwnedChicken(player), /完全體：逆轉之星/);
+  assert.match(formatOwnedChicken(player), /還差：勝場 8\/12/);
 });
 
 test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
