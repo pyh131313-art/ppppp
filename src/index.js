@@ -715,6 +715,24 @@ function parseShopCustomBuyButton(customId) {
   return itemId || null;
 }
 
+async function deletePreviousMinePanel(playerInput, fallbackChannel) {
+  const player = getPlayer(playerInput);
+  if (!player.activeMinePanelMessageId) return false;
+  try {
+    const channel = player.activeMinePanelChannelId
+      ? await client.channels.fetch(player.activeMinePanelChannelId).catch(() => null)
+      : fallbackChannel;
+    if (!channel || !channel.messages || !channel.messages.fetch) return false;
+    const message = await channel.messages.fetch(player.activeMinePanelMessageId).catch(() => null);
+    if (!message || !message.deletable) return false;
+    await message.delete();
+    return true;
+  } catch (error) {
+    console.error("刪除舊礦場面板失敗：", error);
+    return false;
+  }
+}
+
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`已登入：${readyClient.user.tag}`);
   try {
@@ -815,6 +833,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "礦場") {
       await interaction.deferReply();
+      const previousPanelPlayer = getPlayer((await loadPlayers())[interaction.user.id]);
+      await deletePreviousMinePanel(previousPanelPlayer, interaction.channel);
       const player = await updatePlayer(interaction.user.id, (current) => ensureRunModeOptions(current, Math.random));
       const progress = getProgressWithGlobal(await loadPlayers());
       await interaction.editReply({
@@ -826,6 +846,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await updatePlayer(interaction.user.id, (current) => {
         const next = getPlayer(current);
         next.activeMinePanelMessageId = reply.id;
+        next.activeMinePanelChannelId = reply.channelId || (interaction.channel && interaction.channel.id) || "";
         return next;
       });
       return;

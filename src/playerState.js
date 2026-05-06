@@ -61,6 +61,7 @@ function createPlayer() {
     platinumJunk: 0,
     uiMode: "full",
     activeMinePanelMessageId: "",
+    activeMinePanelChannelId: "",
     runMode: null,
     runModeOptions: [],
     digPathOptions: {},
