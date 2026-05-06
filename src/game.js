@@ -554,6 +554,76 @@ const travelToUndergroundCamp = (playerInput, now = Date.now()) => (
 );
 const openUndergroundInn = economySystem.openUndergroundInn;
 
+const STORAGE_ITEMS = [
+  ["invertedOre", "顛倒礦石"],
+  ["invertedGem", "顛倒寶石"],
+  ["orichalcum", "奧利哈鋼"],
+  ["minerHelmetCount", "礦工帽"],
+  ["healingPotion", "治療藥水"],
+  ["undyingTotem", "不死圖騰"]
+];
+
+function formatUndergroundStorage(playerInput) {
+  const player = getPlayer(playerInput);
+  const storage = player.undergroundStorage || {};
+  return [
+    "【地下儲物箱】",
+    ...STORAGE_ITEMS.map(([key, label]) => `${label}：${storage[key] || 0}`)
+  ].join("\n");
+}
+
+function openUndergroundStorage(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  }
+  return { ok: true, player, message: formatUndergroundStorage(player) };
+}
+
+function depositUndergroundStorage(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  }
+  const moved = [];
+  for (const [key, label] of STORAGE_ITEMS) {
+    const amount = Math.max(0, Math.floor(player[key] || 0));
+    if (amount <= 0) continue;
+    player[key] = 0;
+    player.undergroundStorage[key] = (player.undergroundStorage[key] || 0) + amount;
+    moved.push(`${label} x${amount}`);
+  }
+  return {
+    ok: true,
+    player,
+    message: moved.length
+      ? `已存入：${moved.join("、")}。\n\n${formatUndergroundStorage(player)}`
+      : `沒有可存入的地下儲物箱物品。\n\n${formatUndergroundStorage(player)}`
+  };
+}
+
+function withdrawUndergroundStorage(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  }
+  const moved = [];
+  for (const [key, label] of STORAGE_ITEMS) {
+    const amount = Math.max(0, Math.floor(player.undergroundStorage[key] || 0));
+    if (amount <= 0) continue;
+    player.undergroundStorage[key] = 0;
+    player[key] = (player[key] || 0) + amount;
+    moved.push(`${label} x${amount}`);
+  }
+  return {
+    ok: true,
+    player,
+    message: moved.length
+      ? `已取出：${moved.join("、")}。\n\n${formatUndergroundStorage(player)}`
+      : `儲物箱沒有可取出的物品。\n\n${formatUndergroundStorage(player)}`
+  };
+}
+
 function chooseRunMode(playerInput, mode, random = null) {
   const player = getPlayer(playerInput);
   const config = CONFIG.runModes[mode];
@@ -1011,6 +1081,74 @@ function getBagCapacity(playerInput) {
     + Math.max(0, player.bagBonusSlots || 0)
     + Math.floor(getMinorBuffEffectiveStacks(player, "bag") * CONFIG.minorBuffs.bag.bagBonusSlots)
     + (player.expansionHeart ? 2 : 0);
+}
+
+function settleSellableResources(playerInput, globalStateInput = null, now = Date.now()) {
+  const player = getPlayer(playerInput);
+  const sold = {
+    ore: player.ore,
+    goldOre: player.goldOre,
+    platinumOre: player.platinumOre,
+    goldBlock: player.goldBlock,
+    oreIngot: player.oreIngot,
+    goldOreIngot: player.goldOreIngot,
+    platinumOreIngot: player.platinumOreIngot,
+    bombItem: player.bombItem,
+    redGem: player.redGem,
+    blueGem: player.blueGem,
+    greenGem: player.greenGem
+  };
+  const globalState = globalStateInput ? normalizeGlobalState(globalStateInput, now) : null;
+  const market = (id) => globalState ? getMarketMultiplier(globalState, id, now) : 1;
+  const oreGold = Math.floor(sold.ore * CONFIG.ore.goldPerOre * market("ore"))
+    + Math.floor(sold.goldOre * CONFIG.ore.goldPerGoldOre * market("goldOre"))
+    + Math.floor(sold.platinumOre * CONFIG.ore.goldPerPlatinumOre * market("platinumOre"));
+  const ingotGold = Math.floor(sold.oreIngot * CONFIG.ore.goldPerOreIngot * market("oreIngot"))
+    + Math.floor(sold.goldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot"))
+    + Math.floor(sold.platinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot * market("platinumOreIngot"));
+  const gemGold = sold.redGem * CONFIG.ore.redGemGold
+    + sold.blueGem * CONFIG.ore.blueGemGold
+    + sold.greenGem * CONFIG.ore.greenGemGold;
+  const specialGold = sold.goldBlock * CONFIG.ore.goldPerGoldBlock
+    + sold.bombItem * CONFIG.ore.goldPerBombItem;
+  const total = oreGold + ingotGold + gemGold + specialGold;
+
+  player.ore = 0;
+  player.goldOre = 0;
+  player.platinumOre = 0;
+  player.goldBlock = 0;
+  player.oreIngot = 0;
+  player.goldOreIngot = 0;
+  player.platinumOreIngot = 0;
+  player.bombItem = 0;
+  player.redGem = 0;
+  player.blueGem = 0;
+  player.greenGem = 0;
+  player.gold += total;
+
+  const nextGlobalState = globalState
+    ? recordMarketSale(globalState, {
+      ore: sold.ore,
+      goldOre: sold.goldOre,
+      platinumOre: sold.platinumOre,
+      oreIngot: sold.oreIngot,
+      goldOreIngot: sold.goldOreIngot,
+      platinumOreIngot: sold.platinumOreIngot
+    }, now)
+    : globalStateInput;
+
+  return {
+    player,
+    globalState: nextGlobalState,
+    sold,
+    oreGold: oreGold + ingotGold,
+    gemGold,
+    specialGold,
+    total,
+    message: total > 0
+      ? `\n\n【跨區域結算】\n普通礦洞資源已自動出售。\n獲得：${total} 金幣`
+      : ""
+  };
 }
 
 function getBagFreeSlots(playerInput) {
@@ -1472,12 +1610,14 @@ function crossLavaPool(player, random = Math.random, now = Date.now()) {
     player.undergroundCampUnlocked = true;
     player.runMode = null;
     player.depth = CONFIG.mining.lavaDepth;
+    const settlement = settleSellableResources(player, null, now);
+    Object.assign(player, settlement.player);
     const goldBeastMessage = resolveGoldBeastReturn(player, random, Boolean(player.goldBeast));
     return {
       kind: "blocked",
       player,
       title: "地底營地",
-      message: `你穿過岩漿池抵達地底營地。${damage.message}${goldBeastMessage ? `\n${goldBeastMessage}` : ""}這裡可以銀行、搭電梯或開始往上挖。`
+      message: `你穿過岩漿池抵達地底營地。${damage.message}${settlement.message}${goldBeastMessage ? `\n${goldBeastMessage}` : ""}這裡可以銀行、搭電梯或開始往上挖。`
     };
   }
   return {
@@ -1503,11 +1643,13 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
     player.zone = "skyCamp";
     player.skyCampUnlocked = true;
     player.runMode = null;
+    const settlement = settleSellableResources(player, null, now);
+    Object.assign(player, settlement.player);
     return {
       kind: "blocked",
       player,
       title: "天域營地",
-      message: "你抵達了地表之上的未知領域。更多功能敬請期待。"
+      message: `你抵達了地表之上的未知領域。更多功能敬請期待。${settlement.message}`
     };
   }
 
@@ -1538,6 +1680,44 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
     return buildOutcome("stalactite", player, "空間亂流", `反轉亂流割過礦道，${damage.message}`, "", random);
   }
   return buildOutcome("empty", player, "反轉碎石", "這一鏟只有往上飄的碎石。", "", random);
+}
+
+function mineSkyDown(player, random = Math.random, now = Date.now()) {
+  player.zone = "skyDown";
+  player.depth = Math.min(0, (player.depth || CONFIG.mining.skyDepth) + 10);
+  const layerEffectMessage = processLayerStartEffects(player, random, now);
+  if (player.dead) {
+    return {
+      kind: "dead",
+      player,
+      title: "天降失足",
+      message: `${layerEffectMessage}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。`
+    };
+  }
+  if (player.depth >= 0) {
+    const result = returnToSurface(player, random, null, now);
+    return {
+      kind: "blocked",
+      player: result.player,
+      title: "回到地上營地",
+      message: `【回到地上營地】\n你回到了地表。\n\n${result.message}`
+    };
+  }
+
+  const roll = random();
+  if (roll < 0.25) {
+    const gained = addItemReward(player, "invertedGem", 1 + Math.floor(random() * 2));
+    return buildOutcome("invertedGem", player, "天光顛倒寶石", `你往下挖回地表，撿到 ${gained} 顆顛倒寶石。`, "", random);
+  }
+  if (roll < 0.38) {
+    const gained = addItemReward(player, "orichalcum", 1);
+    return buildOutcome("orichalcum", player, "天域碎金", `雲層裡掉出 ${gained} 塊奧利哈鋼。`, "", random);
+  }
+  if (roll < 0.55) {
+    const damage = addBombDamage(player, now, 1);
+    return buildOutcome("stalactite", player, "高空亂流", `往下挖時被高空亂流刮傷，${damage.message}`, "", random);
+  }
+  return buildOutcome("empty", player, "雲層空洞", "你往下挖了一段，只挖到發亮的空氣。", "", random);
 }
 
 function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
@@ -1581,6 +1761,12 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
     player.eventMissCount = 0;
     player.nextBuffDepth = 5;
     return mineUpward(player, random, now);
+  }
+
+  if (player.zone === "skyCamp" || player.zone === "skyDown") {
+    player.mines += 1;
+    player.stats.totalMines += 1;
+    return mineSkyDown(player, random, now);
   }
 
   if (!player.runMode) {
@@ -2845,18 +3031,26 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
 function returnToSurface(playerInput, random = Math.random, globalStateInput = null, now = Date.now()) {
   const player = getPlayer(playerInput);
   if (player.zone === "undergroundCamp" || player.zone === "skyCamp") {
+    const settlement = settleSellableResources(player, globalStateInput, now);
+    Object.assign(player, settlement.player);
     const cost = getElevatorCost(player);
     if (cost <= 0) {
       return { ok: false, player, globalState: globalStateInput, message: "付費電梯偵測不到資產，暫時無法啟動。" };
     }
+    const keptInvertedOre = player.invertedOre;
+    const keptInvertedGem = player.invertedGem;
+    const keptOrichalcum = player.orichalcum;
     payFromTotalAsset(player, cost);
     resetRunState(player, random);
+    player.invertedOre = keptInvertedOre;
+    player.invertedGem = keptInvertedGem;
+    player.orichalcum = keptOrichalcum;
     player.lastElevatorAt = now;
     return {
       ok: true,
       player,
-      globalState: globalStateInput,
-      message: `付費電梯啟動，扣除總資產 10%：${cost} 金幣，已返回地表。`
+      globalState: settlement.globalState,
+      message: `【回到地上營地】\n你回到了地表。${settlement.total > 0 ? `\n\n本次自動結算：\n礦石收益：${settlement.oreGold}\n寶石收益：${settlement.gemGold}\n特殊收益：${settlement.specialGold}\n\n總獲得：${settlement.total} 金幣` : ""}\n\n付費電梯啟動，扣除總資產 10%：${cost} 金幣。`
     };
   }
   const curse = player.tempEffects.find((effect) => effect.id === "ancient_curse" && effect.remaining > 0);
@@ -3063,6 +3257,39 @@ function transferCollectible(fromInput, toInput, itemId, amount = 1, gold = 0) {
   };
 }
 
+function transferHealingPotion(fromInput, toInput, amount = 1) {
+  const from = getPlayer(fromInput);
+  const to = getPlayer(toInput);
+  const safeAmount = Math.max(0, Math.floor(amount || 0));
+
+  if (safeAmount <= 0) {
+    return {
+      ok: false,
+      from,
+      to,
+      message: "交易數量必須大於 0。"
+    };
+  }
+
+  if (from.healingPotion < safeAmount) {
+    return {
+      ok: false,
+      from,
+      to,
+      message: `你的治療藥水不足，目前只有 ${from.healingPotion} 瓶。`
+    };
+  }
+
+  from.healingPotion -= safeAmount;
+  to.healingPotion += safeAmount;
+  return {
+    ok: true,
+    from,
+    to,
+    message: `交易完成：送出治療藥水 x${safeAmount}。`
+  };
+}
+
 function revive(playerInput, now = Date.now(), random = Math.random) {
   const player = getPlayer(playerInput);
   if (!player.dead) {
@@ -3233,7 +3460,9 @@ module.exports = {
   getElevatorCost,
   getTotalAsset,
   mine,
+  openUndergroundStorage,
   openUndergroundInn,
+  depositUndergroundStorage,
   removeRust,
   rerollRunModeOptions,
   resolveRandomEvent,
@@ -3246,5 +3475,7 @@ module.exports = {
   travelToUndergroundCamp,
   rollWeighted,
   transferCollectible,
+  transferHealingPotion,
+  withdrawUndergroundStorage,
   withdrawBank
 };

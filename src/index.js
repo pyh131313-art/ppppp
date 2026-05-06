@@ -2,7 +2,14 @@
 
 require("dotenv").config();
 
-const { Client, Events, GatewayIntentBits } = require("discord.js");
+const {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Client,
+  Events,
+  GatewayIntentBits
+} = require("discord.js");
 const { cleanEnvValue } = require("./env");
 const { registerApplicationCommands } = require("./register-app-commands");
 const {
@@ -20,7 +27,9 @@ const {
   getPlayer,
   getShopItems,
   mine,
+  openUndergroundStorage,
   openUndergroundInn,
+  depositUndergroundStorage,
   removeRust,
   rerollRunModeOptions,
   resolveRandomEvent,
@@ -29,9 +38,11 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  transferHealingPotion,
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
+  withdrawUndergroundStorage,
   withdrawBank
 } = require("./game");
 const {
@@ -65,6 +76,7 @@ const {
   buildPanelComponents,
   buildPanelEmbed,
   buildShopComponents,
+  buildStorageComponents,
   buildShopEmbed,
   isMiningUiButton
 } = require("./ui");
@@ -87,6 +99,9 @@ function logInteractionError(error, interaction, context = "interaction") {
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
+
+const activeTrades = new Map();
+const TRADE_CUSTOM_PREFIX = "trade:potion";
 
 function clearRaceTimers(race) {
   if (!race || !Array.isArray(race.timers)) return;
@@ -144,6 +159,27 @@ async function finishRace(race) {
 
 function makeReply(title, body) {
   return `**${title}**\n${body}`;
+}
+
+function makeTradeComponents(tradeId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${TRADE_CUSTOM_PREFIX}:accept:${tradeId}`)
+        .setLabel("接受")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`${TRADE_CUSTOM_PREFIX}:decline:${tradeId}`)
+        .setLabel("拒絕")
+        .setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+function clearTrade(tradeId) {
+  const trade = activeTrades.get(tradeId);
+  if (trade && trade.timer) clearTimeout(trade.timer);
+  activeTrades.delete(tradeId);
 }
 
 function getGlobalBestDepth(players) {
@@ -229,6 +265,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isRaceComponent(interaction.customId)) {
       await handleChickenRaceInteraction(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(`${TRADE_CUSTOM_PREFIX}:`)) {
+      const [, , action, tradeId] = interaction.customId.split(":");
+      const trade = activeTrades.get(tradeId);
+      if (!trade || Date.now() > trade.expiresAt) {
+        clearTrade(tradeId);
+        await interaction.reply({ content: "這筆交易已逾時或不存在。", ephemeral: true });
+        return;
+      }
+      if (interaction.user.id !== trade.toId) {
+        await interaction.reply({ content: "只有交易對象可以回應這筆交易。", ephemeral: true });
+        return;
+      }
+      if (action === "decline") {
+        clearTrade(tradeId);
+        await interaction.update({ content: "交易已拒絕。", components: [] });
+        return;
+      }
+      const result = await updatePlayers((players) => {
+        const transfer = transferHealingPotion(players[trade.fromId], players[trade.toId], trade.amount);
+        players[trade.fromId] = transfer.from;
+        players[trade.toId] = transfer.to;
+        return transfer;
+      });
+      clearTrade(tradeId);
+      await interaction.update({
+        content: result.ok ? `交易完成：<@${trade.fromId}> 給 <@${trade.toId}> 治療藥水 x${trade.amount}。` : `交易失敗：${result.message}`,
+        components: []
+      });
       return;
     }
 
@@ -376,9 +443,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "交易") {
       const target = interaction.options.getUser("對象", true);
-      const itemId = interaction.options.getString("紀念幣", false);
+      const itemId = interaction.options.getString("物品", false) || interaction.options.getString("紀念幣", false);
       const amount = interaction.options.getInteger("數量") || 1;
-      const gold = interaction.options.getInteger("金幣") || 0;
 
       if (target.id === interaction.user.id) {
         await interaction.reply({ content: "不能交易給自己。", ephemeral: true });
@@ -390,6 +456,47 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      if (itemId === "healingPotion") {
+        if (amount <= 0) {
+          await interaction.reply({ content: "交易數量必須大於 0。", ephemeral: true });
+          return;
+        }
+        for (const trade of [...activeTrades.values()]) {
+          if (Date.now() > trade.expiresAt) clearTrade(trade.id);
+        }
+        const duplicate = [...activeTrades.values()].some((trade) => (
+          trade.fromId === interaction.user.id
+          || trade.toId === interaction.user.id
+          || trade.fromId === target.id
+          || trade.toId === target.id
+        ));
+        if (duplicate) {
+          await interaction.reply({ content: "你或對方已有進行中的交易，請先完成或等待逾時。", ephemeral: true });
+          return;
+        }
+        const sender = getPlayer((await loadPlayers())[interaction.user.id]);
+        if (sender.healingPotion < amount) {
+          await interaction.reply({ content: `你的治療藥水不足，目前只有 ${sender.healingPotion} 瓶。`, ephemeral: true });
+          return;
+        }
+        const tradeId = `${Date.now()}_${interaction.user.id}_${target.id}`;
+        const timer = setTimeout(() => clearTrade(tradeId), 60_000);
+        activeTrades.set(tradeId, {
+          id: tradeId,
+          fromId: interaction.user.id,
+          toId: target.id,
+          amount,
+          expiresAt: Date.now() + 60_000,
+          timer
+        });
+        await interaction.reply({
+          content: `**交易請求**\n${interaction.user} 想給 ${target} 治療藥水 x${amount}\n60 秒內有效。`,
+          components: makeTradeComponents(tradeId)
+        });
+        return;
+      }
+
+      const gold = interaction.options.getInteger("金幣") || 0;
       const result = await updatePlayers((players) => {
         const trade = transferCollectible(
           players[interaction.user.id],
@@ -869,6 +976,42 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       return result.player;
     });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.undergroundStorage) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = openUndergroundStorage(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "地下儲物箱", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildStorageComponents()
+    });
+    return;
+  }
+
+  if (interaction.customId === CUSTOM_IDS.storageDeposit || interaction.customId === CUSTOM_IDS.storageWithdraw) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = interaction.customId === CUSTOM_IDS.storageDeposit
+        ? depositUndergroundStorage(player)
+        : withdrawUndergroundStorage(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "地下儲物箱", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildStorageComponents()
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.revive) {

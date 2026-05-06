@@ -69,6 +69,9 @@ const CUSTOM_IDS = {
   returnSurface: "mine_ui:return_surface",
   undergroundCamp: "mine_ui:underground_camp",
   undergroundInn: "mine_ui:underground_inn",
+  undergroundStorage: "mine_ui:underground_storage",
+  storageDeposit: "mine_ui:storage_deposit",
+  storageWithdraw: "mine_ui:storage_withdraw",
   revive: "mine_ui:revive",
   rescuePrefix: "mine_ui:rescue"
 };
@@ -824,11 +827,20 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     }
     addRow(
       makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
+      makeButton(CUSTOM_IDS.undergroundStorage, "儲物箱", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
     );
     addRow(
       makeButton(CUSTOM_IDS.bankDeposit, "存款", ButtonStyle.Success, "🏦"),
       makeButton(CUSTOM_IDS.bankWithdraw, "提款", ButtonStyle.Secondary, "💰")
+    );
+    return rows;
+  }
+
+  if (player.zone === "skyCamp") {
+    addRow(
+      makeButton(CUSTOM_IDS.mine, "往下挖", ButtonStyle.Primary, "⬇️"),
+      makeButton(CUSTOM_IDS.returnSurface, `回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
     );
     return rows;
   }
@@ -855,10 +867,6 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   }
 
   if (inMine) {
-    if (player.zone === "skyCamp") {
-      addRow(makeButton(CUSTOM_IDS.returnSurface, `回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗"));
-      return rows;
-    }
     if (player.zone === "upward" || player.zone === "lavaPool") {
       addRow(
         makeButton(CUSTOM_IDS.mine, player.zone === "lavaPool" ? "穿越岩漿" : "往上挖", ButtonStyle.Primary, player.zone === "lavaPool" ? "🌋" : "⬆️"),
@@ -949,6 +957,16 @@ function buildShopComponents(progressInput = {}, playerInput = null) {
   return rows;
 }
 
+function buildStorageComponents() {
+  return [
+    new ActionRowBuilder().addComponents(
+      makeButton(CUSTOM_IDS.storageDeposit, "存入", ButtonStyle.Success, "📥"),
+      makeButton(CUSTOM_IDS.storageWithdraw, "取出", ButtonStyle.Primary, "📤"),
+      makeButton(CUSTOM_IDS.shopExit, "返回地下營地", ButtonStyle.Secondary, "↩️")
+    )
+  ];
+}
+
 function isMiningUiButton(customId) {
   return customId.startsWith("mine_ui:");
 }
@@ -963,6 +981,7 @@ module.exports = {
   buildHudFiles,
   buildPanelComponents,
   buildShopComponents,
+  buildStorageComponents,
   buildPanelEmbed,
   buildShopEmbed,
   isMiningUiButton

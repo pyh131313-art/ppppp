@@ -36,9 +36,13 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  transferHealingPotion,
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
+  openUndergroundStorage,
+  depositUndergroundStorage,
+  withdrawUndergroundStorage,
   withdrawBank
 } = require("../src/game");
 const {
@@ -498,6 +502,30 @@ test("100 層後會進入岩漿池並可抵達地底營地", () => {
   assert.equal(result.player.undergroundCampUnlocked, true);
 });
 
+test("進入地底營地會自動出售普通礦洞資源並保留反轉資源", () => {
+  const result = mine({
+    ...createPlayer(),
+    runMode: "safe",
+    zone: "lavaPool",
+    lavaProgress: 2,
+    tempMaxHp: 5,
+    ore: 10,
+    goldOre: 2,
+    bombItem: 1,
+    redGem: 1,
+    invertedOre: 3
+  }, () => 0.99, 1000);
+
+  assert.equal(result.player.zone, "undergroundCamp");
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.goldOre, 0);
+  assert.equal(result.player.bombItem, 0);
+  assert.equal(result.player.redGem, 0);
+  assert.equal(result.player.invertedOre, 3);
+  assert.equal(result.player.gold > 0, true);
+  assert.match(result.message, /跨區域結算/);
+});
+
 test("地底營地可以開始往上挖取得顛倒資源", () => {
   const player = {
     ...createPlayer(),
@@ -532,6 +560,46 @@ test("地底營地往上挖前可以選擇初始詞條", () => {
   assert.equal(chosen.player.depth, 100);
   assert.equal(result.player.zone, "upward");
   assert.equal(result.player.depth, -1);
+});
+
+test("地底營地儲物箱可以存取特殊道具", () => {
+  const opened = openUndergroundStorage({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    invertedOre: 3,
+    invertedGem: 2,
+    orichalcum: 1,
+    minerHelmetCount: 1,
+    healingPotion: 2
+  });
+  const deposited = depositUndergroundStorage(opened.player);
+  const withdrawn = withdrawUndergroundStorage(deposited.player);
+
+  assert.equal(opened.ok, true);
+  assert.equal(deposited.player.invertedOre, 0);
+  assert.equal(deposited.player.healingPotion, 0);
+  assert.equal(deposited.player.undergroundStorage.invertedOre, 3);
+  assert.equal(deposited.player.undergroundStorage.healingPotion, 2);
+  assert.equal(withdrawn.player.invertedOre, 3);
+  assert.equal(withdrawn.player.healingPotion, 2);
+  assert.equal(withdrawn.player.undergroundStorage.invertedOre, 0);
+});
+
+test("天上營地可以往下挖回地表並自動結算", () => {
+  const result = mine({
+    ...createPlayer(),
+    zone: "skyCamp",
+    depth: -5,
+    ore: 10,
+    invertedGem: 2
+  }, () => 0.99, 1000);
+
+  assert.equal(result.player.zone, "surface");
+  assert.equal(result.player.depth, 0);
+  assert.equal(result.player.ore, 0);
+  assert.equal(result.player.invertedGem, 2);
+  assert.equal(result.player.gold > 0, true);
+  assert.match(result.message, /回到地上營地/);
 });
 
 test("地底客棧目前顯示敬請期待", () => {
@@ -1398,6 +1466,25 @@ test("可以同時交易紀念幣和金幣", () => {
   assert.equal(result.to.gold, 12);
   assert.equal(result.from.collection.nina_hot_water, 1);
   assert.equal(result.to.collection.nina_hot_water, 1);
+});
+
+test("可以交易治療藥水且會檢查數量", () => {
+  const result = transferHealingPotion(
+    { ...createPlayer(), healingPotion: 3 },
+    createPlayer(),
+    2
+  );
+  const fail = transferHealingPotion(
+    { ...createPlayer(), healingPotion: 1 },
+    createPlayer(),
+    2
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.from.healingPotion, 1);
+  assert.equal(result.to.healingPotion, 2);
+  assert.equal(fail.ok, false);
+  assert.match(fail.message, /不足/);
 });
 
 test("好地精會收購身上的所有礦石並給錢", () => {

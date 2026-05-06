@@ -95,6 +95,14 @@ function createPlayer() {
     rescueBonusCount: 0,
     potionCooldown: 0,
     minerHelmetCount: 0,
+    undergroundStorage: {
+      invertedOre: 0,
+      invertedGem: 0,
+      orichalcum: 0,
+      minerHelmetCount: 0,
+      healingPotion: 0,
+      undyingTotem: 0
+    },
     pendingNextRunTraits: [],
     migratedToUndergroundCamp: false,
     preUpdateDeepPlayer: false,
@@ -147,6 +155,10 @@ function getPlayer(player) {
     ? player.tempEffects.map((effect) => ({ ...effect }))
     : [];
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
+  next.undergroundStorage = {
+    ...createPlayer().undergroundStorage,
+    ...(player && player.undergroundStorage ? player.undergroundStorage : {})
+  };
   next.pendingNextRunTraits = Array.isArray(player && player.pendingNextRunTraits)
     ? player.pendingNextRunTraits.filter((mode) => CONFIG.runModes[mode]).slice(0, 10)
     : [];
