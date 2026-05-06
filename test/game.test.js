@@ -606,26 +606,55 @@ test("地底營地已選詞條後仍可重選", () => {
   assert.equal(customIds.includes(CUSTOM_IDS.mine), true);
 });
 
-test("地底營地儲物箱可以存取特殊道具", () => {
+test("地表地底天域都可以使用無限堆疊倉庫", () => {
+  const surface = openUndergroundStorage({
+    ...createPlayer(),
+    zone: "surface",
+    healingPotion: 1
+  });
+  const sky = openUndergroundStorage({
+    ...createPlayer(),
+    zone: "skyCamp",
+    orichalcum: 2
+  });
   const opened = openUndergroundStorage({
     ...createPlayer(),
     zone: "undergroundCamp",
+    ore: 99,
+    redGem: 8,
+    bombItem: 4,
     invertedOre: 3,
     invertedGem: 2,
     orichalcum: 1,
+    platinumJunk: 1,
     minerHelmetCount: 1,
-    healingPotion: 2
+    healingPotion: 2,
+    chickenTraitTickets: 1
   });
   const deposited = depositUndergroundStorage(opened.player);
   const withdrawn = withdrawUndergroundStorage(deposited.player);
 
+  assert.equal(surface.ok, true);
+  assert.equal(sky.ok, true);
   assert.equal(opened.ok, true);
+  assert.equal(deposited.player.ore, 0);
+  assert.equal(deposited.player.redGem, 0);
+  assert.equal(deposited.player.bombItem, 0);
   assert.equal(deposited.player.invertedOre, 0);
   assert.equal(deposited.player.healingPotion, 0);
+  assert.equal(deposited.player.chickenTraitTickets, 0);
+  assert.equal(deposited.player.undergroundStorage.ore, 99);
+  assert.equal(deposited.player.undergroundStorage.redGem, 8);
+  assert.equal(deposited.player.undergroundStorage.bombItem, 4);
   assert.equal(deposited.player.undergroundStorage.invertedOre, 3);
   assert.equal(deposited.player.undergroundStorage.healingPotion, 2);
+  assert.equal(deposited.player.undergroundStorage.chickenTraitTickets, 1);
+  assert.equal(withdrawn.player.ore, 99);
+  assert.equal(withdrawn.player.redGem, 8);
+  assert.equal(withdrawn.player.bombItem, 4);
   assert.equal(withdrawn.player.invertedOre, 3);
   assert.equal(withdrawn.player.healingPotion, 2);
+  assert.equal(withdrawn.player.chickenTraitTickets, 1);
   assert.equal(withdrawn.player.undergroundStorage.invertedOre, 0);
 });
 

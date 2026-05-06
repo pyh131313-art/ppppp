@@ -1205,7 +1205,7 @@ async function handleMiningButton(interaction) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = openUndergroundStorage(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "地下儲物箱", result.message, interaction.user, hudPage);
+      embed = buildPanelEmbed(result.player, "倉庫", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -1224,7 +1224,7 @@ async function handleMiningButton(interaction) {
         ? depositUndergroundStorage(player)
         : withdrawUndergroundStorage(player);
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "地下儲物箱", result.message, interaction.user, hudPage);
+      embed = buildPanelEmbed(result.player, "倉庫", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });

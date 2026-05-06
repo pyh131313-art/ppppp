@@ -562,35 +562,61 @@ const travelToUndergroundCamp = (playerInput, now = Date.now()) => (
 const openUndergroundInn = economySystem.openUndergroundInn;
 
 const STORAGE_ITEMS = [
+  ["ore", "普通礦石"],
+  ["goldOre", "金礦石"],
+  ["platinumOre", "鉑金礦石"],
+  ["goldBlock", "金塊"],
+  ["oreIngot", "礦錠"],
+  ["goldOreIngot", "金錠"],
+  ["platinumOreIngot", "鉑金錠"],
+  ["bombItem", "完整炸彈"],
+  ["junk", "超級破爛"],
+  ["redGem", "紅寶石"],
+  ["blueGem", "藍寶石"],
+  ["greenGem", "綠寶石"],
   ["invertedOre", "顛倒礦石"],
   ["invertedGem", "顛倒寶石"],
   ["orichalcum", "奧利哈鋼"],
+  ["platinumJunk", "白金破爛"],
   ["minerHelmetCount", "礦工帽"],
   ["healingPotion", "治療藥水"],
-  ["undyingTotem", "不死圖騰"]
+  ["undyingTotem", "不死圖騰"],
+  ["chickenTraitTickets", "賽雞詞條權"]
 ];
+
+function canUseStorage(playerInput) {
+  const player = getPlayer(playerInput);
+  return player.zone === "undergroundCamp" || player.zone === "skyCamp" || !isInMine(player);
+}
+
+function getStorageTitle(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone === "undergroundCamp") return "【地底倉庫】";
+  if (player.zone === "skyCamp") return "【天域倉庫】";
+  return "【地表倉庫】";
+}
 
 function formatUndergroundStorage(playerInput) {
   const player = getPlayer(playerInput);
   const storage = player.undergroundStorage || {};
   return [
-    "【地下儲物箱】",
+    getStorageTitle(player),
     ...STORAGE_ITEMS.map(([key, label]) => `${label}：${storage[key] || 0}`)
   ].join("\n");
 }
 
 function openUndergroundStorage(playerInput) {
   const player = getPlayer(playerInput);
-  if (player.zone !== "undergroundCamp") {
-    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  if (!canUseStorage(player)) {
+    return { ok: false, player, message: "倉庫只能在地表、地底營地或天域營地使用。" };
   }
   return { ok: true, player, message: formatUndergroundStorage(player) };
 }
 
 function depositUndergroundStorage(playerInput) {
   const player = getPlayer(playerInput);
-  if (player.zone !== "undergroundCamp") {
-    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  if (!canUseStorage(player)) {
+    return { ok: false, player, message: "倉庫只能在地表、地底營地或天域營地使用。" };
   }
   const moved = [];
   for (const [key, label] of STORAGE_ITEMS) {
@@ -605,14 +631,14 @@ function depositUndergroundStorage(playerInput) {
     player,
     message: moved.length
       ? `已存入：${moved.join("、")}。\n\n${formatUndergroundStorage(player)}`
-      : `沒有可存入的地下儲物箱物品。\n\n${formatUndergroundStorage(player)}`
+      : `沒有可存入倉庫的物品。\n\n${formatUndergroundStorage(player)}`
   };
 }
 
 function withdrawUndergroundStorage(playerInput) {
   const player = getPlayer(playerInput);
-  if (player.zone !== "undergroundCamp") {
-    return { ok: false, player, message: "地下儲物箱只能在地底營地使用。" };
+  if (!canUseStorage(player)) {
+    return { ok: false, player, message: "倉庫只能在地表、地底營地或天域營地使用。" };
   }
   const moved = [];
   for (const [key, label] of STORAGE_ITEMS) {
@@ -627,7 +653,7 @@ function withdrawUndergroundStorage(playerInput) {
     player,
     message: moved.length
       ? `已取出：${moved.join("、")}。\n\n${formatUndergroundStorage(player)}`
-      : `儲物箱沒有可取出的物品。\n\n${formatUndergroundStorage(player)}`
+      : `倉庫沒有可取出的物品。\n\n${formatUndergroundStorage(player)}`
   };
 }
 

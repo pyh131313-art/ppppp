@@ -825,7 +825,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     if (player.runMode) addRow(makeButton(CUSTOM_IDS.mine, "開始往上挖", ButtonStyle.Primary, "⬆️"));
     addRow(
       makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
-      makeButton(CUSTOM_IDS.undergroundStorage, "儲物箱", ButtonStyle.Secondary, "📦"),
+      makeButton(CUSTOM_IDS.undergroundStorage, "倉庫", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );
     addRow(
@@ -846,6 +846,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   if (player.zone === "skyCamp") {
     addRow(
       makeButton(CUSTOM_IDS.mine, "往下挖", ButtonStyle.Primary, "⬇️"),
+      makeButton(CUSTOM_IDS.undergroundStorage, "倉庫", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );
     return rows;
@@ -860,6 +861,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     );
     addRow(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
+      makeButton(CUSTOM_IDS.undergroundStorage, "倉庫", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.shopOpen, "商店", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.bankOpen, "銀行", ButtonStyle.Success, "🏦")
     );
@@ -978,7 +980,7 @@ function buildStorageComponents() {
     new ActionRowBuilder().addComponents(
       makeButton(CUSTOM_IDS.storageDeposit, "存入", ButtonStyle.Success, "📥"),
       makeButton(CUSTOM_IDS.storageWithdraw, "取出", ButtonStyle.Primary, "📤"),
-      makeButton(CUSTOM_IDS.shopExit, "返回地下營地", ButtonStyle.Secondary, "↩️")
+      makeButton(CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
     )
   ];
 }
