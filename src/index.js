@@ -107,6 +107,7 @@ const client = new Client({
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
+const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
 
 function parseAmountInput(input) {
   const value = Number(input);
@@ -133,6 +134,34 @@ function buildAmountInputModal(action, targetUserId, issuerId, panelMessageId = 
     .setMinLength(1)
     .setMaxLength(10);
   modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return modal;
+}
+
+function buildStorageInputModal(action, targetUserId, issuerId, panelMessageId = "") {
+  const isDeposit = action === "deposit";
+  const modal = new ModalBuilder()
+    .setCustomId(`${STORAGE_MODAL_PREFIX}:${action}:${targetUserId}:${issuerId}:${panelMessageId || "none"}`)
+    .setTitle(isDeposit ? "存入倉庫" : "取出倉庫");
+  const itemInput = new TextInputBuilder()
+    .setCustomId("item")
+    .setLabel("物品名稱或代號")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("例：治療藥水 / healingPotion / 普通礦石 / ore")
+    .setRequired(true)
+    .setMinLength(1)
+    .setMaxLength(30);
+  const amountInput = new TextInputBuilder()
+    .setCustomId("amount")
+    .setLabel("數量")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("不填就是全部")
+    .setRequired(false)
+    .setMinLength(1)
+    .setMaxLength(10);
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(itemInput),
+    new ActionRowBuilder().addComponents(amountInput)
+  );
   return modal;
 }
 
@@ -275,6 +304,66 @@ async function handleBankModalSubmit(interaction) {
     }
   } catch (error) {
     console.error("更新面板失敗：", error);
+  }
+
+  await interaction.reply({ content: result.message, ephemeral: true });
+}
+
+async function handleStorageModalSubmit(interaction) {
+  const [, , action, targetUserId, issuerId, panelMessageId] = interaction.customId.split(":");
+  if (interaction.user.id !== issuerId) {
+    await interaction.reply({ content: "只有發起按鈕的玩家可以送出這筆倉庫操作。", ephemeral: true });
+    return;
+  }
+
+  const beforePlayers = await loadPlayers();
+  const beforePlayer = getPlayer(beforePlayers[targetUserId]);
+  if (
+    beforePlayer.activeMinePanelMessageId
+    && panelMessageId
+    && panelMessageId !== "none"
+    && beforePlayer.activeMinePanelMessageId !== panelMessageId
+  ) {
+    await interaction.reply({ content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。", ephemeral: true });
+    return;
+  }
+
+  const item = interaction.fields.getTextInputValue("item");
+  const rawAmount = interaction.fields.getTextInputValue("amount");
+  const amount = rawAmount ? parseAmountInput(rawAmount) : null;
+  if (rawAmount && amount === null) {
+    await interaction.reply({ content: "請輸入正整數數量，或留空代表全部。", ephemeral: true });
+    return;
+  }
+
+  let result = null;
+  await updatePlayer(targetUserId, (player) => {
+    result = action === "deposit"
+      ? depositUndergroundStorage(player, item, amount)
+      : withdrawUndergroundStorage(player, item, amount);
+    return result.player;
+  });
+
+  if (!result) {
+    await interaction.reply({ content: "不支援的倉庫操作。", ephemeral: true });
+    return;
+  }
+
+  const currentPage = getCurrentHudPage(interaction);
+  const players = await loadPlayers();
+  const player = players[targetUserId];
+  const embed = buildPanelEmbed(player, "倉庫", result.message, interaction.user, currentPage);
+  try {
+    if (interaction.message && interaction.message.edit && interaction.message.editable) {
+      await interaction.message.edit({
+        embeds: [embed],
+        files: buildHudFiles(player),
+        attachments: [],
+        components: buildStorageComponents()
+      });
+    }
+  } catch (error) {
+    console.error("更新倉庫面板失敗：", error);
   }
 
   await interaction.reply({ content: result.message, ephemeral: true });
@@ -428,6 +517,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(`${BANK_MODAL_PREFIX}:`)) {
       await handleBankModalSubmit(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${STORAGE_MODAL_PREFIX}:`)) {
+      await handleStorageModalSubmit(interaction);
       return;
     }
 
@@ -833,7 +927,9 @@ async function handleMiningButton(interaction) {
     || interaction.customId === CUSTOM_IDS.bankWithdraw
     || interaction.customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)
     || interaction.customId === CUSTOM_IDS.exchangeOne;
-  if (!openAmountModal) await interaction.deferUpdate();
+  const openStorageModal = interaction.customId === CUSTOM_IDS.storageDeposit
+    || interaction.customId === CUSTOM_IDS.storageWithdraw;
+  if (!openAmountModal && !openStorageModal) await interaction.deferUpdate();
   if (openAmountModal) {
     await interaction.showModal(buildAmountInputModal(
       interaction.customId === CUSTOM_IDS.bankDeposit || interaction.customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`)
@@ -841,6 +937,15 @@ async function handleMiningButton(interaction) {
         : interaction.customId === CUSTOM_IDS.bankWithdraw || interaction.customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)
           ? "withdraw"
           : "exchange",
+      panelTargetUserId,
+      interaction.user.id,
+      panelMessageId
+    ));
+    return;
+  }
+  if (openStorageModal) {
+    await interaction.showModal(buildStorageInputModal(
+      interaction.customId === CUSTOM_IDS.storageDeposit ? "deposit" : "withdraw",
       panelTargetUserId,
       interaction.user.id,
       panelMessageId
@@ -1204,25 +1309,6 @@ async function handleMiningButton(interaction) {
   if (interaction.customId === CUSTOM_IDS.undergroundStorage) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = openUndergroundStorage(player);
-      componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "倉庫", result.message, interaction.user, hudPage);
-      files = buildHudFiles(result.player);
-      return result.player;
-    });
-    await interaction.editReply({
-      embeds: [embed],
-      files,
-      attachments: [],
-      components: buildStorageComponents()
-    });
-    return;
-  }
-
-  if (interaction.customId === CUSTOM_IDS.storageDeposit || interaction.customId === CUSTOM_IDS.storageWithdraw) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = interaction.customId === CUSTOM_IDS.storageDeposit
-        ? depositUndergroundStorage(player)
-        : withdrawUndergroundStorage(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "倉庫", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);

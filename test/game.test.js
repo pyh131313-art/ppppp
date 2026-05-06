@@ -658,6 +658,24 @@ test("地表地底天域都可以使用無限堆疊倉庫", () => {
   assert.equal(withdrawn.player.undergroundStorage.invertedOre, 0);
 });
 
+test("倉庫可以指定存入與取出的物品數量", () => {
+  const deposited = depositUndergroundStorage({
+    ...createPlayer(),
+    zone: "surface",
+    ore: 10,
+    healingPotion: 3
+  }, "普通礦石", 4);
+  const withdrawn = withdrawUndergroundStorage(deposited.player, "ore", 2);
+
+  assert.equal(deposited.ok, true);
+  assert.equal(deposited.player.ore, 6);
+  assert.equal(deposited.player.healingPotion, 3);
+  assert.equal(deposited.player.undergroundStorage.ore, 4);
+  assert.equal(withdrawn.ok, true);
+  assert.equal(withdrawn.player.ore, 8);
+  assert.equal(withdrawn.player.undergroundStorage.ore, 2);
+});
+
 test("天上營地可以往下挖回地表並自動結算", () => {
   const result = mine({
     ...createPlayer(),

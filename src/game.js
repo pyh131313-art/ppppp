@@ -586,7 +586,7 @@ const STORAGE_ITEMS = [
 
 function canUseStorage(playerInput) {
   const player = getPlayer(playerInput);
-  return player.zone === "undergroundCamp" || player.zone === "skyCamp" || !isInMine(player);
+  return player.zone === "surface" || player.zone === "undergroundCamp" || player.zone === "skyCamp";
 }
 
 function getStorageTitle(playerInput) {
@@ -605,6 +605,16 @@ function formatUndergroundStorage(playerInput) {
   ].join("\n");
 }
 
+function getStorageItem(input) {
+  const query = String(input || "").trim();
+  if (!query) return null;
+  return STORAGE_ITEMS.find(([key, label]) => key === query || label === query) || null;
+}
+
+function formatStorageItemHelp() {
+  return STORAGE_ITEMS.map(([key, label]) => `${label}(${key})`).join("、");
+}
+
 function openUndergroundStorage(playerInput) {
   const player = getPlayer(playerInput);
   if (!canUseStorage(player)) {
@@ -613,18 +623,31 @@ function openUndergroundStorage(playerInput) {
   return { ok: true, player, message: formatUndergroundStorage(player) };
 }
 
-function depositUndergroundStorage(playerInput) {
+function depositUndergroundStorage(playerInput, itemInput = null, amountInput = null) {
   const player = getPlayer(playerInput);
   if (!canUseStorage(player)) {
     return { ok: false, player, message: "倉庫只能在地表、地底營地或天域營地使用。" };
   }
   const moved = [];
-  for (const [key, label] of STORAGE_ITEMS) {
+  const targetItems = itemInput ? [getStorageItem(itemInput)].filter(Boolean) : STORAGE_ITEMS;
+  if (itemInput && targetItems.length === 0) {
+    return {
+      ok: false,
+      player,
+      message: `找不到可存入的物品：${itemInput}\n可用：${formatStorageItemHelp()}`
+    };
+  }
+  for (const [key, label] of targetItems) {
     const amount = Math.max(0, Math.floor(player[key] || 0));
     if (amount <= 0) continue;
-    player[key] = 0;
-    player.undergroundStorage[key] = (player.undergroundStorage[key] || 0) + amount;
-    moved.push(`${label} x${amount}`);
+    const requestedAmount = amountInput == null
+      ? amount
+      : Math.max(0, Math.floor(Number(amountInput) || 0));
+    const movedAmount = Math.min(amount, requestedAmount);
+    if (movedAmount <= 0) continue;
+    player[key] -= movedAmount;
+    player.undergroundStorage[key] = (player.undergroundStorage[key] || 0) + movedAmount;
+    moved.push(`${label} x${movedAmount}`);
   }
   return {
     ok: true,
@@ -635,18 +658,31 @@ function depositUndergroundStorage(playerInput) {
   };
 }
 
-function withdrawUndergroundStorage(playerInput) {
+function withdrawUndergroundStorage(playerInput, itemInput = null, amountInput = null) {
   const player = getPlayer(playerInput);
   if (!canUseStorage(player)) {
     return { ok: false, player, message: "倉庫只能在地表、地底營地或天域營地使用。" };
   }
   const moved = [];
-  for (const [key, label] of STORAGE_ITEMS) {
+  const targetItems = itemInput ? [getStorageItem(itemInput)].filter(Boolean) : STORAGE_ITEMS;
+  if (itemInput && targetItems.length === 0) {
+    return {
+      ok: false,
+      player,
+      message: `找不到可取出的物品：${itemInput}\n可用：${formatStorageItemHelp()}`
+    };
+  }
+  for (const [key, label] of targetItems) {
     const amount = Math.max(0, Math.floor(player.undergroundStorage[key] || 0));
     if (amount <= 0) continue;
-    player.undergroundStorage[key] = 0;
-    player[key] = (player[key] || 0) + amount;
-    moved.push(`${label} x${amount}`);
+    const requestedAmount = amountInput == null
+      ? amount
+      : Math.max(0, Math.floor(Number(amountInput) || 0));
+    const movedAmount = Math.min(amount, requestedAmount);
+    if (movedAmount <= 0) continue;
+    player.undergroundStorage[key] -= movedAmount;
+    player[key] = (player[key] || 0) + movedAmount;
+    moved.push(`${label} x${movedAmount}`);
   }
   return {
     ok: true,

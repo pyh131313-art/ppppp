@@ -978,8 +978,8 @@ function buildBankComponents(targetUserId = null) {
 function buildStorageComponents() {
   return [
     new ActionRowBuilder().addComponents(
-      makeButton(CUSTOM_IDS.storageDeposit, "存入", ButtonStyle.Success, "📥"),
-      makeButton(CUSTOM_IDS.storageWithdraw, "取出", ButtonStyle.Primary, "📤"),
+      makeButton(CUSTOM_IDS.storageDeposit, "指定存入", ButtonStyle.Success, "📥"),
+      makeButton(CUSTOM_IDS.storageWithdraw, "指定取出", ButtonStyle.Primary, "📤"),
       makeButton(CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
     )
   ];
