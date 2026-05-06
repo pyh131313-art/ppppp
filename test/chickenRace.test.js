@@ -39,7 +39,21 @@ test("賽雞動畫會逐幀推進並產生事件提示", () => {
 
   assert.equal(race.raceFrames.length, 2);
   assert.match(frame, /🏁 賽雞開始/);
-  assert.match(frame, /起跑失誤|加速|跌倒|爆衝|混亂|🎙️/);
+  assert.match(frame, /起跑失誤|加速|跌倒|爆衝|混亂|貼身|黑馬|壓線|🎙️/);
+});
+
+test("賽雞結算會補上衝線畫面", () => {
+  resetRaceState();
+  const race = beginRace(startRace(2500, () => 0), () => 0.5);
+  race.runners[0].position = 6;
+  race.runners[1].position = 5;
+  race.runners[2].position = 4;
+  settleRace(race, {}, () => 0.99);
+  const finalFrame = race.raceFrames[race.raceFrames.length - 1];
+
+  assert.match(finalFrame, /衝線瞬間/);
+  assert.match(finalFrame, /🏆/);
+  assert.match(finalFrame, /🏁/);
 });
 
 test("高貴票中獎會套用高貴加成和多人加成", () => {

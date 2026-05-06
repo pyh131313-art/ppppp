@@ -613,7 +613,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       await interaction.deferReply();
       await interaction.editReply({
-        embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 3 分鐘。")],
+        embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 15 秒。")],
         components: buildRaceComponents(race)
       });
       race.message = await interaction.fetchReply();
@@ -869,7 +869,7 @@ async function handleChickenRaceInteraction(interaction) {
     const nextRace = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
     nextRace.message = interaction.message;
     await interaction.editReply({
-      embeds: [buildRaceEmbed(nextRace, "新一場賽雞開始，下注階段 3 分鐘。")],
+      embeds: [buildRaceEmbed(nextRace, "新一場賽雞開始，下注階段 15 秒。")],
       components: buildRaceComponents(nextRace)
     });
     scheduleRaceBettingEnd(nextRace);

@@ -14,8 +14,8 @@ const RACE_CUSTOM_IDS = {
 
 const BETTING_MS = 15 * 1000;
 const RACING_MS = 15 * 1000;
-const FRAME_COUNT = 6;
-const TRACK_LENGTH = 16;
+const FRAME_COUNT = 8;
+const TRACK_LENGTH = 18;
 
 const CHICKENS = [
   { id: "gugugu", emoji: "🐔", name: "故咕顧", style: "穩定", speed: 1.05, burst: 0.08, late: 0 },
@@ -36,7 +36,11 @@ const RACE_EVENTS = [
   "突然打鳴",
   "體力耗盡",
   "神秘飼料",
-  "終點爆衝"
+  "終點爆衝",
+  "貼身纏鬥",
+  "黑馬抬頭",
+  "賽道亂流",
+  "最後壓線"
 ];
 
 const DEFAULT_RACE_SCOPE = "global";
@@ -213,16 +217,35 @@ function roastChicken(race, chickenId, player) {
 function applyEvent(chickens, event, random = Math.random) {
   const target = chickens[Math.floor(random() * chickens.length)];
   const sorted = [...chickens].sort((a, b) => b.position - a.position);
-  if (event === "起跑失誤") target.position -= 1.2;
-  if (event === "神速衝刺") target.position += 2.2;
-  if (event === "香蕉皮" && random() > (target.resist || 0)) target.position -= 2;
-  if (event === "觀眾歡呼") sorted[0].position += 1.2;
-  if (event === "高貴閃光") target.position += 1.5;
-  if (event === "雞群混亂") chickens.reverse();
-  if (event === "突然打鳴") sorted[sorted.length - 1].position += 2.4;
-  if (event === "體力耗盡") sorted[0].position -= 1.6;
-  if (event === "神秘飼料") target.position += random() < 0.5 ? 2 : -1.8;
-  if (event === "終點爆衝") target.position += 3;
+  if (event === "起跑失誤") target.position -= 1.7;
+  if (event === "神速衝刺") target.position += 3.2;
+  if (event === "香蕉皮" && random() > (target.resist || 0)) target.position -= 2.6;
+  if (event === "觀眾歡呼") sorted[0].position += 1.8;
+  if (event === "高貴閃光") target.position += 2.4;
+  if (event === "雞群混亂") {
+    const positions = chickens.map((chicken) => chicken.position).reverse();
+    chickens.forEach((chicken, index) => {
+      chicken.position = positions[index];
+    });
+  }
+  if (event === "突然打鳴") sorted[sorted.length - 1].position += 3.4;
+  if (event === "體力耗盡") sorted[0].position -= 2.3;
+  if (event === "神秘飼料") target.position += random() < 0.5 ? 3.2 : -2.2;
+  if (event === "終點爆衝") target.position += 4.2;
+  if (event === "貼身纏鬥" && sorted[0] && sorted[1]) {
+    sorted[1].position += 2.2;
+    sorted[0].position -= 0.8;
+  }
+  if (event === "黑馬抬頭") sorted[sorted.length - 1].position += 4;
+  if (event === "賽道亂流") {
+    for (const chicken of chickens) {
+      chicken.position += random() < 0.5 ? 1.8 : -1.2;
+    }
+  }
+  if (event === "最後壓線" && sorted[1]) sorted[1].position += 3.8;
+  for (const chicken of chickens) {
+    chicken.position = Math.max(0, Math.min(TRACK_LENGTH, chicken.position));
+  }
   return target;
 }
 
@@ -234,10 +257,12 @@ function buildTrack(chicken) {
 function updateRaceFrame(race, frameIndex, random = Math.random) {
   const progress = (frameIndex + 1) / FRAME_COUNT;
   const runners = race.runners;
+  const baseStep = TRACK_LENGTH / FRAME_COUNT;
   for (const runner of runners) {
-    const burst = random() < runner.burst ? 2.2 : 0;
-    const fall = random() < (runner.fallRisk || 0) && random() > (runner.resist || 0) ? -1.6 : 0;
-    runner.position += runner.speed + burst + fall + runner.late * progress;
+    const burst = random() < runner.burst ? baseStep * 1.25 : 0;
+    const fall = random() < (runner.fallRisk || 0) && random() > (runner.resist || 0) ? -baseStep * 0.9 : 0;
+    const lateKick = runner.late * progress * baseStep;
+    runner.position += baseStep * runner.speed + burst + fall + lateKick;
   }
   const event = RACE_EVENTS[Math.floor(random() * RACE_EVENTS.length)];
   applyEvent(runners, event, random);
@@ -246,9 +271,31 @@ function updateRaceFrame(race, frameIndex, random = Math.random) {
     神速衝刺: "💥 加速！",
     香蕉皮: "🍌 跌倒！",
     終點爆衝: "🔥 爆衝！",
-    雞群混亂: "😵 混亂！"
+    雞群混亂: "😵 混亂！",
+    貼身纏鬥: "⚔️ 貼身！",
+    黑馬抬頭: "🌑 黑馬！",
+    最後壓線: "📸 壓線！"
   }[event] || `🎙️ ${event}`;
-  const frame = ["🏁 賽雞開始！", ...lines, hint].join("\n");
+  const leader = [...runners].sort((a, b) => b.position - a.position)[0];
+  const gap = Math.max(0, TRACK_LENGTH - Math.floor(leader.position));
+  const tension = gap <= 2 ? "📣 終點就在眼前！" : gap <= 5 ? "🔥 進入最後衝刺！" : "🥁 名次還在變動！";
+  const frame = ["🏁 賽雞開始！", ...lines, hint, tension].join("\n");
+  race.raceFrames.push(frame);
+  return frame;
+}
+
+function buildFinishFrame(race, winner) {
+  const runners = race.runners || race.selectedChickens.map((chicken) => ({ ...chicken, position: 0 }));
+  const sorted = [...runners].sort((a, b) => {
+    if (a.id === winner.id) return -1;
+    if (b.id === winner.id) return 1;
+    return b.position - a.position;
+  });
+  sorted.forEach((runner, index) => {
+    runner.position = Math.max(0, TRACK_LENGTH - index * 2);
+  });
+  const lines = sorted.map((runner) => buildTrack(runner));
+  const frame = ["🏁 衝線瞬間！", ...lines, `🏆 ${winner.emoji} ${winner.name} 壓線獲勝！`].join("\n");
   race.raceFrames.push(frame);
   return frame;
 }
@@ -276,8 +323,13 @@ function calculateResult(race, random = Math.random) {
   const runners = race.runners || race.selectedChickens.map((chicken) => ({ ...chicken, position: 0 }));
   runners.sort((a, b) => b.position - a.position);
   let winner = runners[0];
-  const upset = random() < 0.08;
-  if (upset && runners[1]) winner = runners[1];
+  const gap = runners[0] && runners[1] ? runners[0].position - runners[1].position : TRACK_LENGTH;
+  const upsetChance = gap <= 1.5 ? 0.22 : gap <= 3 ? 0.14 : 0.08;
+  const upset = random() < upsetChance;
+  if (upset && runners[1]) {
+    runners[1].position += Math.max(1, gap + 0.2);
+    winner = runners[1];
+  }
   const winnerTickets = Object.values(race.playersInMatch).filter((ticket) => ticket.chickenId === winner.id);
   const ticket = winnerTickets.length ? winnerTickets[Math.floor(random() * winnerTickets.length)] : null;
   return {
@@ -464,6 +516,7 @@ function settleRace(race, players, random = Math.random) {
   const result = calculateResult(race, random);
   result.playerCount = Object.keys(race.playersInMatch).length;
   race.result = result;
+  buildFinishFrame(race, result.winner);
   let rewardLines = ["本場沒有玩家押中，獎池被雞場收走了。"];
   if (result.ticket) {
     const applied = applyReward(getPlayer(players[result.ticket.userId]), result, random);
