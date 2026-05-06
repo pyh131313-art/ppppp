@@ -49,6 +49,8 @@ const {
   buyTicket,
   getRaceState,
   isRaceComponent,
+  isCurrentRaceComponent,
+  parseRaceCustomId,
   roastChicken,
   settleRace,
   startRace,
@@ -259,16 +261,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (name === "賽雞場") {
-      await interaction.deferReply();
       const race = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
+      if (race.message && race.status !== "settled") {
+        await interaction.reply({
+          content: `目前已有賽雞場正在進行：${race.status === "betting" ? "下注中" : "比賽中"}。請使用原本那個賽雞面板。`,
+          ephemeral: true
+        });
+        return;
+      }
+      await interaction.deferReply();
       await interaction.editReply({
         embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 3 分鐘。")],
         components: buildRaceComponents(race)
       });
-      if (!race.message || race.message.id === (await interaction.fetchReply()).id) {
-        race.message = await interaction.fetchReply();
-        scheduleRaceBettingEnd(race);
-      }
+      race.message = await interaction.fetchReply();
+      scheduleRaceBettingEnd(race);
       return;
     }
 
@@ -425,14 +432,23 @@ async function handleChickenRaceInteraction(interaction) {
     await interaction.reply({ content: "目前沒有賽雞場，請使用 `/賽雞場` 開啟。", ephemeral: true });
     return;
   }
+  const parsed = parseRaceCustomId(interaction.customId);
+  if (!parsed || !isCurrentRaceComponent(race, interaction.customId)) {
+    await interaction.reply({ content: "這是舊的賽雞面板，請使用最新的賽雞場面板。", ephemeral: true });
+    return;
+  }
 
-  if (interaction.customId === RACE_CUSTOM_IDS.start) {
+  if (parsed.action === "start") {
     await interaction.deferUpdate();
     await startRaceAnimation(race);
     return;
   }
 
-  if (interaction.customId === RACE_CUSTOM_IDS.next) {
+  if (parsed.action === "next") {
+    if (race.status !== "settled") {
+      await interaction.reply({ content: "這場還沒結算，不能開始下一場。", ephemeral: true });
+      return;
+    }
     await interaction.deferUpdate();
     const nextRace = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
     nextRace.message = interaction.message;
@@ -444,8 +460,8 @@ async function handleChickenRaceInteraction(interaction) {
     return;
   }
 
-  if (interaction.customId.startsWith(`${RACE_CUSTOM_IDS.bet}:`)) {
-    const [, , betType, chickenId] = interaction.customId.split(":");
+  if (parsed.action === "bet") {
+    const { betType, chickenId } = parsed;
     let result = null;
     await updatePlayer(interaction.user.id, (player) => {
       result = buyTicket(race, interaction.user.id, betType, chickenId, getPlayer(player));
@@ -456,8 +472,8 @@ async function handleChickenRaceInteraction(interaction) {
     return;
   }
 
-  if (interaction.customId.startsWith(`${RACE_CUSTOM_IDS.roast}:`)) {
-    const chickenId = interaction.customId.split(":")[2];
+  if (parsed.action === "roast") {
+    const { chickenId } = parsed;
     let result = null;
     await updatePlayer(interaction.user.id, (player) => {
       result = roastChicken(race, chickenId, getPlayer(player));

@@ -78,6 +78,38 @@ function getRaceState(scopeKey = DEFAULT_RACE_SCOPE) {
   return activeRaces.get(normalizeRaceScope(scopeKey)) || null;
 }
 
+function getRaceId(race) {
+  return race && race.id ? race.id : "unknown";
+}
+
+function buildRaceCustomId(race, action, ...parts) {
+  return [RACE_CUSTOM_IDS.prefix, action, getRaceId(race), ...parts].join(":");
+}
+
+function parseRaceCustomId(customId) {
+  const parts = typeof customId === "string" ? customId.split(":") : [];
+  if (parts[0] !== RACE_CUSTOM_IDS.prefix) return null;
+  const legacyAction = parts[1];
+  if (legacyAction === "bet") {
+    if (parts.length >= 5) return { action: "bet", raceId: parts[2], betType: parts[3], chickenId: parts[4], legacy: false };
+    return { action: "bet", raceId: null, betType: parts[2], chickenId: parts[3], legacy: true };
+  }
+  if (legacyAction === "roast") {
+    if (parts.length >= 4) return { action: "roast", raceId: parts[2], chickenId: parts[3], legacy: false };
+    return { action: "roast", raceId: null, chickenId: parts[2], legacy: true };
+  }
+  if (legacyAction === "start" || legacyAction === "next") {
+    return { action: legacyAction, raceId: parts[2] || null, legacy: parts.length < 3 };
+  }
+  return null;
+}
+
+function isCurrentRaceComponent(race, customId) {
+  const parsed = parseRaceCustomId(customId);
+  if (!parsed || !race) return false;
+  return !parsed.raceId || parsed.raceId === race.id;
+}
+
 function resetRaceState(scopeKey = null) {
   if (scopeKey === null) {
     for (const race of activeRaces.values()) {
@@ -101,6 +133,13 @@ function resetRaceState(scopeKey = null) {
   raceLock.delete(normalized);
 }
 
+function clearRacePanelForScope(scopeKey) {
+  const normalized = normalizeRaceScope(scopeKey);
+  for (const [userId, scope] of activeRacePanelByUserId.entries()) {
+    if (scope === normalized) activeRacePanelByUserId.delete(userId);
+  }
+}
+
 function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RACE_SCOPE, userId = null) {
   const normalized = normalizeRaceScope(scopeKey);
   if (userId && activeRacePanelByUserId.has(userId)) {
@@ -109,6 +148,7 @@ function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RA
   }
   const activeRace = activeRaces.get(normalized);
   if (activeRace && activeRace.status !== "settled") return activeRace;
+  clearRacePanelForScope(normalized);
   decayRoastPenalties();
   const race = {
     id: `${now}`,
@@ -338,7 +378,7 @@ function buildRaceComponents(race) {
     return [
       new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(RACE_CUSTOM_IDS.next)
+          .setCustomId(buildRaceCustomId(race, "next"))
           .setLabel("下一場")
           .setEmoji("🔄")
           .setStyle(ButtonStyle.Success)
@@ -349,28 +389,28 @@ function buildRaceComponents(race) {
   const rows = [];
   rows.push(new ActionRowBuilder().addComponents(...race.selectedChickens.map((chicken) => (
     new ButtonBuilder()
-      .setCustomId(`${RACE_CUSTOM_IDS.bet}:normal:${chicken.id}`)
+      .setCustomId(buildRaceCustomId(race, "bet", "normal", chicken.id))
       .setLabel(`普通 ${chicken.name}`)
       .setEmoji(chicken.emoji)
       .setStyle(ButtonStyle.Secondary)
   ))));
   rows.push(new ActionRowBuilder().addComponents(...race.selectedChickens.map((chicken) => (
     new ButtonBuilder()
-      .setCustomId(`${RACE_CUSTOM_IDS.bet}:noble:${chicken.id}`)
+      .setCustomId(buildRaceCustomId(race, "bet", "noble", chicken.id))
       .setLabel(`高貴 ${chicken.name}`)
       .setEmoji("✨")
       .setStyle(ButtonStyle.Primary)
   ))));
   rows.push(new ActionRowBuilder().addComponents(...race.selectedChickens.map((chicken) => (
     new ButtonBuilder()
-      .setCustomId(`${RACE_CUSTOM_IDS.roast}:${chicken.id}`)
+      .setCustomId(buildRaceCustomId(race, "roast", chicken.id))
       .setLabel(`烤 ${chicken.name}`)
       .setEmoji("🍗")
       .setStyle(ButtonStyle.Danger)
   ))));
   rows.push(new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(RACE_CUSTOM_IDS.start)
+      .setCustomId(buildRaceCustomId(race, "start"))
       .setLabel("提前開始")
       .setEmoji("🏁")
       .setStyle(ButtonStyle.Success)
@@ -436,6 +476,8 @@ module.exports = {
   calculateResult,
   getRaceState,
   isRaceComponent,
+  isCurrentRaceComponent,
+  parseRaceCustomId,
   roastChicken,
   resetRaceState,
   settleRace,

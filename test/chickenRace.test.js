@@ -110,7 +110,7 @@ test("賽雞結算後會保留下一場刷新按鈕", () => {
   const rows = buildRaceComponents(race);
 
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].components[0].data.custom_id, "chicken_race:next");
+  assert.equal(rows[0].components[0].data.custom_id, "chicken_race:next:5000");
 });
 
 test("不同伺服器的賽雞場狀態會分開保存", () => {
@@ -121,4 +121,33 @@ test("不同伺服器的賽雞場狀態會分開保存", () => {
   assert.notEqual(guildA.id, guildB.id);
   assert.equal(getRaceState("guild-a").id, "6000");
   assert.equal(getRaceState("guild-b").id, "7000");
+});
+
+test("賽雞按鈕會綁定 raceId 避免舊面板干擾", () => {
+  resetRaceState();
+  const race = startRace(8000, () => 0, "guild-a", "owner");
+  const rows = buildRaceComponents(race);
+  const ids = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+  const { isCurrentRaceComponent, parseRaceCustomId } = require("../src/chickenRace");
+
+  assert.equal(ids.every((id) => id.includes(":8000")), true);
+  assert.equal(isCurrentRaceComponent(race, ids[0]), true);
+  assert.equal(isCurrentRaceComponent(race, ids[0].replace(":8000:", ":old:")), false);
+  assert.deepEqual(parseRaceCustomId(ids[0]), {
+    action: "bet",
+    raceId: "8000",
+    betType: "normal",
+    chickenId: race.selectedChickens[0].id,
+    legacy: false
+  });
+});
+
+test("同一伺服器重複開賽雞只會回傳同一場", () => {
+  resetRaceState();
+  const first = startRace(9000, () => 0, "guild-a", "owner");
+  first.message = { id: "message-1" };
+  const second = startRace(9001, () => 0.9, "guild-a", "other");
+
+  assert.equal(second.id, first.id);
+  assert.equal(getRaceState("guild-a").message.id, "message-1");
 });
