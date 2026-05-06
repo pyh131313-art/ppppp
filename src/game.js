@@ -124,6 +124,7 @@ function createPlayer() {
     },
     minorBuffOptions: [],
     minorBuffSelections: [],
+    minorBuffBreakthroughMode: false,
     nextBuffDepth: 5,
     pendingEvent: null,
     nextEventDepth: 4,
@@ -176,9 +177,10 @@ function getPlayer(player) {
   next.minorBuffSelections = Array.isArray(player && player.minorBuffSelections)
     ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 2)
     : [];
+  next.minorBuffBreakthroughMode = Boolean(player && player.minorBuffBreakthroughMode);
   next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
   next.runModeOptions = Array.isArray(player && player.runModeOptions)
-    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 3)
+    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
     : [];
   next.digPathOptions = {
     ...(player && player.digPathOptions ? player.digPathOptions : {})
@@ -410,7 +412,7 @@ function getMiningWeights(playerInput, digPath = null) {
   weights.junk *= getEffectMultiplier(player, "junkWeightMultiplier");
   weights.empty *= getEffectMultiplier(player, "emptyWeightMultiplier");
   weights.bomb *= getEffectMultiplier(player, "bombWeightMultiplier");
-  weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
+  weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, getMinorBuffEffectiveStacks(player, "bomb"));
   weights.bomb *= getPressureMultiplier(player);
   return applyTraitWeights(applyDigPathWeights(weights, player, digPath), player, CONFIG);
 }
@@ -559,7 +561,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
   const chickenPool = CHICKEN_TRAIT_IDS.filter((id) => CONFIG.runModes[id]);
   const nextRunPool = [...new Set(player.pendingNextRunTraits || [])].filter((id) => CONFIG.runModes[id]);
   const options = [];
-  while (options.length < 3 && (basePool.length > 0 || chickenPool.length > 0 || nextRunPool.length > 0)) {
+  while (options.length < 2 && (basePool.length > 0 || chickenPool.length > 0 || nextRunPool.length > 0)) {
     const useChickenTrait = (player.chickenTraitTickets || 0) > 0
       && chickenPool.length > 0
       && random() < 0.35;
@@ -570,7 +572,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
     const [picked] = pool.splice(index, 1);
     if (picked && !options.includes(picked)) options.push(picked);
   }
-  while (options.length < 3 && basePool.length > 0) {
+  while (options.length < 2 && basePool.length > 0) {
     const index = Math.floor(random() * basePool.length);
     const [picked] = basePool.splice(index, 1);
     if (picked && !options.includes(picked)) options.push(picked);
@@ -581,7 +583,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
 
 function getRunModeOptions(playerInput) {
   const player = getPlayer(playerInput);
-  const ids = player.runModeOptions.length > 0 ? player.runModeOptions : getRunModeIds(false).slice(0, 3);
+  const ids = player.runModeOptions.length > 0 ? player.runModeOptions : getRunModeIds(false).slice(0, 2);
   return ids
     .map((id) => ({
       id,
@@ -660,6 +662,7 @@ function resetRunState(player, random = Math.random) {
   player.minorBuffs = { ...createPlayer().minorBuffs };
   player.minorBuffOptions = [];
   player.minorBuffSelections = [];
+  player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
@@ -828,6 +831,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.minorBuffs = { ...createPlayer().minorBuffs };
   player.minorBuffOptions = [];
   player.minorBuffSelections = [];
+  player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
@@ -873,24 +877,105 @@ function canChooseMinorBuff(playerInput) {
   return !player.dead && Boolean(player.runMode) && Math.abs(player.depth) >= player.nextBuffDepth && Math.abs(player.depth) % 5 === 0;
 }
 
+function getMinorBuffMaxStacks(buff) {
+  const config = CONFIG.minorBuffs[buff];
+  return config ? config.maxStacks || 5 : 0;
+}
+
+function getMinorBuffBreakthroughScale(buff) {
+  const config = CONFIG.minorBuffs[buff];
+  return config ? config.breakthroughScale || 0.3 : 0;
+}
+
+function getMinorBuffEffectiveStacks(playerInput, buff) {
+  const player = getPlayer(playerInput);
+  const count = Math.max(0, player.minorBuffs[buff] || 0);
+  const maxStacks = getMinorBuffMaxStacks(buff);
+  if (count <= maxStacks) return count;
+  return maxStacks + (count - maxStacks) * getMinorBuffBreakthroughScale(buff);
+}
+
+function isSelectableMiniTrait(playerInput, trait) {
+  const player = getPlayer(playerInput);
+  const id = typeof trait === "string" ? trait : trait && trait.id;
+  const config = CONFIG.minorBuffs[id];
+  if (!config) return false;
+  if (player.minorBuffSelections.includes(id)) return false;
+  if (config.unique && (player.minorBuffs[id] || 0) > 0) return false;
+  return (player.minorBuffs[id] || 0) < getMinorBuffMaxStacks(id);
+}
+
+function getSelectableMiniTraitIds(playerInput) {
+  const player = getPlayer(playerInput);
+  return Object.keys(CONFIG.minorBuffs).filter((id) => isSelectableMiniTrait(player, id));
+}
+
+function getBreakthroughMiniTraitIds(playerInput) {
+  const player = getPlayer(playerInput);
+  return Object.keys(CONFIG.minorBuffs).filter((id) => {
+    const config = CONFIG.minorBuffs[id];
+    if (!config || config.unique || player.minorBuffSelections.includes(id)) return false;
+    return (player.minorBuffs[id] || 0) >= getMinorBuffMaxStacks(id);
+  });
+}
+
+function isMiniTraitBreakthroughMode(playerInput) {
+  const player = getPlayer(playerInput);
+  return getSelectableMiniTraitIds(player).length === 0 && getBreakthroughMiniTraitIds(player).length > 0;
+}
+
+function pickMinorBuffOptions(pool, random = Math.random, breakthrough = false) {
+  const options = [];
+  const candidates = [...pool];
+  while (options.length < 3 && candidates.length > 0) {
+    let pickedIndex = 0;
+    if (breakthrough) {
+      const totalWeight = candidates.reduce((sum, id) => sum + (CONFIG.minorBuffs[id].breakthroughWeight || 0.35), 0);
+      let roll = random() * totalWeight;
+      pickedIndex = candidates.findIndex((id) => {
+        roll -= CONFIG.minorBuffs[id].breakthroughWeight || 0.35;
+        return roll <= 0;
+      });
+      if (pickedIndex < 0) pickedIndex = candidates.length - 1;
+    } else {
+      pickedIndex = Math.floor(random() * candidates.length);
+    }
+    const [picked] = candidates.splice(pickedIndex, 1);
+    if (picked && !options.includes(picked)) options.push(picked);
+  }
+  return options;
+}
+
 function refreshMinorBuffOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
-  const pool = Object.keys(CONFIG.minorBuffs);
-  const options = [];
-  while (options.length < 3 && pool.length > 0) {
-    const index = Math.floor(random() * pool.length);
-    const [picked] = pool.splice(index, 1);
-    options.push(picked);
-  }
+  const selectablePool = getSelectableMiniTraitIds(player);
+  const breakthrough = selectablePool.length === 0;
+  const pool = breakthrough ? getBreakthroughMiniTraitIds(player) : selectablePool;
+  const options = pickMinorBuffOptions(pool, random, breakthrough);
   player.minorBuffOptions = options;
   player.minorBuffSelections = [];
+  player.minorBuffBreakthroughMode = breakthrough && options.length > 0;
   return player;
 }
 
 function getMinorBuffOptions(playerInput) {
   const player = getPlayer(playerInput);
-  const ids = player.minorBuffOptions.length >= 3 ? player.minorBuffOptions : Object.keys(CONFIG.minorBuffs).slice(0, 3);
-  return ids.map((id) => ({ id, ...CONFIG.minorBuffs[id] })).filter((buff) => buff.label);
+  let ids = player.minorBuffOptions.filter((id) => CONFIG.minorBuffs[id]);
+  let breakthrough = player.minorBuffBreakthroughMode;
+  if (ids.length === 0 && canChooseMinorBuff(player)) {
+    const selectable = getSelectableMiniTraitIds(player);
+    breakthrough = selectable.length === 0;
+    ids = (breakthrough ? getBreakthroughMiniTraitIds(player) : selectable).slice(0, 3);
+  }
+  return ids
+    .map((id) => ({
+      id,
+      ...CONFIG.minorBuffs[id],
+      breakthrough: breakthrough && (player.minorBuffs[id] || 0) >= getMinorBuffMaxStacks(id),
+      currentStacks: player.minorBuffs[id] || 0,
+      effectiveStacks: getMinorBuffEffectiveStacks(player, id)
+    }))
+    .filter((buff) => buff.label);
 }
 
 function chooseMinorBuff(playerInput, buff) {
@@ -913,8 +998,14 @@ function chooseMinorBuff(playerInput, buff) {
     };
   }
 
-  if (player.minorBuffOptions.length < 3) {
-    Object.assign(player, refreshMinorBuffOptions(player));
+  if (player.minorBuffOptions.length === 0) {
+    const previewOptions = getMinorBuffOptions(player).map((option) => option.id);
+    if (previewOptions.length > 0) {
+      player.minorBuffOptions = previewOptions;
+      player.minorBuffBreakthroughMode = isMiniTraitBreakthroughMode(player);
+    } else {
+      Object.assign(player, refreshMinorBuffOptions(player));
+    }
   }
 
   if (!player.minorBuffOptions.includes(buff)) {
@@ -933,8 +1024,9 @@ function chooseMinorBuff(playerInput, buff) {
     };
   }
 
-  const maxStacks = config.maxStacks || 99;
-  if ((player.minorBuffs[buff] || 0) >= maxStacks) {
+  const maxStacks = getMinorBuffMaxStacks(buff);
+  const isBreakthrough = player.minorBuffBreakthroughMode && (player.minorBuffs[buff] || 0) >= maxStacks;
+  if ((player.minorBuffs[buff] || 0) >= maxStacks && !isBreakthrough) {
     return {
       ok: false,
       player,
@@ -944,19 +1036,21 @@ function chooseMinorBuff(playerInput, buff) {
 
   player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
   player.minorBuffSelections.push(buff);
-  const done = player.minorBuffSelections.length >= 2;
+  const requiredSelections = Math.min(2, Math.max(1, player.minorBuffOptions.length));
+  const done = player.minorBuffSelections.length >= requiredSelections;
   if (done) {
     player.nextBuffDepth = Math.abs(player.depth) + 5;
     player.minorBuffOptions = [];
     player.minorBuffSelections = [];
+    player.minorBuffBreakthroughMode = false;
   }
 
   return {
     ok: true,
     player,
     message: done
-      ? `已選擇 ${config.label}。本次小詞條完成，下一次在第 ${player.nextBuffDepth} 層。`
-      : `已選擇 ${config.label}。還可以再選 1 個小詞條。`
+      ? `已選擇 ${isBreakthrough ? "✨ " : ""}${config.label}${isBreakthrough ? "（突破）" : ""}。本次小詞條完成，下一次在第 ${player.nextBuffDepth} 層。`
+      : `已選擇 ${isBreakthrough ? "✨ " : ""}${config.label}${isBreakthrough ? "（突破）" : ""}。還可以再選 1 個小詞條。`
   };
 }
 
@@ -1059,8 +1153,12 @@ function resolveTreasureChest(player, choice, random = Math.random, now = Date.n
     return { player, message: `${chestType} 寶石閃光，獲得 ${gained} 顆寶石。` };
   }
   if (outcomeRoll < 0.3) {
-    const buff = Object.keys(CONFIG.minorBuffs)[Math.floor(random() * Object.keys(CONFIG.minorBuffs).length)];
-    player.minorBuffs[buff] = Math.min((CONFIG.minorBuffs[buff].maxStacks || 99), (player.minorBuffs[buff] || 0) + 1);
+    const selectable = getSelectableMiniTraitIds(player);
+    const breakthrough = selectable.length === 0;
+    const pool = breakthrough ? getBreakthroughMiniTraitIds(player) : selectable;
+    if (pool.length === 0) return { player, message: `${chestType} 磁條碎片失去光芒，什麼也沒發生。` };
+    const [buff] = pickMinorBuffOptions(pool, random, breakthrough);
+    player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
     return { player, message: `${chestType} 裝上一個小詞條：${CONFIG.minorBuffs[buff].label}。` };
   }
   if (outcomeRoll < 0.4) {
@@ -1141,7 +1239,7 @@ function getBagCapacity(playerInput) {
   const player = getPlayer(playerInput);
   return BAG_CAPACITY
     + Math.max(0, player.bagBonusSlots || 0)
-    + (player.minorBuffs.bag || 0) * CONFIG.minorBuffs.bag.bagBonusSlots
+    + Math.floor(getMinorBuffEffectiveStacks(player, "bag") * CONFIG.minorBuffs.bag.bagBonusSlots)
     + (player.expansionHeart ? 2 : 0);
 }
 
@@ -1187,7 +1285,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   if (player.dead || player.pendingEvent || !shouldCheckEvent(Math.abs(player.depth), player)) return "";
   const mode = getMode(player);
   player.eventChanceBonus = (mode && mode.eventChanceBonus ? mode.eventChanceBonus : 0)
-    + (player.minorBuffs.event || 0) * CONFIG.minorBuffs.event.eventChanceBonus;
+    + getMinorBuffEffectiveStacks(player, "event") * CONFIG.minorBuffs.event.eventChanceBonus;
   const triggered = rollEventTrigger(player, random);
   const nextState = updateEventState(triggered, player);
   player.eventMissCount = nextState.eventMissCount;
@@ -1295,6 +1393,9 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
   if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
     tickTempEffects(player);
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
+    if (canChooseMinorBuff(player) && player.minorBuffOptions.length === 0) {
+      Object.assign(player, refreshMinorBuffOptions(player, random));
+    }
   }
   const funMessage = applyPostDigFun(player, kind, random);
   const tensionHint = getTensionHint(player);
@@ -1401,7 +1502,9 @@ function applyPostDigFun(player, kind, random = Math.random) {
       player.chargeBurst = null;
     }
 
-    const crit = rollCrit(random, mode && mode.critChanceBonus ? mode.critChanceBonus : 0);
+    const critBonus = (mode && mode.critChanceBonus ? mode.critChanceBonus : 0)
+      + getMinorBuffEffectiveStacks(player, "luck") * CONFIG.minorBuffs.luck.critChanceBonus;
+    const crit = rollCrit(random, critBonus);
     if (crit.crit) {
       const critGained = applyRewardBonus(player, reward, reward.amount);
       player.critCount += 1;
@@ -1636,7 +1739,7 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
   }
 
   const reverseMultiplier = getModeRewardMultiplier(player)
-    * (1 + (player.minorBuffs.reverse || 0) * CONFIG.minorBuffs.reverse.reverseRewardBonus);
+    * (1 + getMinorBuffEffectiveStacks(player, "reverse") * CONFIG.minorBuffs.reverse.reverseRewardBonus);
   const roll = random();
   if (player.depth <= -1 && roll < 0.08) {
     const gained = addItemReward(player, "orichalcum", 1);
@@ -1737,11 +1840,11 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   if (result === "gold_or_ore") result = random() < 0.5 ? "gold" : "ore";
   const gatherMultiplier = mode && mode.gatherMultiplier ? mode.gatherMultiplier : 1;
   const goldMultiplier = 1
-    + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
+    + getMinorBuffEffectiveStacks(player, "gold") * CONFIG.minorBuffs.gold.goldMultiplierBonus
     + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
   const oreMultiplier = 1
     + (mode && mode.oreRewardMultiplier ? mode.oreRewardMultiplier - 1 : 0)
-    + (player.minorBuffs.ore || 0) * CONFIG.minorBuffs.ore.oreMultiplierBonus;
+    + getMinorBuffEffectiveStacks(player, "ore") * CONFIG.minorBuffs.ore.oreMultiplierBonus;
   const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player) * getModeRewardMultiplier(player);
 
   if (result === "gold") {
@@ -3125,7 +3228,7 @@ function formatInventory(playerInput) {
     `深度：${player.depth}（${getDepthLabel(player.depth)}）`,
     `下礦方式：${getRunModeLabel(player)}`,
     `礦洞：${getCaveLabel(player)}`,
-    `小磁條：金幣 +${player.minorBuffs.gold * 5}%｜防爆 ${player.minorBuffs.bomb}`,
+    `小磁條：金幣 +${Math.round(getMinorBuffEffectiveStacks(player, "gold") * 5)}%｜防爆 ${getMinorBuffEffectiveStacks(player, "bomb").toFixed(1).replace(/\.0$/, "")}`,
     `事件：${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
     `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
     `狀態：${player.dead ? "死亡" : "存活"}`,
@@ -3201,7 +3304,10 @@ module.exports = {
   getRustCollectibles,
   getRunModeOptions,
   getRunModeLabel,
+  getMinorBuffEffectiveStacks,
   getMinorBuffOptions,
+  isSelectableMiniTrait,
+  isMiniTraitBreakthroughMode,
   getShopItems,
   getShopConsumables,
   getElevatorCost,

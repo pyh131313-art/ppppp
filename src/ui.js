@@ -24,6 +24,7 @@ const {
   getDigPathOptions,
   getElevatorCost,
   getMaxBombs,
+  getMinorBuffEffectiveStacks,
   getMinorBuffOptions,
   getPlayer,
   getRandomEvent,
@@ -166,7 +167,7 @@ function buildDetailPage(playerInput) {
     "⚙️ 配置",
     `詞條：${getRunModeLabel(player)}`,
     `路線：${digPathText}`,
-    `磁條：金幣+${player.minorBuffs.gold * 5}%｜防爆${player.minorBuffs.bomb}`,
+    `磁條：金幣+${Math.round(getMinorBuffEffectiveStacks(player, "gold") * 5)}%｜防爆${getMinorBuffEffectiveStacks(player, "bomb").toFixed(1).replace(/\.0$/, "")}`,
     "",
     "📦 資源",
     `礦石：${player.ore}｜金礦：${player.goldOre}｜鉑金：${player.platinumOre}`,
@@ -516,7 +517,7 @@ function buildRunModeSelectionText(playerInput) {
   if (player.dead || player.runMode) return "";
   const options = getRunModeOptions(player);
   if (options.length === 0) return "";
-  const numbers = ["①", "②", "③"];
+  const numbers = ["①", "②"];
   const lines = options.map((mode, index) => [
     `${numbers[index] || `${index + 1}.`} ${mode.name || mode.label}`,
     mode.shortDescription || "效果未明"
@@ -767,7 +768,7 @@ function getEventButtonLabels(eventId) {
 function buildPanelComponents(targetUserId = null, playerInput = null, progressInput = {}, page = "main") {
   const player = getPlayer(playerInput);
   const hudPage = player.uiMode === "compact" ? null : normalizeHudPage(page);
-  const modeNumbers = ["①", "②", "③"];
+  const modeNumbers = ["①", "②"];
   const progress = {
     healingPotionUnlocked: false,
     undyingTotemUnlocked: false,
@@ -874,8 +875,17 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       );
     }
     if (canChooseMinorBuff(player)) {
-      addRow(...getMinorBuffOptions(player).map((buff) => (
-        makeButton(`${CUSTOM_IDS.buffPrefix}:${buff.id}`, buff.label, ButtonStyle.Secondary, "🧲")
+      const buffs = getMinorBuffOptions(player);
+      if (buffs.some((buff) => buff.breakthrough)) {
+        addRow(makeButton("mine_ui:breakthrough_notice", "✨ 突破詞條出現", ButtonStyle.Secondary, "✨").setDisabled(true));
+      }
+      addRow(...buffs.map((buff) => (
+        makeButton(
+          `${CUSTOM_IDS.buffPrefix}:${buff.id}`,
+          `${buff.breakthrough ? "✨ " : ""}${buff.label}${buff.breakthrough ? " 突破" : ""}`,
+          ButtonStyle.Secondary,
+          "🧲"
+        )
       )));
     }
   }

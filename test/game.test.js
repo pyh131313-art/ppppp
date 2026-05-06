@@ -19,8 +19,12 @@ const {
   getCommunityProgress,
   getDigPathOptions,
   getElevatorCost,
+  getMinorBuffEffectiveStacks,
+  getMinorBuffOptions,
   getRandomEvents,
   getRunModeOptions,
+  isMiniTraitBreakthroughMode,
+  isSelectableMiniTrait,
   mine,
   openUndergroundInn,
   drinkHealingPotion,
@@ -660,14 +664,14 @@ test("下礦前需要先二選一", () => {
   assert.equal(result.player.depth, 0);
 });
 
-test("地表會刷新三個初始詞條並只能選本輪出現的", () => {
+test("地表會刷新兩個初始詞條並只能選本輪出現的", () => {
   const player = ensureRunModeOptions(createPlayer(), () => 0.99);
   const options = getRunModeOptions(player).map((option) => option.id);
   const blocked = chooseRunMode(player, "double");
   const chosen = chooseRunMode(player, options[0]);
 
-  assert.equal(options.length, 3);
-  assert.deepEqual(options, ["reversePrep", "eventBody", "blastRecycle"]);
+  assert.equal(options.length, 2);
+  assert.deepEqual(options, ["reversePrep", "eventBody"]);
   assert.equal(blocked.ok, false);
   assert.equal(chosen.ok, true);
   assert.equal(chosen.player.runMode, "reversePrep");
@@ -684,7 +688,7 @@ test("返回地面會刷新下一輪初始詞條", () => {
   );
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody", "blastRecycle"]);
+  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody"]);
 });
 
 test("地表可以花十金幣刷新初始詞條", () => {
@@ -693,7 +697,7 @@ test("地表可以花十金幣刷新初始詞條", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 15);
-  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody", "blastRecycle"]);
+  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody"]);
 });
 
 test("下礦後不能刷新初始詞條且金幣不足會被擋下", () => {
@@ -976,6 +980,57 @@ test("每五層可以三選二小詞條", () => {
   assert.equal(result.player.minorBuffs.gold, 1);
   assert.equal(result.player.minorBuffs.bag, 1);
   assert.equal(result.player.nextBuffDepth, 10);
+});
+
+test("小詞條選項會先排除已達上限的普通詞條", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 4,
+    minorBuffs: {
+      ...createPlayer().minorBuffs,
+      gold: 5,
+      bomb: 5,
+      bag: 5,
+      ore: 5,
+      sustain: 3,
+      luck: 5,
+      event: 0,
+      reverse: 0
+    }
+  };
+  const refreshed = mine({ ...player, forcedNextResult: "empty" }, () => 0.99).player;
+  const options = getMinorBuffOptions(refreshed).map((buff) => buff.id);
+
+  assert.equal(isSelectableMiniTrait(refreshed, "gold"), false);
+  assert.equal(options.includes("gold"), false);
+  assert.equal(options.every((id) => ["event", "reverse"].includes(id)), true);
+});
+
+test("所有小詞條達上限後會進入突破模式並套用遞減成長", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 4,
+    minorBuffs: {
+      gold: 5,
+      bomb: 5,
+      bag: 5,
+      ore: 5,
+      sustain: 3,
+      luck: 5,
+      event: 5,
+      reverse: 5
+    }
+  };
+  const refreshed = mine({ ...player, forcedNextResult: "empty" }, () => 0.99).player;
+  const options = getMinorBuffOptions(refreshed);
+  const first = chooseMinorBuff(refreshed, options[0].id);
+
+  assert.equal(isMiniTraitBreakthroughMode(refreshed), true);
+  assert.equal(options.every((buff) => buff.breakthrough), true);
+  assert.equal(first.ok, true);
+  assert.match(first.message, /突破/);
+  assert.equal(first.player.minorBuffs[options[0].id], 6);
+  assert.ok(getMinorBuffEffectiveStacks(first.player, options[0].id) < 6);
 });
 
 test("金幣可以兌換收藏紀念幣", () => {

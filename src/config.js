@@ -393,41 +393,59 @@ const CONFIG = {
   minorBuffs: {
     gold: {
       label: "金幣磁條",
-      goldMultiplierBonus: 0.05
+      goldMultiplierBonus: 0.05,
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     },
     bomb: {
       label: "防爆磁條",
-      bombWeightMultiplier: 0.95
+      bombWeightMultiplier: 0.95,
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     },
     bag: {
       label: "包包擴充",
       bagBonusSlots: 2,
-      maxStacks: 5
+      maxStacks: 5,
+      breakthroughScale: 0.25,
+      breakthroughWeight: 0.35
     },
     ore: {
       label: "小型礦脈",
       oreMultiplierBonus: 0.08,
-      maxStacks: 5
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     },
     sustain: {
       label: "小型續航",
       healEveryDepth: 10,
-      maxStacks: 3
+      maxStacks: 3,
+      breakthroughScale: 0.2,
+      breakthroughWeight: 0.25
     },
     luck: {
       label: "小型幸運",
       critChanceBonus: 0.03,
-      maxStacks: 5
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     },
     event: {
       label: "小型事件感知",
       eventChanceBonus: 0.05,
-      maxStacks: 5
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     },
     reverse: {
       label: "小型顛倒感應",
       reverseRewardBonus: 0.05,
-      maxStacks: 5
+      maxStacks: 5,
+      breakthroughScale: 0.3,
+      breakthroughWeight: 0.45
     }
   },
   ore: {
