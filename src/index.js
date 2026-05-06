@@ -5,7 +5,10 @@ require("dotenv").config();
 const {
   ActionRowBuilder,
   ButtonBuilder,
+  ModalBuilder,
   ButtonStyle,
+  TextInputBuilder,
+  TextInputStyle,
   Client,
   Events,
   GatewayIntentBits
@@ -73,6 +76,7 @@ const {
   buildHudFiles,
   buildLeaderboardEmbed,
   buildMiningEmbed,
+  buildBankComponents,
   buildPanelComponents,
   buildPanelEmbed,
   buildShopComponents,
@@ -102,6 +106,35 @@ const client = new Client({
 
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
+const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
+
+function parseAmountInput(input) {
+  const value = Number(input);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
+function buildAmountInputModal(action, targetUserId, issuerId) {
+  const [title, label, placeholder] = action === "deposit"
+    ? ["存入金幣", "存入多少金幣", "輸入要存入的金幣（不填即視為全部）"]
+    : action === "withdraw"
+      ? ["領出金幣", "領出多少金幣", "輸入要領出的金幣（不填即視為全部）"]
+      : ["鑄造紀念幣", "鑄造數量", "輸入要鑄造的數量"];
+
+  const modal = new ModalBuilder()
+    .setCustomId(`${BANK_MODAL_PREFIX}:${action}:${targetUserId}:${issuerId}`)
+    .setTitle(title);
+  const input = new TextInputBuilder()
+    .setCustomId("amount")
+    .setLabel(label)
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(placeholder)
+    .setRequired(false)
+    .setMinLength(1)
+    .setMaxLength(10);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return modal;
+}
 
 function clearRaceTimers(race) {
   if (!race || !Array.isArray(race.timers)) return;
@@ -159,6 +192,80 @@ async function finishRace(race) {
 
 function makeReply(title, body) {
   return `**${title}**\n${body}`;
+}
+
+async function handleBankModalSubmit(interaction) {
+  const [, , action, targetUserId, issuerId] = interaction.customId.split(":");
+  if (interaction.user.id !== issuerId) {
+    await interaction.reply({ content: "只有發起按鈕的玩家可以送出這筆數值。", ephemeral: true });
+    return;
+  }
+
+  const rawAmount = interaction.fields.getTextInputValue("amount");
+  const amount = rawAmount ? parseAmountInput(rawAmount) : null;
+  if (rawAmount && amount === null && action !== "exchange") {
+    await interaction.reply({ content: "請輸入正整數金額。", ephemeral: true });
+    return;
+  }
+  if (rawAmount && amount === null && action === "exchange") {
+    await interaction.reply({ content: "請輸入正整數鑄造數量。", ephemeral: true });
+    return;
+  }
+  if (action === "exchange" && amount !== null && amount <= 0) {
+    await interaction.reply({ content: "請輸入正整數鑄造數量。", ephemeral: true });
+    return;
+  }
+
+  let result = null;
+  let title = "銀行";
+  await updatePlayer(targetUserId, (player) => {
+    if (action === "deposit") {
+      title = "銀行";
+      result = depositBank(player, amount);
+      return result.player;
+    }
+    if (action === "withdraw") {
+      title = "銀行";
+      result = withdrawBank(player, amount);
+      return result.player;
+    }
+    if (action === "exchange") {
+      title = "鑄造紀念幣";
+      result = exchange(player, amount || 1, Math.random);
+      return result.player;
+    }
+    return player;
+  });
+
+  if (!result) {
+    await interaction.reply({ content: "不支援的操作。", ephemeral: true });
+    return;
+  }
+
+  const currentPage = getCurrentHudPage(interaction);
+  const players = await loadPlayers();
+  const progress = getProgressWithGlobal(players);
+  const player = players[targetUserId];
+  const embed = action === "exchange"
+    ? buildShopEmbed(player, result.message, progress)
+    : buildPanelEmbed(player, title, result.message, interaction.user, currentPage);
+  const components = action === "exchange"
+    ? buildShopComponents(progress, player)
+    : buildBankComponents(targetUserId);
+  try {
+    if (interaction.message && interaction.message.edit && interaction.message.editable) {
+      await interaction.message.edit({
+        embeds: [embed],
+        files: buildHudFiles(player),
+        attachments: [],
+        components
+      });
+    }
+  } catch (error) {
+    console.error("更新面板失敗：", error);
+  }
+
+  await interaction.reply({ content: result.message, ephemeral: true });
 }
 
 function makeTradeComponents(tradeId) {
@@ -230,6 +337,10 @@ function getPanelTargetUserId(interaction) {
         const targetUserId = customId.split(":")[2];
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
       }
+      if (customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`) || customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)) {
+        const targetUserId = customId.split(":")[2];
+        return targetUserId && targetUserId !== "none" ? targetUserId : null;
+      }
     }
   }
   return null;
@@ -263,6 +374,11 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${BANK_MODAL_PREFIX}:`)) {
+      await handleBankModalSubmit(interaction);
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isRaceComponent(interaction.customId)) {
       await handleChickenRaceInteraction(interaction);
       return;
@@ -445,6 +561,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const target = interaction.options.getUser("對象", true);
       const itemId = interaction.options.getString("物品", false) || interaction.options.getString("紀念幣", false);
       const amount = interaction.options.getInteger("數量") || 1;
+      const gold = interaction.options.getInteger("金幣") || 0;
+
+      if (!itemId && gold <= 0) {
+        await interaction.reply({ content: "請至少指定交易物品（治療藥水）或金幣數量。", ephemeral: true });
+        return;
+      }
 
       if (target.id === interaction.user.id) {
         await interaction.reply({ content: "不能交易給自己。", ephemeral: true });
@@ -457,6 +579,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       if (itemId === "healingPotion") {
+        if (gold > 0) {
+          await interaction.reply({ content: "治療藥水交易請勿同時指定金幣。", ephemeral: true });
+          return;
+        }
         if (amount <= 0) {
           await interaction.reply({ content: "交易數量必須大於 0。", ephemeral: true });
           return;
@@ -496,7 +622,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const gold = interaction.options.getInteger("金幣") || 0;
       const result = await updatePlayers((players) => {
         const trade = transferCollectible(
           players[interaction.user.id],
@@ -607,7 +732,24 @@ async function handleMiningButton(interaction) {
     return;
   }
 
-  await interaction.deferUpdate();
+  const openAmountModal = interaction.customId === CUSTOM_IDS.bankDeposit
+    || interaction.customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`)
+    || interaction.customId === CUSTOM_IDS.bankWithdraw
+    || interaction.customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)
+    || interaction.customId === CUSTOM_IDS.exchangeOne;
+  if (!openAmountModal) await interaction.deferUpdate();
+  if (openAmountModal) {
+    await interaction.showModal(buildAmountInputModal(
+      interaction.customId === CUSTOM_IDS.bankDeposit || interaction.customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`)
+        ? "deposit"
+        : interaction.customId === CUSTOM_IDS.bankWithdraw || interaction.customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)
+          ? "withdraw"
+          : "exchange",
+      panelTargetUserId,
+      interaction.user.id
+    ));
+    return;
+  }
   let embed = null;
   let files = [];
   let componentTargetId = panelTargetUserId;
@@ -757,26 +899,6 @@ async function handleMiningButton(interaction) {
     files = [];
   }
 
-  if (interaction.customId === CUSTOM_IDS.bankDeposit) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = depositBank(player);
-      componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user, hudPage);
-      files = buildHudFiles(result.player);
-      return result.player;
-    });
-  }
-
-  if (interaction.customId === CUSTOM_IDS.bankWithdraw) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = withdrawBank(player);
-      componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "銀行", result.message, interaction.user, hudPage);
-      files = buildHudFiles(result.player);
-      return result.player;
-    });
-  }
-
   if (interaction.customId === CUSTOM_IDS.eventRisk || interaction.customId === CUSTOM_IDS.eventSafe || interaction.customId === CUSTOM_IDS.eventExtreme) {
     const choice = interaction.customId === CUSTOM_IDS.eventRisk
       ? "risk"
@@ -802,16 +924,6 @@ async function handleMiningButton(interaction) {
     });
   }
 
-  if (interaction.customId === CUSTOM_IDS.exchangeOne) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = exchange(player, 1);
-      componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, "兌換", result.message, interaction.user, hudPage);
-      files = buildHudFiles(result.player);
-      return result.player;
-    });
-  }
-
   if (interaction.customId === CUSTOM_IDS.shopOpen) {
     const progress = getProgressWithGlobal(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
@@ -823,6 +935,20 @@ async function handleMiningButton(interaction) {
       files,
       attachments: [],
       components: buildShopComponents(progress, player)
+    });
+    return;
+  }
+
+  if (interaction.customId === CUSTOM_IDS.bankOpen) {
+    const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
+    componentPlayer = player;
+    embed = buildPanelEmbed(player, "銀行", "選擇存入或領出，下一步可以指定金額。", interaction.user, hudPage);
+    files = buildHudFiles(player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildBankComponents(panelTargetUserId)
     });
     return;
   }

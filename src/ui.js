@@ -51,6 +51,7 @@ const CUSTOM_IDS = {
   buffPrefix: "mine_ui:buff",
   bag: "mine_ui:bag",
   leaderboard: "mine_ui:leaderboard",
+  bankOpen: "mine_ui:bank_open",
   bankDeposit: "mine_ui:bank_deposit",
   bankWithdraw: "mine_ui:bank_withdraw",
   eventRisk: "mine_ui:event:risk",
@@ -825,11 +826,11 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     addRow(
       makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
       makeButton(CUSTOM_IDS.undergroundStorage, "儲物箱", ButtonStyle.Secondary, "📦"),
-      makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
+      makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );
     addRow(
-      makeButton(CUSTOM_IDS.bankDeposit, "存款", ButtonStyle.Success, "🏦"),
-      makeButton(CUSTOM_IDS.bankWithdraw, "提款", ButtonStyle.Secondary, "💰")
+      makeButton(CUSTOM_IDS.shopOpen, "商店", ButtonStyle.Success, "🏪"),
+      makeButton(CUSTOM_IDS.bankOpen, "銀行", ButtonStyle.Success, "🏦")
     );
     return rows;
   }
@@ -845,7 +846,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   if (player.zone === "skyCamp") {
     addRow(
       makeButton(CUSTOM_IDS.mine, "往下挖", ButtonStyle.Primary, "⬇️"),
-      makeButton(CUSTOM_IDS.returnSurface, `回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
+      makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );
     return rows;
   }
@@ -859,13 +860,11 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     );
     addRow(
       makeButton(CUSTOM_IDS.bag, "包包", ButtonStyle.Secondary, "🎒"),
-      makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"),
-      makeButton(CUSTOM_IDS.shopOpen, "商店購買", ButtonStyle.Success, "🏪"),
-      makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦"),
-      makeButton(CUSTOM_IDS.bankWithdraw, "領出銀行", ButtonStyle.Secondary, "💰")
+      makeButton(CUSTOM_IDS.shopOpen, "商店", ButtonStyle.Success, "🏪"),
+      makeButton(CUSTOM_IDS.bankOpen, "銀行", ButtonStyle.Success, "🏦")
     );
     if (player.undergroundCampUnlocked) {
-      addRow(makeButton(CUSTOM_IDS.undergroundCamp, `前往地底 ${getElevatorCost(player)}`, ButtonStyle.Primary, "🛗"));
+      addRow(makeButton(CUSTOM_IDS.undergroundCamp, `搭乘電梯前往地底營地 (${getElevatorCost(player)})`, ButtonStyle.Primary, "🛗"));
     }
     addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
     return rows;
@@ -928,7 +927,8 @@ function buildShopComponents(progressInput = {}, playerInput = null) {
   };
   const rows = [];
   const firstRow = [
-    makeButton(CUSTOM_IDS.shopBuyOne, "購買商店紀念幣", ButtonStyle.Success, "🪙")
+    makeButton(CUSTOM_IDS.shopBuyOne, "購買商店紀念幣", ButtonStyle.Success, "🪙"),
+    makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙")
   ];
   if (progress.healingPotionUnlocked) {
     firstRow.push(makeButton(CUSTOM_IDS.shopBuyPotion, "購買治療藥水", ButtonStyle.Success, "🧪"));
@@ -962,6 +962,17 @@ function buildShopComponents(progressInput = {}, playerInput = null) {
   return rows;
 }
 
+function buildBankComponents(targetUserId = null) {
+  const idSuffix = targetUserId ? `:${targetUserId}` : "";
+  return [
+    new ActionRowBuilder().addComponents(
+      makeButton(`${CUSTOM_IDS.bankDeposit}${idSuffix}`, "存入金額", ButtonStyle.Success, "🏦"),
+      makeButton(`${CUSTOM_IDS.bankWithdraw}${idSuffix}`, "領出金額", ButtonStyle.Primary, "💰"),
+      makeButton(CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
+    )
+  ];
+}
+
 function buildStorageComponents() {
   return [
     new ActionRowBuilder().addComponents(
@@ -985,6 +996,7 @@ module.exports = {
   buildLeaderboardEmbed,
   buildHudFiles,
   buildPanelComponents,
+  buildBankComponents,
   buildShopComponents,
   buildStorageComponents,
   buildPanelEmbed,

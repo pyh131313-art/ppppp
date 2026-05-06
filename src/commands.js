@@ -29,13 +29,18 @@ const commands = [
       .setRequired(true))
     .addStringOption((option) => option
       .setName("物品")
-      .setDescription("目前只支援治療藥水。")
-      .setRequired(true)
+      .setDescription("支援治療藥水，留空可只交易金幣。")
+      .setRequired(false)
       .addChoices({ name: "治療藥水", value: "healingPotion" }))
     .addIntegerOption((option) => option
+      .setName("金幣")
+      .setDescription("要交易的金幣數量。")
+      .setRequired(false)
+      .setMinValue(1))
+    .addIntegerOption((option) => option
       .setName("數量")
-      .setDescription("交易數量。")
-      .setRequired(true)
+      .setDescription("物品交易數量。")
+      .setRequired(false)
       .setMinValue(1))
 ];
 

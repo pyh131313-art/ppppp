@@ -54,6 +54,7 @@ const {
   updateEventState
 } = require("../src/eventPitySystem");
 const {
+  buildBankComponents,
   buildPanelComponents,
   buildPanelEmbed,
   CUSTOM_IDS
@@ -706,8 +707,12 @@ test("地底營地銀行可存款提款且顯示總資產", () => {
   assert.equal(withdrawn.ok, true);
   assert.equal(withdrawn.player.gold, 100);
   assert.equal(withdrawn.player.bankGold, 0);
-  assert.equal(customIds.includes(CUSTOM_IDS.bankDeposit), true);
-  assert.equal(customIds.includes(CUSTOM_IDS.bankWithdraw), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankOpen), true);
+
+  const bankRows = buildBankComponents("player-1");
+  const bankCustomIds = bankRows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+  assert.equal(bankCustomIds.includes(`${CUSTOM_IDS.bankDeposit}:player-1`), true);
+  assert.equal(bankCustomIds.includes(`${CUSTOM_IDS.bankWithdraw}:player-1`), true);
 });
 
 test("地底營地未選詞條時顯示詞條按鈕與銀行", () => {
@@ -721,9 +726,8 @@ test("地底營地未選詞條時顯示詞條按鈕與銀行", () => {
   const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
 
   assert.equal(customIds.some((id) => id.startsWith(`${CUSTOM_IDS.modePrefix}:`)), true);
-  assert.equal(customIds.includes(CUSTOM_IDS.bankDeposit), true);
-  assert.equal(customIds.includes(CUSTOM_IDS.bankWithdraw), true);
-  assert.equal(customIds.includes(CUSTOM_IDS.shopOpen), false);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankOpen), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.shopOpen), true);
 });
 
 test("地表可以花總資產一成回到地底營地", () => {

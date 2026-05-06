@@ -41,8 +41,18 @@ function formatBankMessage(playerInput, actionMessage = "") {
   return lines.join("\n");
 }
 
-function depositBank(playerInput, isInMine) {
+function resolveBankAmount(inputAmount, available) {
+  const amount = Number(inputAmount);
+  if (!Number.isFinite(amount)) return available;
+  if (!Number.isInteger(amount)) return Math.floor(amount);
+  if (amount <= 0) return available;
+  if (amount > available) return available;
+  return amount;
+}
+
+function depositBank(playerInput, isInMine, amount = null) {
   const player = getPlayer(playerInput);
+  const requestedAmount = resolveBankAmount(amount, player.gold);
 
   if (!canUseBank(player, isInMine)) {
     return {
@@ -60,18 +70,23 @@ function depositBank(playerInput, isInMine) {
     };
   }
 
-  const amount = player.gold;
-  player.gold = 0;
-  player.bankGold += amount;
+  const depositedAmount = requestedAmount;
+  player.gold -= depositedAmount;
+  player.bankGold += depositedAmount;
+  const requestedText = Number.isFinite(Number(amount))
+    ? Number(amount) > 0 && depositedAmount < player.gold + depositedAmount
+      ? `（超過可存入範圍，已改為存入 ${depositedAmount}）`
+      : ""
+    : "";
 
   return {
     ok: true,
     player,
-    message: formatBankMessage(player, `已存入 ${amount} 金幣。銀行金幣死亡不會噴。`)
+    message: formatBankMessage(player, `已存入 ${depositedAmount} 金幣${requestedText}。銀行金幣死亡不會噴。`)
   };
 }
 
-function withdrawBank(playerInput, isInMine) {
+function withdrawBank(playerInput, isInMine, amount = null) {
   const player = getPlayer(playerInput);
 
   if (!canUseBank(player, isInMine)) {
@@ -90,14 +105,19 @@ function withdrawBank(playerInput, isInMine) {
     };
   }
 
-  const amount = player.bankGold;
-  player.bankGold = 0;
-  player.gold += amount;
+  const requestedAmount = resolveBankAmount(amount, player.bankGold);
+  player.bankGold -= requestedAmount;
+  player.gold += requestedAmount;
+  const requestedText = Number.isFinite(Number(amount))
+    ? Number(amount) > 0 && requestedAmount < player.bankGold + requestedAmount
+      ? `（超過可領取範圍，已改為領取 ${requestedAmount}）`
+      : ""
+    : "";
 
   return {
     ok: true,
     player,
-    message: formatBankMessage(player, `已領出 ${amount} 金幣。領出後如果死亡，身上金幣會照常損失。`)
+    message: formatBankMessage(player, `已領出 ${requestedAmount} 金幣${requestedText}。領出後如果死亡，身上金幣會照常損失。`)
   };
 }
 

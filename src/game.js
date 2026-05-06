@@ -554,8 +554,8 @@ function getCaveLabel(playerInput) {
   return "尚未進洞";
 }
 
-const depositBank = (playerInput) => economySystem.depositBank(playerInput, isInMine);
-const withdrawBank = (playerInput) => economySystem.withdrawBank(playerInput, isInMine);
+const depositBank = (playerInput, amount = null) => economySystem.depositBank(playerInput, isInMine, amount);
+const withdrawBank = (playerInput, amount = null) => economySystem.withdrawBank(playerInput, isInMine, amount);
 const travelToUndergroundCamp = (playerInput, now = Date.now()) => (
   economySystem.travelToUndergroundCamp(playerInput, isInMine, now)
 );
