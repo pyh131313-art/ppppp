@@ -5,6 +5,9 @@ const CONFIG = {
     baseHp: 2,
     gemCaveChance: 0.08,
     runModeRerollCostGold: 10,
+    lavaDepth: 100,
+    skyDepth: -100,
+    lavaRounds: 3,
     weights: {
       gold: 48,
       ore: 14,
@@ -166,6 +169,15 @@ const CONFIG = {
       }
     }
   },
+  balance: {
+    pressureStartDepth: 40,
+    pressureMaxBombBonus: 0.35,
+    pressureMaxNegativeEventBonus: 0.25,
+    recordFatigueWindowMs: 60 * 60 * 1000,
+    recordFatigueDangerBonus: 0.15,
+    campElevatorCooldownMs: 10 * 60 * 1000,
+    personalSupplyFloor: 0.7
+  },
   runModes: {
     double: {
       name: "雙倍採集",
@@ -249,6 +261,54 @@ const CONFIG = {
       bagBonusSlots: 6,
       anomalousBackpack: true
     },
+    bagExpansion: {
+      name: "背包擴充",
+      label: "背包擴充",
+      shortDescription: "本輪包包+2",
+      bagBonusSlots: 2
+    },
+    deepInstinct: {
+      name: "深層直覺",
+      label: "深層直覺",
+      shortDescription: "每10層收益+10%｜炸彈+",
+      deepInstinct: true,
+      bombWeightMultiplier: 1.08
+    },
+    oreFocus: {
+      name: "礦脈專注",
+      label: "礦脈專注",
+      shortDescription: "礦石+30%｜金幣-15%",
+      oreRewardMultiplier: 1.3,
+      goldMultiplierBonus: -0.15
+    },
+    gemScent: {
+      name: "寶石嗅覺",
+      label: "寶石嗅覺",
+      shortDescription: "寶石洞+｜寶石危險+",
+      gemCaveChanceBonus: 0.12,
+      gemDangerMultiplier: 1.2
+    },
+    blastRecycle: {
+      name: "炸裂回收",
+      label: "炸裂回收",
+      shortDescription: "被炸給金｜炸彈+15%",
+      blastRecycle: true,
+      bombWeightMultiplier: 1.15
+    },
+    eventBody: {
+      name: "事件體質",
+      label: "事件體質",
+      shortDescription: "事件率+｜負面+",
+      eventChanceBonus: 0.15,
+      negativeEventWeightBonus: 0.15
+    },
+    reversePrep: {
+      name: "逆行準備",
+      label: "逆行準備",
+      shortDescription: "上挖顛倒+20%｜下挖-10%",
+      reverseRewardMultiplier: 1.2,
+      downRewardMultiplier: 0.9
+    },
     chickenBlood: {
       name: "雞血沸騰",
       label: "雞血沸騰",
@@ -295,6 +355,36 @@ const CONFIG = {
     bomb: {
       label: "防爆磁條",
       bombWeightMultiplier: 0.95
+    },
+    bag: {
+      label: "包包擴充",
+      bagBonusSlots: 2,
+      maxStacks: 5
+    },
+    ore: {
+      label: "小型礦脈",
+      oreMultiplierBonus: 0.08,
+      maxStacks: 5
+    },
+    sustain: {
+      label: "小型續航",
+      healEveryDepth: 10,
+      maxStacks: 3
+    },
+    luck: {
+      label: "小型幸運",
+      critChanceBonus: 0.03,
+      maxStacks: 5
+    },
+    event: {
+      label: "小型事件感知",
+      eventChanceBonus: 0.05,
+      maxStacks: 5
+    },
+    reverse: {
+      label: "小型顛倒感應",
+      reverseRewardBonus: 0.05,
+      maxStacks: 5
     }
   },
   ore: {
@@ -308,7 +398,16 @@ const CONFIG = {
     goldPerBombItem: 90,
     redGemGold: 35,
     blueGemGold: 50,
-    greenGemGold: 75
+    greenGemGold: 75,
+    invertedOreGold: 0,
+    invertedGemGold: 0,
+    orichalcumGold: 0
+  },
+  market: {
+    cycleMs: 3 * 60 * 60 * 1000,
+    minMultiplier: 0.6,
+    maxMultiplier: 1.6,
+    trackedItems: ["ore", "goldOre", "platinumOre", "oreIngot", "goldOreIngot", "platinumOreIngot"]
   },
   exchange: {
     goldPerCommemorative: 100
@@ -328,7 +427,8 @@ const CONFIG = {
         label: "治療藥水",
         priceGold: 100,
         unlockBestDepth: 70,
-        healBombs: 1
+        healBombs: 1,
+        hourlyStock: 20
       },
       undyingTotem: {
         label: "不死圖騰",

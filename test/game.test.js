@@ -18,8 +18,11 @@ const {
   getBagUsedSlots,
   getCommunityProgress,
   getDigPathOptions,
+  getElevatorCost,
+  getRandomEvents,
   getRunModeOptions,
   mine,
+  openUndergroundInn,
   drinkHealingPotion,
   removeRust,
   rerollRunModeOptions,
@@ -30,9 +33,14 @@ const {
   setUiMode,
   shimmerCollectible,
   triggerCharge,
+  travelToUndergroundCamp,
   transferCollectible,
   withdrawBank
 } = require("../src/game");
+const {
+  createGlobalState,
+  getMarketMultiplier
+} = require("../src/globalState");
 const {
   getEventTriggerChance,
   updateEventState
@@ -352,6 +360,17 @@ test("礦石返回地面會自動換成金幣", () => {
   assert.equal(result.player.gold, 16);
 });
 
+test("供需系統會讓大量賣出的礦石價格下降", () => {
+  const globalState = createGlobalState(0);
+  const result = returnToSurface({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    ore: 80
+  }, Math.random, globalState, 0);
+
+  assert.equal(result.ok, true);
+  assert.equal(getMarketMultiplier(result.globalState, "ore", 0) < 1, true);
+});
+
 test("返回地面會顯示拆分結算爆發", () => {
   const result = returnToSurface({
     ...chooseRunMode(createPlayer(), "safe").player,
@@ -444,6 +463,58 @@ test("寶石礦洞的白金破爛佔五格包包", () => {
   assert.equal(result.kind, "platinumJunk");
   assert.equal(result.player.platinumJunk, 1);
   assert.equal(getBagUsedSlots(result.player), 5);
+});
+
+test("100 層後會進入岩漿池並可抵達地底營地", () => {
+  let player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 99,
+    tempMaxHp: 5
+  };
+  let result = mine(player, () => 0.99, 1000);
+  assert.equal(result.player.zone, "lavaPool");
+  result = mine(result.player, () => 0.99, 2000);
+  result = mine(result.player, () => 0.99, 3000);
+  assert.equal(result.player.zone, "undergroundCamp");
+  assert.equal(result.player.undergroundCampUnlocked, true);
+});
+
+test("地底營地可以開始往上挖取得顛倒資源", () => {
+  const player = {
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    undergroundCampUnlocked: true,
+    depth: 100
+  };
+  const result = mine(player, () => 0.2, 1000);
+
+  assert.equal(result.player.zone, "upward");
+  assert.equal(result.player.depth, -1);
+  assert.equal(result.player.invertedOre > 0 || result.player.invertedGem > 0, true);
+});
+
+test("地底客棧目前顯示敬請期待", () => {
+  const result = openUndergroundInn({
+    ...createPlayer(),
+    zone: "undergroundCamp"
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /敬請期待/);
+});
+
+test("地表可以花總資產一成回到地底營地", () => {
+  const result = travelToUndergroundCamp({
+    ...createPlayer(),
+    undergroundCampUnlocked: true,
+    gold: 90,
+    bankGold: 10
+  }, 1000);
+
+  assert.equal(result.ok, true);
+  assert.equal(getElevatorCost({ ...createPlayer(), gold: 90, bankGold: 10 }), 10);
+  assert.equal(result.player.zone, "undergroundCamp");
+  assert.equal(result.player.gold + result.player.bankGold, 90);
 });
 
 test("礦石金屬錠和寶石每十個佔一格", () => {
@@ -553,17 +624,17 @@ test("下礦前需要先二選一", () => {
   assert.equal(result.player.depth, 0);
 });
 
-test("地表會刷新兩個初始詞條並只能選本輪出現的", () => {
+test("地表會刷新三個初始詞條並只能選本輪出現的", () => {
   const player = ensureRunModeOptions(createPlayer(), () => 0.99);
   const options = getRunModeOptions(player).map((option) => option.id);
   const blocked = chooseRunMode(player, "double");
   const chosen = chooseRunMode(player, options[0]);
 
-  assert.equal(options.length, 2);
-  assert.deepEqual(options, ["anomalousBackpack", "dangerSense"]);
+  assert.equal(options.length, 3);
+  assert.deepEqual(options, ["reversePrep", "eventBody", "blastRecycle"]);
   assert.equal(blocked.ok, false);
   assert.equal(chosen.ok, true);
-  assert.equal(chosen.player.runMode, "anomalousBackpack");
+  assert.equal(chosen.player.runMode, "reversePrep");
   assert.deepEqual(chosen.player.runModeOptions, []);
 });
 
@@ -577,7 +648,7 @@ test("返回地面會刷新下一輪初始詞條", () => {
   );
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.player.runModeOptions, ["anomalousBackpack", "dangerSense"]);
+  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody", "blastRecycle"]);
 });
 
 test("地表可以花十金幣刷新初始詞條", () => {
@@ -586,7 +657,7 @@ test("地表可以花十金幣刷新初始詞條", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 15);
-  assert.deepEqual(result.player.runModeOptions, ["anomalousBackpack", "dangerSense"]);
+  assert.deepEqual(result.player.runModeOptions, ["reversePrep", "eventBody", "blastRecycle"]);
 });
 
 test("下礦後不能刷新初始詞條且金幣不足會被擋下", () => {
@@ -608,6 +679,23 @@ test("事件保底連續未觸發後第四次必定觸發", () => {
   assert.equal(Number(getEventTriggerChance(state).toFixed(2)), 0.85);
   state = updateEventState(false, state);
   assert.equal(getEventTriggerChance(state), 1);
+});
+
+test("新增事件池包含普通寶石上位與反轉事件", () => {
+  const events = getRandomEvents();
+  const normalIds = [
+    "lost_miner", "broken_lift", "glowing_moss", "black_vein", "underground_echo",
+    "blaster_relic", "minecart_wreck", "ancient_mark", "deep_airflow", "rusty_safe",
+    "cave_vendor", "dark_fissure", "vein_resonance", "sudden_cavein", "runaway_lamp"
+  ];
+  const gemCount = Object.values(events).filter((event) => event.caveType === "gem").length;
+  const highCount = Object.values(events).filter((event) => event.highTier).length;
+  const reverseCount = Object.values(events).filter((event) => event.reverseOnly).length;
+
+  assert.equal(normalIds.every((id) => events[id]), true);
+  assert.equal(gemCount, 20);
+  assert.equal(highCount, 20);
+  assert.equal(reverseCount, 5);
 });
 
 test("爆擊會在原掉落後額外加成並累積蓄力", () => {
@@ -648,6 +736,18 @@ test("蓄力爆發可以主動觸發下一鏟加成", () => {
   assert.equal(triggered.player.chargeBurst, "reward");
   assert.equal(mined.player.chargeBurst, null);
   assert.match(mined.message, /⚡ 收益爆發！x3/);
+});
+
+test("蓄力技能不能連續選同一個", () => {
+  const charged = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    chargeValue: 100,
+    lastChargeSkillUsed: "reward"
+  };
+  const result = triggerCharge(charged, "reward");
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /不可再次選擇/);
 });
 
 test("Jackpot 會以醒目訊息給極端成功", () => {
@@ -781,15 +881,18 @@ test("安全血量會讓生命增加二", () => {
   assert.equal(third.dead, false);
 });
 
-test("每五層可以選一個小磁條", () => {
+test("每五層可以三選二小詞條", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    depth: 5
+    depth: 5,
+    minorBuffOptions: ["gold", "bomb", "bag"]
   };
-  const result = chooseMinorBuff(player, "gold");
+  const first = chooseMinorBuff(player, "gold");
+  const result = chooseMinorBuff(first.player, "bag");
 
   assert.equal(result.ok, true);
   assert.equal(result.player.minorBuffs.gold, 1);
+  assert.equal(result.player.minorBuffs.bag, 1);
   assert.equal(result.player.nextBuffDepth, 10);
 });
 
@@ -861,6 +964,23 @@ test("共同任務達到 70 層後商店解鎖治療藥水", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.healingPotion, 1);
   assert.equal(result.player.gold, 0);
+});
+
+test("治療藥水會消耗全服限量庫存", () => {
+  const globalState = { ...createGlobalState(Date.now()), currentPotionStock: 1 };
+  const first = buyShopItem({ ...createPlayer(), gold: 200 }, "healingPotion", 1, {
+    healingPotionUnlocked: true,
+    globalState
+  });
+  const second = buyShopItem(first.player, "healingPotion", 1, {
+    healingPotionUnlocked: true,
+    globalState: first.globalState
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.globalState.currentPotionStock, 0);
+  assert.equal(second.ok, false);
+  assert.match(second.message, /已售完/);
 });
 
 test("治療藥水只能下礦後使用並恢復一滴血", () => {

@@ -9,6 +9,9 @@ const {
 const {
   getRandomEvent,
   getRandomEvents,
+  pickGemEvent,
+  pickHighTierEvent,
+  pickReverseEvent,
   pickRandomEvent
 } = require("./eventSystem");
 const {
@@ -37,6 +40,11 @@ const {
   updateCombo
 } = require("./funSystem");
 const { CONFIG } = require("./config");
+const {
+  getMarketMultiplier,
+  normalizeGlobalState,
+  recordMarketSale
+} = require("./globalState");
 
 const BAG_CAPACITY = 12;
 const ITEM_STACK_SIZE = 10;
@@ -57,7 +65,9 @@ const STACKABLE_ITEM_KEYS = new Set([
   "platinumOreIngot",
   "redGem",
   "blueGem",
-  "greenGem"
+  "greenGem",
+  "invertedOre",
+  "invertedGem"
 ]);
 
 function createPlayer() {
@@ -86,16 +96,34 @@ function createPlayer() {
     redGem: 0,
     blueGem: 0,
     greenGem: 0,
+    invertedOre: 0,
+    invertedGem: 0,
+    orichalcum: 0,
     platinumJunk: 0,
     uiMode: "full",
     runMode: null,
     runModeOptions: [],
     digPathOptions: {},
     caveType: null,
+    zone: "surface",
+    lavaProgress: 0,
+    undergroundCampUnlocked: false,
+    skyCampUnlocked: false,
+    lastElevatorAt: 0,
+    highTierEligible: false,
+    enteringGold: 0,
     minorBuffs: {
       gold: 0,
-      bomb: 0
+      bomb: 0,
+      bag: 0,
+      ore: 0,
+      sustain: 0,
+      luck: 0,
+      event: 0,
+      reverse: 0
     },
+    minorBuffOptions: [],
+    minorBuffSelections: [],
     nextBuffDepth: 5,
     pendingEvent: null,
     nextEventDepth: 4,
@@ -113,6 +141,8 @@ function createPlayer() {
     traitState: createTraitState(),
     tempMaxHp: 0,
     bagBonusSlots: 0,
+    bestRecordTimestamps: [],
+    lastChargeSkillUsed: null,
     stats: {
       bestDepth: 0,
       totalMines: 0,
@@ -133,9 +163,15 @@ function getPlayer(player) {
     ...createPlayer().minorBuffs,
     ...(player && player.minorBuffs ? player.minorBuffs : {})
   };
+  next.minorBuffOptions = Array.isArray(player && player.minorBuffOptions)
+    ? player.minorBuffOptions.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 3)
+    : [];
+  next.minorBuffSelections = Array.isArray(player && player.minorBuffSelections)
+    ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 2)
+    : [];
   next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
   next.runModeOptions = Array.isArray(player && player.runModeOptions)
-    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
+    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 3)
     : [];
   next.digPathOptions = {
     ...(player && player.digPathOptions ? player.digPathOptions : {})
@@ -144,6 +180,9 @@ function getPlayer(player) {
     ? player.tempEffects.map((effect) => ({ ...effect }))
     : [];
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
+  next.bestRecordTimestamps = Array.isArray(player && player.bestRecordTimestamps)
+    ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
+    : [];
   Object.assign(next, normalizeFunState(player || {}));
   next.traitState = normalizeTraitState(player && player.traitState);
   next.stats = {
@@ -199,6 +238,48 @@ function addOreReward(player, amount, preferred = "ore") {
   const gained = Math.min(amount, getItemFreeAmount(player, target));
   if (gained > 0) player[target] += gained;
   return { target, gained };
+}
+
+function addItemReward(player, key, amount) {
+  const gained = Math.min(Math.max(0, Math.floor(amount)), getItemFreeAmount(player, key));
+  if (gained > 0) player[key] = (player[key] || 0) + gained;
+  return gained;
+}
+
+function getTotalAsset(playerInput) {
+  const player = getPlayer(playerInput);
+  return Math.max(0, (player.gold || 0) + (player.bankGold || 0));
+}
+
+function payFromTotalAsset(player, amount) {
+  const cost = Math.max(0, Math.floor(amount));
+  const fromGold = Math.min(player.gold, cost);
+  player.gold -= fromGold;
+  const rest = cost - fromGold;
+  player.bankGold = Math.max(0, player.bankGold - rest);
+  return cost;
+}
+
+function getElevatorCost(playerInput) {
+  return Math.floor(getTotalAsset(playerInput) * 0.1);
+}
+
+function getAreaLabel(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone === "lavaPool") return "岩漿池";
+  if (player.zone === "undergroundCamp") return "地底營地";
+  if (player.zone === "upward") return "反轉上挖層";
+  if (player.zone === "skyCamp") return "天域營地";
+  return getCaveLabel(player);
+}
+
+function getPressureMultiplier(playerInput) {
+  const player = getPlayer(playerInput);
+  const absDepth = Math.abs(player.depth || 0);
+  if (absDepth < CONFIG.balance.pressureStartDepth) return 1;
+  const pressure = Math.min(CONFIG.balance.pressureMaxBombBonus, (absDepth - CONFIG.balance.pressureStartDepth) / 180);
+  const fatigue = (player.bestRecordTimestamps || []).length >= 3 ? CONFIG.balance.recordFatigueDangerBonus : 0;
+  return 1 + pressure + fatigue;
 }
 
 function getJunkFreeSlots(player) {
@@ -297,6 +378,7 @@ function getMiningWeights(playerInput, digPath = null) {
   weights.empty = Math.max(4, weights.empty - dangerTier * 2);
   if (mode && mode.rustyWeightMultiplier) weights.rusty *= mode.rustyWeightMultiplier;
   if (mode && mode.bombWeightMultiplier) weights.bomb *= mode.bombWeightMultiplier;
+  if (mode && mode.deepInstinct) weights.bomb *= 1.05 + Math.min(0.2, player.depth / 500);
   weights.gold *= getEffectMultiplier(player, "goldWeightMultiplier");
   weights.ore *= getEffectMultiplier(player, "oreWeightMultiplier");
   weights.goldOre *= getEffectMultiplier(player, "oreWeightMultiplier");
@@ -305,6 +387,7 @@ function getMiningWeights(playerInput, digPath = null) {
   weights.empty *= getEffectMultiplier(player, "emptyWeightMultiplier");
   weights.bomb *= getEffectMultiplier(player, "bombWeightMultiplier");
   weights.bomb *= Math.pow(CONFIG.minorBuffs.bomb.bombWeightMultiplier, player.minorBuffs.bomb);
+  weights.bomb *= getPressureMultiplier(player);
   return applyTraitWeights(applyDigPathWeights(weights, player, digPath), player, CONFIG);
 }
 
@@ -321,10 +404,16 @@ function getModeRewardMultiplier(playerInput) {
   let multiplier = 1;
   if (mode.earlyRewardMultiplier && player.depth <= 5) multiplier *= mode.earlyRewardMultiplier;
   if (mode.lowHpRewardMultiplier && getMaxBombs(player) - player.bombs <= 1) multiplier *= mode.lowHpRewardMultiplier;
+  if (mode.deepInstinct) multiplier *= 1 + Math.floor(Math.max(0, player.depth) / 10) * 0.1;
+  if (mode.downRewardMultiplier && player.depth > 0) multiplier *= mode.downRewardMultiplier;
+  if (mode.reverseRewardMultiplier && player.zone === "upward") multiplier *= mode.reverseRewardMultiplier;
   return multiplier;
 }
 
 function getDepthLabel(depth) {
+  if (depth <= -100) return "天域營地";
+  if (depth < 0) return "反轉上挖層";
+  if (depth >= 100) return "岩漿邊界";
   if (depth >= 10) return "危險礦層";
   if (depth >= 7) return "古代礦層";
   if (depth >= 4) return "深色礦層";
@@ -366,7 +455,10 @@ function getOreName(kind) {
     platinumOre: "鉑金礦石",
     oreIngot: "礦錠",
     goldOreIngot: "金錠",
-    platinumOreIngot: "鉑金錠"
+    platinumOreIngot: "鉑金錠",
+    invertedOre: "顛倒礦石",
+    invertedGem: "顛倒寶石",
+    orichalcum: "奧利哈鋼"
   };
   return names[kind] || "礦物";
 }
@@ -408,7 +500,7 @@ function applyDeathPenalty(player) {
 function isInMine(playerInput) {
   const player = getPlayer(playerInput);
   return Boolean(
-    player.depth > 0 ||
+    player.depth !== 0 ||
     player.ore > 0 ||
     player.goldOre > 0 ||
     player.platinumOre > 0 ||
@@ -440,7 +532,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
   const basePool = getRunModeIds(false);
   const chickenPool = CHICKEN_TRAIT_IDS.filter((id) => CONFIG.runModes[id]);
   const options = [];
-  while (options.length < 2 && (basePool.length > 0 || chickenPool.length > 0)) {
+  while (options.length < 3 && (basePool.length > 0 || chickenPool.length > 0)) {
     const useChickenTrait = (player.chickenTraitTickets || 0) > 0
       && chickenPool.length > 0
       && random() < 0.35;
@@ -450,7 +542,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
     const [picked] = pool.splice(index, 1);
     if (picked && !options.includes(picked)) options.push(picked);
   }
-  while (options.length < 2 && basePool.length > 0) {
+  while (options.length < 3 && basePool.length > 0) {
     const index = Math.floor(random() * basePool.length);
     const [picked] = basePool.splice(index, 1);
     if (picked && !options.includes(picked)) options.push(picked);
@@ -461,7 +553,7 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
 
 function getRunModeOptions(playerInput) {
   const player = getPlayer(playerInput);
-  const ids = player.runModeOptions.length >= 2 ? player.runModeOptions : getRunModeIds(false).slice(0, 2);
+  const ids = player.runModeOptions.length > 0 ? player.runModeOptions : getRunModeIds(false).slice(0, 3);
   return ids
     .map((id) => ({
       id,
@@ -472,7 +564,7 @@ function getRunModeOptions(playerInput) {
 
 function ensureRunModeOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
-  if (player.runMode || player.dead || player.runModeOptions.length >= 2) return player;
+  if (player.runMode || player.dead || player.runModeOptions.length > 0) return player;
   return refreshRunModeOptions(player, random);
 }
 
@@ -528,12 +620,18 @@ function resetRunState(player, random = Math.random) {
   player.redGem = 0;
   player.blueGem = 0;
   player.greenGem = 0;
+  player.invertedOre = 0;
+  player.invertedGem = 0;
   player.platinumJunk = 0;
   player.bombs = 0;
   player.depth = 0;
+  player.zone = "surface";
+  player.lavaProgress = 0;
   player.runMode = null;
   player.caveType = null;
-  player.minorBuffs = { gold: 0, bomb: 0 };
+  player.minorBuffs = { ...createPlayer().minorBuffs };
+  player.minorBuffOptions = [];
+  player.minorBuffSelections = [];
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
@@ -572,6 +670,10 @@ function setUiMode(playerInput, mode) {
 function getCaveLabel(playerInput) {
   const player = getPlayer(playerInput);
   if (player.caveType === "gem") return "寶石礦洞";
+  if (player.zone === "lavaPool") return "岩漿池";
+  if (player.zone === "undergroundCamp") return "地底營地";
+  if (player.zone === "upward") return "反轉上挖層";
+  if (player.zone === "skyCamp") return "天域營地";
   if (player.caveType === "normal") return "普通礦洞";
   return "尚未進洞";
 }
@@ -628,6 +730,35 @@ function withdrawBank(playerInput) {
   };
 }
 
+function travelToUndergroundCamp(playerInput, now = Date.now()) {
+  const player = getPlayer(playerInput);
+  if (!player.undergroundCampUnlocked) {
+    return { ok: false, player, message: "你尚未解鎖地底營地。" };
+  }
+  if (isInMine(player)) {
+    return { ok: false, player, message: "只有在地表可以搭電梯前往地底營地。" };
+  }
+  const cost = getElevatorCost(player);
+  if (cost <= 0) return { ok: false, player, message: "付費電梯偵測不到資產，暫時無法啟動。" };
+  payFromTotalAsset(player, cost);
+  player.zone = "undergroundCamp";
+  player.depth = CONFIG.mining.lavaDepth;
+  player.lastElevatorAt = now;
+  return { ok: true, player, message: `已支付 ${cost} 金幣搭乘電梯抵達地底營地。` };
+}
+
+function openUndergroundInn(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, message: "地底客棧只能在地底營地使用。" };
+  }
+  return {
+    ok: true,
+    player,
+    message: "【地底客棧】\n顛倒礦石與顛倒寶石的兌換功能即將開放。\n敬請期待。"
+  };
+}
+
 function chooseRunMode(playerInput, mode, random = null) {
   const player = getPlayer(playerInput);
   const config = CONFIG.runModes[mode];
@@ -659,8 +790,14 @@ function chooseRunMode(playerInput, mode, random = null) {
 
   player.runMode = mode;
   player.runModeOptions = [];
-  player.caveType = random && random() < CONFIG.mining.gemCaveChance ? "gem" : "normal";
-  player.minorBuffs = { gold: 0, bomb: 0 };
+  const gemChance = CONFIG.mining.gemCaveChance + (config.gemCaveChanceBonus || 0);
+  player.caveType = random && random() < gemChance ? "gem" : "normal";
+  player.zone = "mine";
+  player.enteringGold = player.gold;
+  player.highTierEligible = getTotalAsset(player) > 0 && player.enteringGold >= getTotalAsset(player) * 0.5;
+  player.minorBuffs = { ...createPlayer().minorBuffs };
+  player.minorBuffOptions = [];
+  player.minorBuffSelections = [];
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.nextEventDepth = 4;
@@ -700,7 +837,27 @@ function chooseRunMode(playerInput, mode, random = null) {
 
 function canChooseMinorBuff(playerInput) {
   const player = getPlayer(playerInput);
-  return !player.dead && player.depth >= player.nextBuffDepth && player.depth % 5 === 0;
+  return !player.dead && Boolean(player.runMode) && Math.abs(player.depth) >= player.nextBuffDepth && Math.abs(player.depth) % 5 === 0;
+}
+
+function refreshMinorBuffOptions(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const pool = Object.keys(CONFIG.minorBuffs);
+  const options = [];
+  while (options.length < 3 && pool.length > 0) {
+    const index = Math.floor(random() * pool.length);
+    const [picked] = pool.splice(index, 1);
+    options.push(picked);
+  }
+  player.minorBuffOptions = options;
+  player.minorBuffSelections = [];
+  return player;
+}
+
+function getMinorBuffOptions(playerInput) {
+  const player = getPlayer(playerInput);
+  const ids = player.minorBuffOptions.length >= 3 ? player.minorBuffOptions : Object.keys(CONFIG.minorBuffs).slice(0, 3);
+  return ids.map((id) => ({ id, ...CONFIG.minorBuffs[id] })).filter((buff) => buff.label);
 }
 
 function chooseMinorBuff(playerInput, buff) {
@@ -723,13 +880,50 @@ function chooseMinorBuff(playerInput, buff) {
     };
   }
 
+  if (player.minorBuffOptions.length < 3) {
+    Object.assign(player, refreshMinorBuffOptions(player));
+  }
+
+  if (!player.minorBuffOptions.includes(buff)) {
+    return {
+      ok: false,
+      player,
+      message: "這個小詞條這次沒有出現。"
+    };
+  }
+
+  if (player.minorBuffSelections.includes(buff)) {
+    return {
+      ok: false,
+      player,
+      message: "這個小詞條已經選過了，請選另一個。"
+    };
+  }
+
+  const maxStacks = config.maxStacks || 99;
+  if ((player.minorBuffs[buff] || 0) >= maxStacks) {
+    return {
+      ok: false,
+      player,
+      message: `${config.label} 已達上限。`
+    };
+  }
+
   player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
-  player.nextBuffDepth = player.depth + 5;
+  player.minorBuffSelections.push(buff);
+  const done = player.minorBuffSelections.length >= 2;
+  if (done) {
+    player.nextBuffDepth = Math.abs(player.depth) + 5;
+    player.minorBuffOptions = [];
+    player.minorBuffSelections = [];
+  }
 
   return {
     ok: true,
     player,
-    message: `已裝上 ${config.label}。下一次小磁條在第 ${player.nextBuffDepth} 層。`
+    message: done
+      ? `已選擇 ${config.label}。本次小詞條完成，下一次在第 ${player.nextBuffDepth} 層。`
+      : `已選擇 ${config.label}。還可以再選 1 個小詞條。`
   };
 }
 
@@ -759,7 +953,9 @@ function getShopItems() {
 }
 
 function getCommunityProgress(playersInput = {}) {
-  const players = Object.values(playersInput || {}).map((playerInput) => getPlayer(playerInput));
+  const players = Object.entries(playersInput || {})
+    .filter(([userId]) => userId !== "__global")
+    .map(([, playerInput]) => getPlayer(playerInput));
   const bestDepth = players.reduce((best, player) => Math.max(best, player.stats.bestDepth || 0), 0);
   const deaths = players.reduce((sum, player) => sum + (player.stats.deaths || 0), 0);
   return {
@@ -810,6 +1006,9 @@ function getBagUsedSlots(playerInput) {
     + getItemUsedSlots("redGem", player.redGem)
     + getItemUsedSlots("blueGem", player.blueGem)
     + getItemUsedSlots("greenGem", player.greenGem)
+    + getItemUsedSlots("invertedOre", player.invertedOre)
+    + getItemUsedSlots("invertedGem", player.invertedGem)
+    + player.orichalcum
     + player.junk * 3
     + player.platinumJunk * 5;
 }
@@ -831,6 +1030,7 @@ function getBagCapacity(playerInput) {
   const player = getPlayer(playerInput);
   return BAG_CAPACITY
     + Math.max(0, player.bagBonusSlots || 0)
+    + (player.minorBuffs.bag || 0) * CONFIG.minorBuffs.bag.bagBonusSlots
     + (player.expansionHeart ? 2 : 0);
 }
 
@@ -865,18 +1065,29 @@ function awardRustCollectible(player, random = Math.random) {
 function setDepthRecord(player) {
   if (player.depth <= player.stats.bestDepth) return "";
   player.stats.bestDepth = player.depth;
+  player.bestRecordTimestamps = [
+    ...(player.bestRecordTimestamps || []),
+    Date.now()
+  ].slice(-10);
   return `突破個人最深紀錄：第 ${player.depth} 層！`;
 }
 
 function maybeTriggerRandomEvent(player, random = Math.random) {
-  if (player.dead || player.pendingEvent || player.caveType === "gem" || !shouldCheckEvent(player.depth, player)) return "";
+  if (player.dead || player.pendingEvent || !shouldCheckEvent(Math.abs(player.depth), player)) return "";
+  const mode = getMode(player);
+  player.eventChanceBonus = (mode && mode.eventChanceBonus ? mode.eventChanceBonus : 0)
+    + (player.minorBuffs.event || 0) * CONFIG.minorBuffs.event.eventChanceBonus;
   const triggered = rollEventTrigger(player, random);
   const nextState = updateEventState(triggered, player);
   player.eventMissCount = nextState.eventMissCount;
   player.nextEventDepth = nextState.nextEventDepth;
   if (!triggered) return "";
 
-  const eventId = pickRandomEvent(player, random);
+  let eventId = null;
+  if (player.zone === "upward") eventId = pickReverseEvent(player, random);
+  else if (player.caveType === "gem") eventId = pickGemEvent(player, random);
+  else if (player.highTierEligible && random() < 0.18) eventId = pickHighTierEvent(player, random);
+  else eventId = pickRandomEvent(player, random);
   player.pendingEvent = eventId;
   const event = getRandomEvent(eventId);
   return `\n\n事件出現：${event.title}。\n${event.description}`;
@@ -906,6 +1117,9 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
   }
   onDamageTaken(player);
   player.bombs += actualDamageValue;
+  if (mode && mode.blastRecycle && damageAmount > 0) {
+    player.gold += 15 + Math.max(0, Math.floor(player.depth / 5)) * 5;
+  }
   const maxBombs = getMaxBombs(player);
   if (player.bombs < maxBombs) {
     return {
@@ -953,7 +1167,7 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
 }
 
 function buildOutcome(kind, player, title, message, recordMessage = "", random = Math.random) {
-  const eventMessage = kind === "blocked" || kind === "full" || player.dead || player.caveType === "gem"
+  const eventMessage = kind === "blocked" || kind === "full" || player.dead
     ? ""
     : maybeTriggerRandomEvent(player, random);
   if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
@@ -1220,6 +1434,92 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
   );
 }
 
+function crossLavaPool(player, random = Math.random, now = Date.now()) {
+  void random;
+  player.zone = "lavaPool";
+  player.caveType = null;
+  player.lavaProgress = (player.lavaProgress || 0) + 1;
+  const damage = addBombDamage(player, now, 2);
+  if (damage.dead) {
+    return {
+      kind: "dead",
+      player,
+      title: "岩漿池",
+      message: `你嘗試穿越岩漿池，第 ${player.lavaProgress}/${CONFIG.mining.lavaRounds} 回合。${damage.message}`
+    };
+  }
+  if (player.lavaProgress >= CONFIG.mining.lavaRounds) {
+    player.zone = "undergroundCamp";
+    player.undergroundCampUnlocked = true;
+    player.runMode = null;
+    player.depth = CONFIG.mining.lavaDepth;
+    return {
+      kind: "blocked",
+      player,
+      title: "地底營地",
+      message: `你穿過岩漿池抵達地底營地。${damage.message}這裡可以銀行、搭電梯或開始往上挖。`
+    };
+  }
+  return {
+    kind: "stalactite",
+    player,
+    title: "岩漿池",
+    message: `你正在穿越岩漿池，第 ${player.lavaProgress}/${CONFIG.mining.lavaRounds} 回合。${damage.message}`
+  };
+}
+
+function mineUpward(player, random = Math.random, now = Date.now()) {
+  player.depth -= 1;
+  const layerEffectMessage = processLayerStartEffects(player, random, now);
+  if (player.dead) {
+    return {
+      kind: "dead",
+      player,
+      title: "反轉層反噬",
+      message: `${layerEffectMessage}可以等待 10 分鐘或花 ${CONFIG.revive.costGold} 金幣復活，也可以請別人救援。`
+    };
+  }
+  if (player.depth <= CONFIG.mining.skyDepth) {
+    player.zone = "skyCamp";
+    player.skyCampUnlocked = true;
+    player.runMode = null;
+    return {
+      kind: "blocked",
+      player,
+      title: "天域營地",
+      message: "你抵達了地表之上的未知領域。更多功能敬請期待。"
+    };
+  }
+
+  const eventMessage = maybeTriggerRandomEvent(player, random);
+  if (eventMessage) {
+    return buildOutcome("blocked", player, "反轉事件", `反轉層出現異常。${eventMessage}`, "", random);
+  }
+
+  const reverseMultiplier = getModeRewardMultiplier(player)
+    * (1 + (player.minorBuffs.reverse || 0) * CONFIG.minorBuffs.reverse.reverseRewardBonus);
+  const roll = random();
+  if (player.depth <= -1 && roll < 0.08) {
+    const gained = addItemReward(player, "orichalcum", 1);
+    return buildOutcome("orichalcum", player, "奧利哈鋼", `你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, "", random);
+  }
+  if (roll < 0.45) {
+    const gained = addItemReward(player, "invertedOre", Math.max(1, Math.floor((1 + random() * 3) * reverseMultiplier)));
+    player.lastReward = makeReward("invertedOre", gained);
+    return buildOutcome("invertedOre", player, "顛倒礦石", `你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, "", random);
+  }
+  if (roll < 0.75) {
+    const gained = addItemReward(player, "invertedGem", Math.max(1, Math.floor((1 + random() * 2) * reverseMultiplier)));
+    player.lastReward = makeReward("invertedGem", gained);
+    return buildOutcome("invertedGem", player, "顛倒寶石", `你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, "", random);
+  }
+  if (roll < 0.88) {
+    const damage = addBombDamage(player, now, 1);
+    return buildOutcome("stalactite", player, "空間亂流", `反轉亂流割過礦道，${damage.message}`, "", random);
+  }
+  return buildOutcome("empty", player, "反轉碎石", "這一鏟只有往上飄的碎石。", "", random);
+}
+
 function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
   const player = getPlayer(playerInput);
   const pathPrefix = getDigPathPrefix(player, digPath);
@@ -1246,20 +1546,36 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (!player.runMode) {
+    if (player.zone === "undergroundCamp") {
+      player.runMode = "reversePrep";
+      player.zone = "upward";
+      player.caveType = null;
+      player.depth = 0;
+      player.nextEventDepth = 4;
+      player.eventMissCount = 0;
+      player.nextBuffDepth = 5;
+      return mineUpward(player, random, now);
+    }
     return {
       kind: "blocked",
       player,
       title: "選擇下礦方式",
-      message: "下礦前請先從目前顯示的兩個初始詞條中選一個。"
+      message: "下礦前請先從目前顯示的三個初始詞條中選一個。"
     };
   }
 
   player.mines += 1;
   player.stats.totalMines += 1;
+  if (player.zone === "lavaPool") return crossLavaPool(player, random, now);
+  if (player.zone === "upward") return mineUpward(player, random, now);
   const mode = getMode(player);
   const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
   const repeatLayer = player.tempEffects.some((effect) => effect.id === "repeat_layer");
   if (!repeatLayer) player.depth += depthStep;
+  if (player.depth >= CONFIG.mining.lavaDepth) {
+    player.depth = CONFIG.mining.lavaDepth;
+    return crossLavaPool(player, random, now);
+  }
   const recordMessage = setDepthRecord(player);
   const layerEffectMessage = processLayerStartEffects(player, random, now);
   if (player.dead) {
@@ -1283,6 +1599,9 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   const goldMultiplier = 1
     + player.minorBuffs.gold * CONFIG.minorBuffs.gold.goldMultiplierBonus
     + (mode && mode.goldMultiplierBonus ? mode.goldMultiplierBonus : 0);
+  const oreMultiplier = 1
+    + (mode && mode.oreRewardMultiplier ? mode.oreRewardMultiplier - 1 : 0)
+    + (player.minorBuffs.ore || 0) * CONFIG.minorBuffs.ore.oreMultiplierBonus;
   const rewardMultiplier = getEffectMultiplier(player, "rewardMultiplier") * consumeChainBlastReward(player) * getModeRewardMultiplier(player);
 
   if (result === "gold") {
@@ -1308,7 +1627,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "ore") {
-    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier * oreMultiplier));
     const target = getOreTargetForMode("ore", player);
     const freeAmount = getItemFreeAmount(player, target);
     if (freeAmount <= 0) {
@@ -1334,7 +1653,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "goldOre" || result === "platinumOre") {
-    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier));
+    const amount = Math.max(1, Math.floor(getOreAmount(player.depth, random) * gatherMultiplier * digPathRewardMultiplier * rewardMultiplier * oreMultiplier));
     const target = getOreTargetForMode(result, player);
     const freeAmount = getItemFreeAmount(player, target);
     const name = getOreName(target);
@@ -1979,6 +2298,116 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     return { ok: true, player, title: event.title, message: `你餵給吞金獸 ${fed} 金幣。牠會在第 ${player.goldBeast.returnDepth} 層回來。` };
   }
 
+  if (event.caveType === "gem") {
+    if (choice === "safe") {
+      const healed = ["sapphire_spring", "gem_altar"].includes(eventId) ? healBombDamage(player, 1) : 0;
+      if (healed > 0) return { ok: true, player, title: event.title, message: "你保守處理，回復 1 點生命。" };
+      const gem = eventId.includes("ruby") ? "redGem" : eventId.includes("sapphire") ? "blueGem" : "greenGem";
+      addItemReward(player, gem, 1);
+      return { ok: true, player, title: event.title, message: `你保守採集，獲得 1 顆${gem === "redGem" ? "紅寶石" : gem === "blueGem" ? "藍寶石" : "綠寶石"}。` };
+    }
+    if (choice === "extreme") {
+      addTempEffect(player, { id: `gem_${eventId}`, remaining: 3, rewardMultiplier: 1.8, hurtChance: 0.25 });
+      if (random() < 0.35) addBombDamage(player, now, 1);
+      return { ok: true, player, title: event.title, message: "你強行引爆晶核，接下來 3 層寶石收益大幅提高，但每層可能受傷。" };
+    }
+    const roll = random();
+    if (roll < 0.55) {
+      const gems = ["redGem", "blueGem", "greenGem"];
+      const key = gems[Math.floor(random() * gems.length)];
+      const amount = eventId === "rainbow_node" ? 3 : 2;
+      const gained = addItemReward(player, key, amount);
+      return { ok: true, player, title: event.title, message: `冒險成功，獲得 ${gained} 顆寶石。` };
+    }
+    if (roll < 0.8) {
+      const damage = addBombDamage(player, now, eventId === "stalactite_rain" ? 2 : 1);
+      return { ok: true, player, title: event.title, message: `寶石洞窟反噬，${damage.message}` };
+    }
+    if (getBagFreeSlots(player) >= 5) player.platinumJunk += 1;
+    return { ok: true, player, title: event.title, message: "你翻出白金破爛，佔用 5 格包包。" };
+  }
+
+  if (event.highTier) {
+    const wager = Math.min(player.gold, Math.max(100, Math.floor(player.gold * (choice === "extreme" ? 0.35 : 0.18))));
+    if (choice === "safe") {
+      addTempEffect(player, { id: `high_safe_${eventId}`, remaining: 2, bombWeightMultiplier: 0.95 });
+      return { ok: true, player, title: event.title, message: "你保守離開，地層壓力稍微下降 2 層。" };
+    }
+    if (wager <= 0) return { ok: false, player, title: event.title, message: "你身上金幣不足，無法簽下上位契約。" };
+    player.gold -= wager;
+    const successRate = choice === "extreme" ? 0.42 : 0.62;
+    if (random() < successRate) {
+      const payout = Math.floor(wager * (choice === "extreme" ? 3.2 : 2));
+      player.gold += payout;
+      addTempEffect(player, { id: `high_${eventId}`, remaining: 4, rewardMultiplier: choice === "extreme" ? 1.7 : 1.35, bombWeightMultiplier: choice === "extreme" ? 1.35 : 1.15 });
+      if (eventId === "abyss_insurance") player.returnBlessing = true;
+      if (eventId === "astral_invitation") player.orichalcum += 1;
+      return { ok: true, player, title: event.title, message: `上位契約成功，押金 ${wager} 換回 ${payout} 金幣，並獲得 4 層高收益高風險效果。` };
+    }
+    const damage = random() < 0.5 ? addBombDamage(player, now, choice === "extreme" ? 2 : 1).message : "";
+    return { ok: true, player, title: event.title, message: `契約失敗，損失 ${wager} 金幣。${damage}` };
+  }
+
+  if (event.reverseOnly) {
+    if (choice === "safe") {
+      const gained = addItemReward(player, "invertedOre", 1);
+      return { ok: true, player, title: event.title, message: `你穩定處理反轉事件，獲得 ${gained} 塊顛倒礦石。` };
+    }
+    if (choice === "extreme") {
+      player.depth -= 3;
+      const lost = Math.min(player.gold, Math.ceil(player.gold * 0.12));
+      player.gold -= lost;
+      const gained = addItemReward(player, eventId === "sky_light_crack" ? "orichalcum" : "invertedGem", eventId === "sky_light_crack" ? 1 : 2);
+      return { ok: true, player, title: event.title, message: `你衝進反轉亂流，上升 3 層，獲得 ${gained} 個反轉資源，但失去 ${lost} 金幣。` };
+    }
+    if (eventId === "inverted_merchant") {
+      return { ok: true, player, title: event.title, message: "倒置商人看了看你的顛倒礦石：兌換功能即將開放，敬請期待。" };
+    }
+    const gained = addItemReward(player, eventId === "broken_sky_stone" ? "invertedGem" : "invertedOre", 2);
+    if (random() < 0.35) player.depth -= 1;
+    return { ok: true, player, title: event.title, message: `冒險成功，獲得 ${gained} 個反轉資源。` };
+  }
+
+  const newNormalEvents = new Set([
+    "lost_miner", "broken_lift", "glowing_moss", "black_vein", "underground_echo",
+    "blaster_relic", "minecart_wreck", "ancient_mark", "deep_airflow", "rusty_safe",
+    "cave_vendor", "dark_fissure", "vein_resonance", "sudden_cavein", "runaway_lamp"
+  ]);
+  if (newNormalEvents.has(eventId)) {
+    if (choice === "safe") {
+      if (eventId === "underground_echo") {
+        player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
+        return { ok: true, player, title: event.title, message: "你聽聲辨位，看清了下一層左右路線。" };
+      }
+      addTempEffect(player, { id: `safe_${eventId}`, remaining: 3, bombWeightMultiplier: 0.92, emptyWeightMultiplier: 1.08 });
+      return { ok: true, player, title: event.title, message: "你選擇保守處理，接下來 3 層稍微安全，但空挖變多。" };
+    }
+    if (choice === "extreme") {
+      addTempEffect(player, { id: `extreme_${eventId}`, remaining: 3, rewardMultiplier: 1.65, bombWeightMultiplier: 1.35 });
+      const damage = random() < 0.35 ? addBombDamage(player, now).message : "";
+      return { ok: true, player, title: event.title, message: `你選擇極端處理，接下來 3 層收益 +65%、炸彈 +35%。${damage}` };
+    }
+    const roll = random();
+    if (eventId === "broken_lift" || eventId === "deep_airflow") {
+      player.depth += roll < 0.65 ? 2 : -1;
+      const recordMessage = setDepthRecord(player);
+      return { ok: true, player, title: event.title, message: `礦道位移到第 ${player.depth} 層。${recordMessage}` };
+    }
+    if (eventId === "rusty_safe" && getBagFreeSlots(player) > 0) {
+      player.rusty += 1;
+      return { ok: true, player, title: event.title, message: "保險箱裡掉出 1 枚生鏽紀念幣。" };
+    }
+    if (roll < 0.55) {
+      const reward = addOreReward(player, 2 + getDepthBonus(player.depth), player.depth >= 30 ? "platinumOre" : player.depth >= 15 ? "goldOre" : "ore");
+      const gold = 20 + getDepthBonus(player.depth) * 8;
+      player.gold += gold;
+      return { ok: true, player, title: event.title, message: `冒險成功，獲得 ${gold} 金幣和 ${reward.gained} 塊${getOreName(reward.target)}。` };
+    }
+    const damage = addBombDamage(player, now);
+    if (getBagFreeSlots(player) >= 3) player.junk += 1;
+    return { ok: true, player, title: event.title, message: `冒險失敗，翻出超級破爛。${damage.message}` };
+  }
+
   return {
     ok: false,
     player,
@@ -2034,6 +2463,8 @@ function exchange(playerInput, amount = 1, random = Math.random) {
 function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const player = getPlayer(playerInput);
   const safeAmount = Math.max(1, Math.floor(amount));
+  const progress = { ...progressInput };
+  const globalState = progress.globalState ? normalizeGlobalState(progress.globalState) : null;
   const shopItem = getShopItems().find((item) => item.id === itemId);
   const consumable = getShopConsumables(progressInput).find((item) => item.id === itemId);
 
@@ -2056,21 +2487,38 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const label = shopItem ? shopItem.collectible.name : consumable.label;
   const priceGold = shopItem ? shopItem.priceGold : consumable.priceGold;
   const cost = priceGold * safeAmount;
+  if (itemId === "healingPotion" && globalState) {
+    if ((globalState.currentPotionStock || 0) < safeAmount) {
+      return {
+        ok: false,
+        player,
+        globalState,
+        message: "治療藥水已售完，請等待下一個小時補貨。"
+      };
+    }
+  }
   if (player.gold < cost) {
     return {
       ok: false,
       player,
+      globalState,
       message: `金幣不足。購買 ${safeAmount} 個${label}需要 ${cost} 金幣。`
     };
   }
 
   player.gold -= cost;
   if (shopItem) player.collection[itemId] = (player.collection[itemId] || 0) + safeAmount;
-  else player[itemId] = (player[itemId] || 0) + safeAmount;
+  else {
+    player[itemId] = (player[itemId] || 0) + safeAmount;
+    if (itemId === "healingPotion" && globalState) {
+      globalState.currentPotionStock = Math.max(0, (globalState.currentPotionStock || 0) - safeAmount);
+    }
+  }
 
   return {
     ok: true,
     player,
+    globalState,
     message: `成功花費 ${cost} 金幣購買 ${safeAmount} 個${label}。`
   };
 }
@@ -2215,8 +2663,23 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
   };
 }
 
-function returnToSurface(playerInput, random = Math.random) {
+function returnToSurface(playerInput, random = Math.random, globalStateInput = null, now = Date.now()) {
   const player = getPlayer(playerInput);
+  if (player.zone === "undergroundCamp" || player.zone === "skyCamp") {
+    const cost = getElevatorCost(player);
+    if (cost <= 0) {
+      return { ok: false, player, globalState: globalStateInput, message: "付費電梯偵測不到資產，暫時無法啟動。" };
+    }
+    payFromTotalAsset(player, cost);
+    resetRunState(player, random);
+    player.lastElevatorAt = now;
+    return {
+      ok: true,
+      player,
+      globalState: globalStateInput,
+      message: `付費電梯啟動，扣除總資產 10%：${cost} 金幣，已返回地表。`
+    };
+  }
   const curse = player.tempEffects.find((effect) => effect.id === "ancient_curse" && effect.remaining > 0);
   if (curse) {
     return {
@@ -2234,13 +2697,15 @@ function returnToSurface(playerInput, random = Math.random) {
   const soldGoldOreIngot = player.goldOreIngot;
   const soldPlatinumOreIngot = player.platinumOreIngot;
   const soldBombItem = player.bombItem;
-  const oreGold = soldOre * CONFIG.ore.goldPerOre;
-  const goldOreGold = soldGoldOre * CONFIG.ore.goldPerGoldOre;
-  const platinumOreGold = soldPlatinumOre * CONFIG.ore.goldPerPlatinumOre;
+  const globalState = globalStateInput ? normalizeGlobalState(globalStateInput, now) : null;
+  const market = (id) => globalState ? getMarketMultiplier(globalState, id, now) : 1;
+  const oreGold = Math.floor(soldOre * CONFIG.ore.goldPerOre * market("ore"));
+  const goldOreGold = Math.floor(soldGoldOre * CONFIG.ore.goldPerGoldOre * market("goldOre"));
+  const platinumOreGold = Math.floor(soldPlatinumOre * CONFIG.ore.goldPerPlatinumOre * market("platinumOre"));
   const goldBlockGold = soldGoldBlock * CONFIG.ore.goldPerGoldBlock;
-  const oreIngotGold = soldOreIngot * CONFIG.ore.goldPerOreIngot;
-  const goldOreIngotGold = soldGoldOreIngot * CONFIG.ore.goldPerGoldOreIngot;
-  const platinumOreIngotGold = soldPlatinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot;
+  const oreIngotGold = Math.floor(soldOreIngot * CONFIG.ore.goldPerOreIngot * market("oreIngot"));
+  const goldOreIngotGold = Math.floor(soldGoldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot"));
+  const platinumOreIngotGold = Math.floor(soldPlatinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot * market("platinumOreIngot"));
   const bombItemGold = soldBombItem * CONFIG.ore.goldPerBombItem;
   const soldRedGem = player.redGem;
   const soldBlueGem = player.blueGem;
@@ -2252,6 +2717,9 @@ function returnToSurface(playerInput, random = Math.random) {
   const finalReward = calculateFinalReward(player, baseReward);
   const clearedJunk = player.junk;
   const clearedPlatinumJunk = player.platinumJunk;
+  const keptInvertedOre = player.invertedOre;
+  const keptInvertedGem = player.invertedGem;
+  const keptOrichalcum = player.orichalcum;
   const clearedBombs = player.bombs;
   const depth = player.depth;
 
@@ -2268,7 +2736,20 @@ function returnToSurface(playerInput, random = Math.random) {
   player.blueGem = 0;
   player.greenGem = 0;
   player.gold += baseReward;
+  const nextGlobalState = globalState
+    ? recordMarketSale(globalState, {
+      ore: soldOre,
+      goldOre: soldGoldOre,
+      platinumOre: soldPlatinumOre,
+      oreIngot: soldOreIngot,
+      goldOreIngot: soldGoldOreIngot,
+      platinumOreIngot: soldPlatinumOreIngot
+    }, now)
+    : globalStateInput;
   resetRunState(player, random);
+  player.invertedOre = keptInvertedOre;
+  player.invertedGem = keptInvertedGem;
+  player.orichalcum = keptOrichalcum;
   const settlementMessage = baseReward + finalReward.critBonus + finalReward.comboBonus + finalReward.riskBonus + finalReward.burstBonus > 0
     ? `\n\n💰 探險結算：\n基礎收益：${baseReward}\n爆擊加成：+${finalReward.critBonus}\n連擊加成：+${finalReward.comboBonus}\n風險加成：+${finalReward.riskBonus}\n爆發加成：+${finalReward.burstBonus}\n\n👉 總收益：${finalReward.total} 金幣！\n最高連擊：${finalReward.maxCombo}｜爆擊次數：${finalReward.critCount}｜Jackpot：${finalReward.jackpotCount}`
     : "";
@@ -2276,6 +2757,7 @@ function returnToSurface(playerInput, random = Math.random) {
   return {
     ok: true,
     player,
+    globalState: nextGlobalState,
     message: `已返回地面。${soldOre > 0 ? `${soldOre} 塊礦石換成 ${oreGold} 金幣。` : ""}${soldGoldOre > 0 ? `${soldGoldOre} 塊金礦石換成 ${goldOreGold} 金幣。` : ""}${soldPlatinumOre > 0 ? `${soldPlatinumOre} 塊鉑金礦石換成 ${platinumOreGold} 金幣。` : ""}${soldGoldBlock > 0 ? `${soldGoldBlock} 個金塊換成 ${goldBlockGold} 金幣。` : ""}${soldOreIngot + soldGoldOreIngot + soldPlatinumOreIngot > 0 ? `錠換成 ${oreIngotGold + goldOreIngotGold + platinumOreIngotGold} 金幣。` : ""}${soldBombItem > 0 ? `${soldBombItem} 顆完整炸彈換成 ${bombItemGold} 金幣。` : ""}${gemGold > 0 ? `寶石換成 ${gemGold} 金幣。` : ""}深度 ${depth} 歸零，炸彈次數 ${clearedBombs} 歸零。${clearedJunk > 0 ? `${clearedJunk} 個超級破爛已清掉。` : ""}${clearedPlatinumJunk > 0 ? `${clearedPlatinumJunk} 個白金破爛已清掉。` : ""}${lostRusty > 0 ? `未除鏽的 ${lostRusty} 枚生鏽紀念幣已消失。` : ""}${settlementMessage}`
   };
 }
@@ -2546,6 +3028,7 @@ module.exports = {
   getBagFreeSlots,
   getBagCapacity,
   getBagUsedSlots,
+  getAreaLabel,
   getAwardCollectibles,
   getCollectible,
   getCollectibles,
@@ -2562,9 +3045,13 @@ module.exports = {
   getRustCollectibles,
   getRunModeOptions,
   getRunModeLabel,
+  getMinorBuffOptions,
   getShopItems,
   getShopConsumables,
+  getElevatorCost,
+  getTotalAsset,
   mine,
+  openUndergroundInn,
   removeRust,
   rerollRunModeOptions,
   resolveRandomEvent,
@@ -2574,6 +3061,7 @@ module.exports = {
   setUiMode,
   shimmerCollectible,
   triggerCharge,
+  travelToUndergroundCamp,
   rollWeighted,
   transferCollectible,
   withdrawBank

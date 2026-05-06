@@ -12,9 +12,9 @@ const RACE_CUSTOM_IDS = {
   roast: "chicken_race:roast"
 };
 
-const BETTING_MS = 3 * 60 * 1000;
-const RACING_MS = 3 * 60 * 1000;
-const FRAME_COUNT = 12;
+const BETTING_MS = 90 * 1000;
+const RACING_MS = 75 * 1000;
+const FRAME_COUNT = 8;
 const TRACK_LENGTH = 16;
 
 const CHICKENS = [
@@ -41,6 +41,8 @@ const RACE_EVENTS = [
 
 const DEFAULT_RACE_SCOPE = "global";
 const activeRaces = new Map();
+const activeRacePanelByUserId = new Map();
+const raceLock = new Set();
 const roastPenalties = {};
 
 function weightedSampleChickens(random = Math.random) {
@@ -83,6 +85,8 @@ function resetRaceState(scopeKey = null) {
       for (const timer of race.timers) clearTimeout(timer);
     }
     activeRaces.clear();
+    activeRacePanelByUserId.clear();
+    raceLock.clear();
     return;
   }
   const normalized = normalizeRaceScope(scopeKey);
@@ -91,10 +95,18 @@ function resetRaceState(scopeKey = null) {
     for (const timer of race.timers) clearTimeout(timer);
   }
   activeRaces.delete(normalized);
+  for (const [userId, scope] of activeRacePanelByUserId.entries()) {
+    if (scope === normalized) activeRacePanelByUserId.delete(userId);
+  }
+  raceLock.delete(normalized);
 }
 
-function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RACE_SCOPE) {
+function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RACE_SCOPE, userId = null) {
   const normalized = normalizeRaceScope(scopeKey);
+  if (userId && activeRacePanelByUserId.has(userId)) {
+    const userRace = activeRaces.get(activeRacePanelByUserId.get(userId));
+    if (userRace && userRace.status !== "settled") return userRace;
+  }
   const activeRace = activeRaces.get(normalized);
   if (activeRace && activeRace.status !== "settled") return activeRace;
   decayRoastPenalties();
@@ -113,6 +125,7 @@ function startRace(now = Date.now(), random = Math.random, scopeKey = DEFAULT_RA
     timers: []
   };
   activeRaces.set(normalized, race);
+  if (userId) activeRacePanelByUserId.set(userId, normalized);
   return race;
 }
 
@@ -133,6 +146,7 @@ function buyTicket(race, userId, betType, chickenId, player) {
   if (player.gold < cost) return { ok: false, player, message: `金幣不足，${betType === "noble" ? "高貴票" : "普通票"}需要 ${cost} 金幣。` };
   player.gold -= cost;
   race.playersInMatch[userId] = { userId, betType, chickenId, cost };
+  activeRacePanelByUserId.set(userId, race.scopeKey || DEFAULT_RACE_SCOPE);
   return {
     ok: true,
     player,
@@ -366,6 +380,8 @@ function buildRaceComponents(race) {
 
 function beginRace(race, random = Math.random) {
   if (!race || race.status !== "betting") return race;
+  if (raceLock.has(race.scopeKey)) return race;
+  raceLock.add(race.scopeKey);
   race.status = "racing";
   race.racingEndsAt = Date.now() + RACING_MS;
   race.runners = race.selectedChickens.map((chicken) => ({ ...chicken, position: 0 }));
@@ -375,6 +391,10 @@ function beginRace(race, random = Math.random) {
 
 function settleRace(race, players, random = Math.random) {
   race.status = "settled";
+  raceLock.delete(race.scopeKey);
+  for (const userId of Object.keys(race.playersInMatch || {})) {
+    if (activeRacePanelByUserId.get(userId) === race.scopeKey) activeRacePanelByUserId.delete(userId);
+  }
   const result = calculateResult(race, random);
   result.playerCount = Object.keys(race.playersInMatch).length;
   race.result = result;

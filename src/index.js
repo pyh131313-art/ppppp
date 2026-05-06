@@ -20,6 +20,7 @@ const {
   getPlayer,
   getShopItems,
   mine,
+  openUndergroundInn,
   removeRust,
   rerollRunModeOptions,
   resolveRandomEvent,
@@ -29,9 +30,14 @@ const {
   setUiMode,
   shimmerCollectible,
   triggerCharge,
+  travelToUndergroundCamp,
   transferCollectible,
   withdrawBank
 } = require("./game");
+const {
+  getGlobalStateFromPlayers,
+  setGlobalStateToPlayers
+} = require("./globalState");
 const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
   FRAME_COUNT,
@@ -152,6 +158,13 @@ function attachGlobalRecordMessage(outcome, previousBestDepth, user) {
   };
 }
 
+function getProgressWithGlobal(players) {
+  return {
+    ...getCommunityProgress(players),
+    globalState: getGlobalStateFromPlayers(players)
+  };
+}
+
 function getButtonCustomId(component) {
   return component.customId || (component.data && component.data.custom_id) || "";
 }
@@ -224,7 +237,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (name === "礦場") {
       await interaction.deferReply();
       const player = await updatePlayer(interaction.user.id, (current) => ensureRunModeOptions(current, Math.random));
-      const progress = getCommunityProgress(await loadPlayers());
+      const progress = getProgressWithGlobal(await loadPlayers());
       await interaction.editReply({
         embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
         files: buildHudFiles(player),
@@ -247,13 +260,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "賽雞場") {
       await interaction.deferReply();
-      const race = startRace(Date.now(), Math.random, interaction.guildId);
+      const race = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
       await interaction.editReply({
         embeds: [buildRaceEmbed(race, "歡迎來到賽雞場，下注階段 3 分鐘。")],
         components: buildRaceComponents(race)
       });
-      race.message = await interaction.fetchReply();
-      scheduleRaceBettingEnd(race);
+      if (!race.message || race.message.id === (await interaction.fetchReply()).id) {
+        race.message = await interaction.fetchReply();
+        scheduleRaceBettingEnd(race);
+      }
       return;
     }
 
@@ -279,7 +294,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "商店") {
       const result = await updatePlayer(interaction.user.id, (player) => getPlayer(player));
-      const progress = getCommunityProgress(await loadPlayers());
+      const progress = getProgressWithGlobal(await loadPlayers());
       await interaction.reply({
         embeds: [buildShopEmbed(result, formatShop(progress), progress)],
         ephemeral: true
@@ -291,11 +306,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const itemId = interaction.options.getString("商品", true);
       const amount = interaction.options.getInteger("數量") || 1;
       let message = "";
-      const progress = getCommunityProgress(await loadPlayers());
-      await updatePlayer(interaction.user.id, (player) => {
-        const result = buyShopItem(player, itemId, amount, progress);
+      await updatePlayers((players) => {
+        const currentProgress = getProgressWithGlobal(players);
+        const result = buyShopItem(players[interaction.user.id], itemId, amount, currentProgress);
         message = result.message;
-        return result.player;
+        players[interaction.user.id] = result.player;
+        if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+        return players;
       });
       await interaction.reply(makeReply("購買", message));
       return;
@@ -417,7 +434,7 @@ async function handleChickenRaceInteraction(interaction) {
 
   if (interaction.customId === RACE_CUSTOM_IDS.next) {
     await interaction.deferUpdate();
-    const nextRace = startRace(Date.now(), Math.random, interaction.guildId);
+    const nextRace = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
     nextRace.message = interaction.message;
     await interaction.editReply({
       embeds: [buildRaceEmbed(nextRace, "新一場賽雞開始，下注階段 3 分鐘。")],
@@ -470,7 +487,7 @@ async function handleMiningButton(interaction) {
   const hudPage = getCurrentHudPage(interaction);
 
   if (interaction.customId.startsWith(`${CUSTOM_IDS.pagePrefix}:`)) {
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => setUiMode(current, "full").player);
     componentPlayer = player;
     embed = buildPanelEmbed(player, "礦場面板", "", interaction.user, hudPage);
@@ -486,7 +503,7 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId.startsWith(`${CUSTOM_IDS.uiModePrefix}:`)) {
     const mode = interaction.customId.split(":")[2];
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     const result = await updatePlayer(panelTargetUserId, (player) => setUiMode(player, mode).player);
     componentPlayer = result;
     embed = buildPanelEmbed(result, "顯示模式", mode === "compact" ? "已切換為精簡 UI。" : "已切換為完整 UI。", interaction.user, hudPage);
@@ -566,6 +583,17 @@ async function handleMiningButton(interaction) {
     });
   }
 
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.buffPrefix}:`)) {
+    const buff = interaction.customId.split(":")[2];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = chooseMinorBuff(player, buff);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "小詞條", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
   if (interaction.customId.startsWith(`${CUSTOM_IDS.chargePrefix}:`)) {
     const type = interaction.customId.split(":")[2];
     await updatePlayer(panelTargetUserId, (player) => {
@@ -585,7 +613,7 @@ async function handleMiningButton(interaction) {
       return next;
     });
     const collectionResponse = await buildCollectionResponse(componentPlayer);
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     await interaction.editReply({
       embeds: collectionResponse.embeds,
       files: collectionResponse.files,
@@ -657,7 +685,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopOpen) {
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
     componentPlayer = player;
     embed = buildShopEmbed(player, "選擇下方商品購買。", progress);
@@ -672,7 +700,7 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopExit) {
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
     componentPlayer = player;
     embed = buildPanelEmbed(player, "礦場面板", "已返回礦場面板。", interaction.user, hudPage);
@@ -687,21 +715,23 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
-    const progress = getCommunityProgress(await loadPlayers());
-    await updatePlayer(panelTargetUserId, (player) => {
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
       const shopItem = getShopItems()[0];
       const result = shopItem
-        ? buyShopItem(player, shopItem.id, 1, progress)
-        : { player: getPlayer(player), message: "商店目前沒有商品。" };
+        ? buyShopItem(players[panelTargetUserId], shopItem.id, 1, progress)
+        : { player: getPlayer(players[panelTargetUserId]), message: "商店目前沒有商品。" };
       componentPlayer = result.player;
       embed = buildShopEmbed(result.player, result.message, progress);
       files = buildHudFiles(result.player);
-      return result.player;
+      players[panelTargetUserId] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
     });
   }
 
   if (interaction.customId === CUSTOM_IDS.shopShimmer) {
-    const progress = getCommunityProgress(await loadPlayers());
+    const progress = getProgressWithGlobal(await loadPlayers());
     const itemId = interaction.values && interaction.values[0];
     await updatePlayer(panelTargetUserId, (player) => {
       const result = shimmerCollectible(player, itemId, Math.random);
@@ -721,13 +751,15 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.shopBuyPotion || interaction.customId === CUSTOM_IDS.shopBuyTotem) {
     const itemId = interaction.customId === CUSTOM_IDS.shopBuyPotion ? "healingPotion" : "undyingTotem";
-    const progress = getCommunityProgress(await loadPlayers());
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = buyShopItem(player, itemId, 1, progress);
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const result = buyShopItem(players[panelTargetUserId], itemId, 1, progress);
       componentPlayer = result.player;
       embed = buildShopEmbed(result.player, result.message, progress);
       files = buildHudFiles(result.player);
-      return result.player;
+      players[panelTargetUserId] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
     });
   }
 
@@ -762,10 +794,33 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.returnSurface) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = returnToSurface(player);
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const result = returnToSurface(players[panelTargetUserId], Math.random, progress.globalState, Date.now());
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "返回地面", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      players[panelTargetUserId] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.undergroundCamp) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = travelToUndergroundCamp(player, Date.now());
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "地底營地", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.undergroundInn) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = openUndergroundInn(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "地底客棧", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
@@ -803,7 +858,7 @@ async function handleMiningButton(interaction) {
     }
   }
 
-  const progress = getCommunityProgress(await loadPlayers());
+  const progress = getProgressWithGlobal(await loadPlayers());
   await interaction.editReply({
     embeds: [embed || buildPanelEmbed(null)],
     files,

@@ -11,7 +11,10 @@ const POSITIVE_KINDS = new Set([
   "platinumOreIngot",
   "redGem",
   "blueGem",
-  "greenGem"
+  "greenGem",
+  "invertedOre",
+  "invertedGem",
+  "orichalcum"
 ]);
 
 const FAILURE_KINDS = new Set([
@@ -118,8 +121,13 @@ function triggerCharge(player, type) {
   if ((player.chargeValue || 0) < 100) {
     return { ok: false, player, message: `蓄力還不夠，目前 ${player.chargeValue || 0}/100。` };
   }
+  if (player.lastChargeSkillUsed === type) {
+    const names = { reward: "收益爆發", safe: "穩定爆發", resource: "資源爆發" };
+    return { ok: false, player, message: `上次使用：${names[type]}。本次不可再次選擇相同技能。` };
+  }
   player.chargeValue = 0;
   player.chargeBurst = type;
+  player.lastChargeSkillUsed = type;
   const labels = {
     reward: "收益爆發：下一鏟收益 x3。",
     safe: "穩定爆發：下一鏟免疫炸彈。",

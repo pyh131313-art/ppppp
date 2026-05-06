@@ -11,7 +11,8 @@ function shouldCheckEvent(depth, runState = {}) {
 
 function getEventTriggerChance(runState = {}) {
   const misses = Math.max(0, runState.eventMissCount || 0);
-  return Math.min(MAX_EVENT_CHANCE, BASE_EVENT_CHANCE + misses * EVENT_CHANCE_STEP);
+  const bonus = Math.max(0, runState.eventChanceBonus || 0);
+  return Math.min(MAX_EVENT_CHANCE, BASE_EVENT_CHANCE + bonus + misses * EVENT_CHANCE_STEP);
 }
 
 function rollEventTrigger(runState = {}, random = Math.random) {
