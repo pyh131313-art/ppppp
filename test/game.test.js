@@ -903,6 +903,31 @@ test("吞金獸餵食後標記一生只見一次", () => {
   assert.match(result.message, /不會再回來/);
 });
 
+test("吞金獸抵達地底營地時會回來且不被上挖選詞條清除", () => {
+  const campArrival = mine({
+    ...createPlayer(),
+    runMode: "safe",
+    zone: "lavaPool",
+    lavaProgress: 2,
+    tempMaxHp: 5,
+    gold: 0,
+    goldBeast: { amount: 100, returnDepth: 108 }
+  }, () => 0, 1000);
+  const camp = ensureRunModeOptions({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    depth: 100,
+    goldBeast: { amount: 100, returnDepth: 108 }
+  }, () => 0);
+  const chosen = chooseRunMode(camp, getRunModeOptions(camp)[0].id, () => 0);
+
+  assert.equal(campArrival.player.zone, "undergroundCamp");
+  assert.equal(campArrival.player.gold, 150);
+  assert.equal(campArrival.player.goldBeast, null);
+  assert.match(campArrival.message, /吞金獸回來了/);
+  assert.deepEqual(chosen.player.goldBeast, { amount: 100, returnDepth: 108 });
+});
+
 test("爆擊會在原掉落後額外加成並累積蓄力", () => {
   const start = chooseRunMode(createPlayer(), "safe").player;
   const rolls = [0, 0, 0.99, 0.99, 0.05, 0.99, 0.99];

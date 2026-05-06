@@ -607,7 +607,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.bagBonusSlots = config.bagBonusSlots || 0;
   player.tempEffects = [];
   player.forcedNextResult = null;
-  player.goldBeast = null;
+  if (!choosingFromUndergroundCamp) player.goldBeast = null;
   player.returnBlessing = false;
   player.tempMaxHp = 0;
   if (player.chickenRoastHpBonus > 0) {
@@ -1315,6 +1315,16 @@ function applyPostDigFun(player, kind, random = Math.random) {
   return messages.join("\n");
 }
 
+function resolveGoldBeastReturn(player, random = Math.random, shouldReturn = false) {
+  if (player.dead || !player.goldBeast || !shouldReturn) return "";
+  const roll = random();
+  const multiplier = roll < 0.5 ? 1.5 : roll < 0.85 ? 2 : 3;
+  const reward = Math.floor(player.goldBeast.amount * multiplier);
+  player.gold += reward;
+  player.goldBeast = null;
+  return `吞金獸回來了，吐出 ${reward} 金幣。\n你感覺牠不會再回來了…`;
+}
+
 function getGemAmount(depth, random = Math.random) {
   const bonus = Math.min(3, Math.floor(depth / 4));
   return 1 + Math.floor(random() * (2 + bonus));
@@ -1353,14 +1363,12 @@ function processLayerStartEffects(player, random = Math.random, now = Date.now()
     player.potionCooldown = Math.max(0, player.potionCooldown - 1);
   }
 
-  if (!player.dead && player.goldBeast && player.depth >= player.goldBeast.returnDepth) {
-    const roll = random();
-    const multiplier = roll < 0.5 ? 1.5 : roll < 0.85 ? 2 : 3;
-    const reward = Math.floor(player.goldBeast.amount * multiplier);
-    player.gold += reward;
-    player.goldBeast = null;
-    messages.push(`吞金獸回來了，吐出 ${reward} 金幣。\n你感覺牠不會再回來了…`);
-  }
+  const goldBeastMessage = resolveGoldBeastReturn(
+    player,
+    random,
+    player.depth >= (player.goldBeast && player.goldBeast.returnDepth || Infinity)
+  );
+  if (goldBeastMessage) messages.push(goldBeastMessage);
 
   return messages.join("\n");
 }
@@ -1447,7 +1455,6 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
 }
 
 function crossLavaPool(player, random = Math.random, now = Date.now()) {
-  void random;
   player.zone = "lavaPool";
   player.caveType = null;
   player.lavaProgress = (player.lavaProgress || 0) + 1;
@@ -1465,11 +1472,12 @@ function crossLavaPool(player, random = Math.random, now = Date.now()) {
     player.undergroundCampUnlocked = true;
     player.runMode = null;
     player.depth = CONFIG.mining.lavaDepth;
+    const goldBeastMessage = resolveGoldBeastReturn(player, random, Boolean(player.goldBeast));
     return {
       kind: "blocked",
       player,
       title: "地底營地",
-      message: `你穿過岩漿池抵達地底營地。${damage.message}這裡可以銀行、搭電梯或開始往上挖。`
+      message: `你穿過岩漿池抵達地底營地。${damage.message}${goldBeastMessage ? `\n${goldBeastMessage}` : ""}這裡可以銀行、搭電梯或開始往上挖。`
     };
   }
   return {
