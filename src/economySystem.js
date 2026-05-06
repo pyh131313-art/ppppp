@@ -114,6 +114,7 @@ function travelToUndergroundCamp(playerInput, isInMine, now = Date.now()) {
   payFromTotalAsset(player, cost);
   player.zone = "undergroundCamp";
   player.depth = CONFIG.mining.lavaDepth;
+  player.runDepthProgress = 0;
   player.lastElevatorAt = now;
   return { ok: true, player, message: `已支付 ${cost} 金幣搭乘電梯抵達地底營地。` };
 }

@@ -12,9 +12,9 @@ const RACE_CUSTOM_IDS = {
   roast: "chicken_race:roast"
 };
 
-const BETTING_MS = 90 * 1000;
-const RACING_MS = 75 * 1000;
-const FRAME_COUNT = 8;
+const BETTING_MS = 15 * 1000;
+const RACING_MS = 15 * 1000;
+const FRAME_COUNT = 6;
 const TRACK_LENGTH = 16;
 
 const CHICKENS = [

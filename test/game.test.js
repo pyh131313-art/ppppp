@@ -189,7 +189,7 @@ test("精簡 UI 只顯示生命深度包包和路線", () => {
 
   assert.match(value, /⛏️【礦井探險｜精簡】/);
   assert.match(value, /生命：/);
-  assert.match(value, /深度：12｜最深48/);
+  assert.match(value, /深度：12｜本趟0｜最深48/);
   assert.match(value, /🎒 包包（1\/12）/);
   assert.match(value, /⛏️ ⬛ ⬛ ⬛/);
   assert.match(value, /蓄力：⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ 0\/100/);
@@ -304,7 +304,7 @@ test("挖礦會更新最深紀錄和總挖掘次數", () => {
   assert.equal(second.player.depth, 2);
   assert.equal(second.player.stats.bestDepth, 2);
   assert.equal(second.player.stats.totalMines, 2);
-  assert.match(second.recordMessage, /第 2 層/);
+  assert.match(second.recordMessage, /累積第 2 層/);
 });
 
 test("隨機事件出現後會阻擋繼續挖礦直到選擇", () => {
@@ -532,12 +532,14 @@ test("地底營地可以開始往上挖取得顛倒資源", () => {
     runMode: "reversePrep",
     zone: "undergroundCamp",
     undergroundCampUnlocked: true,
-    depth: 100
+    depth: 100,
+    runDepthProgress: 100
   };
   const result = mine(player, () => 0.2, 1000);
 
   assert.equal(result.player.zone, "upward");
   assert.equal(result.player.depth, -1);
+  assert.equal(result.player.runDepthProgress, 101);
   assert.equal(result.player.invertedOre > 0 || result.player.invertedGem > 0, true);
 });
 
@@ -667,6 +669,7 @@ test("地表可以花總資產一成回到地底營地", () => {
   assert.equal(result.ok, true);
   assert.equal(getElevatorCost({ ...createPlayer(), gold: 90, bankGold: 10 }), 10);
   assert.equal(result.player.zone, "undergroundCamp");
+  assert.equal(result.player.runDepthProgress, 0);
   assert.equal(result.player.gold + result.player.bankGold, 90);
 });
 
@@ -1315,21 +1318,28 @@ test("共同任務達到 70 層後商店解鎖治療藥水", () => {
   assert.equal(result.player.gold, 0);
 });
 
-test("治療藥水會消耗全服限量庫存", () => {
-  const globalState = { ...createGlobalState(Date.now()), currentPotionStock: 1 };
-  const first = buyShopItem({ ...createPlayer(), gold: 200 }, "healingPotion", 1, {
+test("治療藥水每天每人限購十瓶", () => {
+  const now = Date.UTC(2026, 4, 6, 1);
+  const first = buyShopItem({ ...createPlayer(), gold: 1000 }, "healingPotion", 10, {
     healingPotionUnlocked: true,
-    globalState
+    now
   });
-  const second = buyShopItem(first.player, "healingPotion", 1, {
+  const second = buyShopItem({ ...first.player, gold: 100 }, "healingPotion", 1, {
     healingPotionUnlocked: true,
-    globalState: first.globalState
+    now
+  });
+  const nextDay = buyShopItem({ ...first.player, gold: 100 }, "healingPotion", 1, {
+    healingPotionUnlocked: true,
+    now: now + 24 * 60 * 60 * 1000
   });
 
   assert.equal(first.ok, true);
-  assert.equal(first.globalState.currentPotionStock, 0);
+  assert.equal(first.player.healingPotion, 10);
+  assert.equal(first.player.potionPurchasesToday, 10);
   assert.equal(second.ok, false);
-  assert.match(second.message, /已售完/);
+  assert.match(second.message, /上限/);
+  assert.equal(nextDay.ok, true);
+  assert.equal(nextDay.player.potionPurchasesToday, 1);
 });
 
 test("治療藥水只能下礦後使用並恢復一滴血", () => {

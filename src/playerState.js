@@ -42,6 +42,7 @@ function createPlayer() {
     lastDeathLostGold: 0,
     mines: 0,
     depth: 0,
+    runDepthProgress: 0,
     ore: 0,
     goldOre: 0,
     platinumOre: 0,
@@ -94,6 +95,8 @@ function createPlayer() {
     returnBlessing: false,
     rescueBonusCount: 0,
     potionCooldown: 0,
+    potionPurchaseDay: "",
+    potionPurchasesToday: 0,
     minerHelmetCount: 0,
     undergroundStorage: {
       invertedOre: 0,

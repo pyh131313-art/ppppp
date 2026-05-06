@@ -491,6 +491,7 @@ function resetRunState(player, random = Math.random) {
   player.platinumJunk = 0;
   player.bombs = 0;
   player.depth = 0;
+  player.runDepthProgress = 0;
   player.zone = "surface";
   player.lavaProgress = 0;
   player.runMode = null;
@@ -949,6 +950,19 @@ function getShopConsumables(progressInput = {}) {
   ].filter(Boolean);
 }
 
+function getPotionPurchaseDay(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function normalizePotionDailyLimit(player, now = Date.now()) {
+  const today = getPotionPurchaseDay(now);
+  if (player.potionPurchaseDay !== today) {
+    player.potionPurchaseDay = today;
+    player.potionPurchasesToday = 0;
+  }
+  return player;
+}
+
 function addPendingNextRunTrait(player, traitId) {
   if (!CONFIG.runModes[traitId]) return false;
   player.pendingNextRunTraits = [...new Set([...(player.pendingNextRunTraits || []), traitId])].slice(0, 10);
@@ -1180,13 +1194,19 @@ function awardRustCollectible(player, random = Math.random) {
 }
 
 function setDepthRecord(player) {
-  if (player.depth <= player.stats.bestDepth) return "";
-  player.stats.bestDepth = player.depth;
+  const progress = Math.max(player.depth || 0, player.runDepthProgress || 0);
+  if (progress <= player.stats.bestDepth) return "";
+  player.stats.bestDepth = progress;
   player.bestRecordTimestamps = [
     ...(player.bestRecordTimestamps || []),
     Date.now()
   ].slice(-10);
-  return `突破個人最深紀錄：第 ${player.depth} 層！`;
+  return `突破個人探索紀錄：累積第 ${progress} 層！`;
+}
+
+function addRunDepthProgress(player, amount) {
+  player.runDepthProgress = Math.max(0, (player.runDepthProgress || 0) + Math.max(0, Math.floor(amount || 0)));
+  return setDepthRecord(player);
 }
 
 function maybeTriggerRandomEvent(player, random = Math.random) {
@@ -1630,6 +1650,7 @@ function crossLavaPool(player, random = Math.random, now = Date.now()) {
 
 function mineUpward(player, random = Math.random, now = Date.now()) {
   player.depth -= 1;
+  const recordMessage = addRunDepthProgress(player, 1);
   const layerEffectMessage = processLayerStartEffects(player, random, now);
   if (player.dead) {
     return {
@@ -1655,7 +1676,7 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
 
   const eventMessage = maybeTriggerRandomEvent(player, random);
   if (eventMessage) {
-    return buildOutcome("blocked", player, "反轉事件", `反轉層出現異常。${eventMessage}`, "", random);
+    return buildOutcome("blocked", player, "反轉事件", `反轉層出現異常。${eventMessage}`, recordMessage, random);
   }
 
   const reverseMultiplier = getModeRewardMultiplier(player)
@@ -1663,28 +1684,30 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
   const roll = random();
   if (player.depth <= -1 && roll < 0.08) {
     const gained = addItemReward(player, "orichalcum", 1);
-    return buildOutcome("orichalcum", player, "奧利哈鋼", `你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, "", random);
+    return buildOutcome("orichalcum", player, "奧利哈鋼", `你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, recordMessage, random);
   }
   if (roll < 0.45) {
     const gained = addItemReward(player, "invertedOre", Math.max(1, Math.floor((1 + random() * 3) * reverseMultiplier)));
     player.lastReward = makeReward("invertedOre", gained);
-    return buildOutcome("invertedOre", player, "顛倒礦石", `你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, "", random);
+    return buildOutcome("invertedOre", player, "顛倒礦石", `你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
   if (roll < 0.75) {
     const gained = addItemReward(player, "invertedGem", Math.max(1, Math.floor((1 + random() * 2) * reverseMultiplier)));
     player.lastReward = makeReward("invertedGem", gained);
-    return buildOutcome("invertedGem", player, "顛倒寶石", `你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, "", random);
+    return buildOutcome("invertedGem", player, "顛倒寶石", `你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
   if (roll < 0.88) {
     const damage = addBombDamage(player, now, 1);
-    return buildOutcome("stalactite", player, "空間亂流", `反轉亂流割過礦道，${damage.message}`, "", random);
+    return buildOutcome("stalactite", player, "空間亂流", `反轉亂流割過礦道，${damage.message}`, recordMessage, random);
   }
-  return buildOutcome("empty", player, "反轉碎石", "這一鏟只有往上飄的碎石。", "", random);
+  return buildOutcome("empty", player, "反轉碎石", "這一鏟只有往上飄的碎石。", recordMessage, random);
 }
 
 function mineSkyDown(player, random = Math.random, now = Date.now()) {
   player.zone = "skyDown";
+  const beforeDepth = player.depth || CONFIG.mining.skyDepth;
   player.depth = Math.min(0, (player.depth || CONFIG.mining.skyDepth) + 10);
+  const recordMessage = addRunDepthProgress(player, Math.abs(player.depth - beforeDepth));
   const layerEffectMessage = processLayerStartEffects(player, random, now);
   if (player.dead) {
     return {
@@ -1707,17 +1730,17 @@ function mineSkyDown(player, random = Math.random, now = Date.now()) {
   const roll = random();
   if (roll < 0.25) {
     const gained = addItemReward(player, "invertedGem", 1 + Math.floor(random() * 2));
-    return buildOutcome("invertedGem", player, "天光顛倒寶石", `你往下挖回地表，撿到 ${gained} 顆顛倒寶石。`, "", random);
+    return buildOutcome("invertedGem", player, "天光顛倒寶石", `你往下挖回地表，撿到 ${gained} 顆顛倒寶石。`, recordMessage, random);
   }
   if (roll < 0.38) {
     const gained = addItemReward(player, "orichalcum", 1);
-    return buildOutcome("orichalcum", player, "天域碎金", `雲層裡掉出 ${gained} 塊奧利哈鋼。`, "", random);
+    return buildOutcome("orichalcum", player, "天域碎金", `雲層裡掉出 ${gained} 塊奧利哈鋼。`, recordMessage, random);
   }
   if (roll < 0.55) {
     const damage = addBombDamage(player, now, 1);
-    return buildOutcome("stalactite", player, "高空亂流", `往下挖時被高空亂流刮傷，${damage.message}`, "", random);
+    return buildOutcome("stalactite", player, "高空亂流", `往下挖時被高空亂流刮傷，${damage.message}`, recordMessage, random);
   }
-  return buildOutcome("empty", player, "雲層空洞", "你往下挖了一段，只挖到發亮的空氣。", "", random);
+  return buildOutcome("empty", player, "雲層空洞", "你往下挖了一段，只挖到發亮的空氣。", recordMessage, random);
 }
 
 function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
@@ -1785,12 +1808,16 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   const mode = getMode(player);
   const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
   const repeatLayer = player.tempEffects.some((effect) => effect.id === "repeat_layer");
-  if (!repeatLayer) player.depth += depthStep;
+  let recordMessage = "";
+  if (!repeatLayer) {
+    player.depth += depthStep;
+    recordMessage = addRunDepthProgress(player, depthStep);
+  }
   if (player.depth >= CONFIG.mining.lavaDepth) {
     player.depth = CONFIG.mining.lavaDepth;
     return crossLavaPool(player, random, now);
   }
-  const recordMessage = setDepthRecord(player);
+  if (!recordMessage) recordMessage = setDepthRecord(player);
   const layerEffectMessage = processLayerStartEffects(player, random, now);
   if (player.dead) {
     return {
@@ -2821,7 +2848,8 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const player = getPlayer(playerInput);
   const safeAmount = Math.max(1, Math.floor(amount));
   const progress = { ...progressInput };
-  const globalState = progress.globalState ? normalizeGlobalState(progress.globalState) : null;
+  const now = progress.now || Date.now();
+  const globalState = progress.globalState ? normalizeGlobalState(progress.globalState, now) : null;
   const shopItem = getShopItems().find((item) => item.id === itemId);
   const consumable = getShopConsumables(progressInput).find((item) => item.id === itemId);
 
@@ -2844,13 +2872,15 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const label = shopItem ? shopItem.collectible.name : consumable.label;
   const priceGold = shopItem ? shopItem.priceGold : consumable.priceGold;
   const cost = priceGold * safeAmount;
-  if (itemId === "healingPotion" && globalState) {
-    if ((globalState.currentPotionStock || 0) < safeAmount) {
+  if (itemId === "healingPotion") {
+    normalizePotionDailyLimit(player, now);
+    const dailyLimit = CONFIG.shop.consumables.healingPotion.dailyLimit;
+    if ((player.potionPurchasesToday || 0) + safeAmount > dailyLimit) {
       return {
         ok: false,
         player,
         globalState,
-        message: "治療藥水已售完，請等待下一個小時補貨。"
+        message: `你今天的治療藥水購買上限是 ${dailyLimit} 瓶，目前已買 ${player.potionPurchasesToday || 0} 瓶。`
       };
     }
   }
@@ -2867,9 +2897,7 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   if (shopItem) player.collection[itemId] = (player.collection[itemId] || 0) + safeAmount;
   else {
     player[itemId] = (player[itemId] || 0) + safeAmount;
-    if (itemId === "healingPotion" && globalState) {
-      globalState.currentPotionStock = Math.max(0, (globalState.currentPotionStock || 0) - safeAmount);
-    }
+    if (itemId === "healingPotion") player.potionPurchasesToday = (player.potionPurchasesToday || 0) + safeAmount;
   }
 
   return {

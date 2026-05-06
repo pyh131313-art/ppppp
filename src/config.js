@@ -490,6 +490,7 @@ const CONFIG = {
         unlockBestDepth: 70,
         healBombs: 1,
         hourlyStock: 20,
+        dailyLimit: 10,
         cooldownLayers: 4
       },
       undyingTotem: {
