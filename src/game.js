@@ -20,7 +20,6 @@ const {
   consumeChainBlastReward,
   createTraitState,
   getTraitGoldMultiplier,
-  normalizeTraitState,
   onDamageTaken,
   onGoldGained,
   shouldRefineOre
@@ -30,9 +29,7 @@ const {
   addCharge,
   applyRiskScaling,
   calculateFinalReward,
-  createFunState,
   getComboBonusMultiplier,
-  normalizeFunState,
   resetFunRunState,
   rollCrit,
   rollJackpot,
@@ -45,164 +42,16 @@ const {
   normalizeGlobalState,
   recordMarketSale
 } = require("./globalState");
-
-const BAG_CAPACITY = 12;
-const ITEM_STACK_SIZE = 10;
-const DAMAGE_PER_HIT = 0.5;
-const CHICKEN_TRAIT_IDS = [
-  "chickenBlood",
-  "goldCrownLuck",
-  "cuckooCharm",
-  "comebackChickenSoul",
-  "roastChickenScent"
-];
-const STACKABLE_ITEM_KEYS = new Set([
-  "ore",
-  "goldOre",
-  "platinumOre",
-  "oreIngot",
-  "goldOreIngot",
-  "platinumOreIngot",
-  "redGem",
-  "blueGem",
-  "greenGem",
-  "invertedOre",
-  "invertedGem"
-]);
-
-function createPlayer() {
-  return {
-    gold: 0,
-    bankGold: 0,
-    healingPotion: 0,
-    undyingTotem: 0,
-    rusty: 0,
-    collection: {},
-    bombs: 0,
-    dead: false,
-    deathAt: null,
-    lastDeathLostGold: 0,
-    mines: 0,
-    depth: 0,
-    ore: 0,
-    goldOre: 0,
-    platinumOre: 0,
-    goldBlock: 0,
-    oreIngot: 0,
-    goldOreIngot: 0,
-    platinumOreIngot: 0,
-    bombItem: 0,
-    junk: 0,
-    redGem: 0,
-    blueGem: 0,
-    greenGem: 0,
-    invertedOre: 0,
-    invertedGem: 0,
-    orichalcum: 0,
-    platinumJunk: 0,
-    uiMode: "full",
-    runMode: null,
-    runModeOptions: [],
-    digPathOptions: {},
-    caveType: null,
-    zone: "surface",
-    lavaProgress: 0,
-    undergroundCampUnlocked: false,
-    skyCampUnlocked: false,
-    lastElevatorAt: 0,
-    highTierEligible: false,
-    enteringGold: 0,
-    minorBuffs: {
-      gold: 0,
-      bomb: 0,
-      bag: 0,
-      ore: 0,
-      sustain: 0,
-      luck: 0,
-      event: 0,
-      reverse: 0
-    },
-    minorBuffOptions: [],
-    minorBuffSelections: [],
-    minorBuffBreakthroughMode: false,
-    nextBuffDepth: 5,
-    pendingEvent: null,
-    nextEventDepth: 4,
-    eventMissCount: 0,
-    tempEffects: [],
-    forcedNextResult: null,
-    goldBeast: null,
-    hasSeenGoldenBeast: false,
-    returnBlessing: false,
-    rescueBonusCount: 0,
-    potionCooldown: 0,
-    minerHelmetCount: 0,
-    pendingNextRunTraits: [],
-    migratedToUndergroundCamp: false,
-    preUpdateDeepPlayer: false,
-    lastMigrationMessage: "",
-    expansionHeart: false,
-    chickenTraitTickets: 0,
-    chickenRoastHpBonus: 0,
-    chickenAmuletUsed: false,
-    ...createFunState(),
-    traitState: createTraitState(),
-    tempMaxHp: 0,
-    bagBonusSlots: 0,
-    bestRecordTimestamps: [],
-    lastChargeSkillUsed: null,
-    stats: {
-      bestDepth: 0,
-      totalMines: 0,
-      deaths: 0
-    }
-  };
-}
-
-function getPlayer(player) {
-  const next = {
-    ...createPlayer(),
-    ...(player || {})
-  };
-  next.collection = {
-    ...(player && player.collection ? player.collection : {})
-  };
-  next.minorBuffs = {
-    ...createPlayer().minorBuffs,
-    ...(player && player.minorBuffs ? player.minorBuffs : {})
-  };
-  next.minorBuffOptions = Array.isArray(player && player.minorBuffOptions)
-    ? player.minorBuffOptions.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 3)
-    : [];
-  next.minorBuffSelections = Array.isArray(player && player.minorBuffSelections)
-    ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 2)
-    : [];
-  next.minorBuffBreakthroughMode = Boolean(player && player.minorBuffBreakthroughMode);
-  next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
-  next.runModeOptions = Array.isArray(player && player.runModeOptions)
-    ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)
-    : [];
-  next.digPathOptions = {
-    ...(player && player.digPathOptions ? player.digPathOptions : {})
-  };
-  next.tempEffects = Array.isArray(player && player.tempEffects)
-    ? player.tempEffects.map((effect) => ({ ...effect }))
-    : [];
-  next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
-  next.pendingNextRunTraits = Array.isArray(player && player.pendingNextRunTraits)
-    ? player.pendingNextRunTraits.filter((mode) => CONFIG.runModes[mode]).slice(0, 10)
-    : [];
-  next.bestRecordTimestamps = Array.isArray(player && player.bestRecordTimestamps)
-    ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
-    : [];
-  Object.assign(next, normalizeFunState(player || {}));
-  next.traitState = normalizeTraitState(player && player.traitState);
-  next.stats = {
-    ...createPlayer().stats,
-    ...(player && player.stats ? player.stats : {})
-  };
-  return next;
-}
+const economySystem = require("./economySystem");
+const {
+  BAG_CAPACITY,
+  CHICKEN_TRAIT_IDS,
+  DAMAGE_PER_HIT,
+  ITEM_STACK_SIZE,
+  STACKABLE_ITEM_KEYS,
+  createPlayer,
+  getPlayer
+} = require("./playerState");
 
 function rollWeighted(weights, random = Math.random) {
   const entries = Object.entries(weights).filter(([, weight]) => weight > 0);
@@ -258,10 +107,7 @@ function addItemReward(player, key, amount) {
   return gained;
 }
 
-function getTotalAsset(playerInput) {
-  const player = getPlayer(playerInput);
-  return Math.max(0, (player.gold || 0) + (player.bankGold || 0));
-}
+const getTotalAsset = economySystem.getTotalAsset;
 
 function migratePreUpdateDeepPlayer(playerInput) {
   const player = getPlayer(playerInput);
@@ -277,18 +123,8 @@ function migratePreUpdateDeepPlayer(playerInput) {
   return player;
 }
 
-function payFromTotalAsset(player, amount) {
-  const cost = Math.max(0, Math.floor(amount));
-  const fromGold = Math.min(player.gold, cost);
-  player.gold -= fromGold;
-  const rest = cost - fromGold;
-  player.bankGold = Math.max(0, player.bankGold - rest);
-  return cost;
-}
-
-function getElevatorCost(playerInput) {
-  return Math.floor(getTotalAsset(playerInput) * 0.1);
-}
+const payFromTotalAsset = economySystem.payFromTotalAsset;
+const getElevatorCost = economySystem.getElevatorCost;
 
 function getAreaLabel(playerInput) {
   const player = getPlayer(playerInput);
@@ -711,114 +547,12 @@ function getCaveLabel(playerInput) {
   return "尚未進洞";
 }
 
-function canUseBank(playerInput) {
-  const player = getPlayer(playerInput);
-  return !isInMine(player) || player.zone === "undergroundCamp";
-}
-
-function formatBankMessage(playerInput, actionMessage = "") {
-  const player = getPlayer(playerInput);
-  const title = player.zone === "undergroundCamp" ? "【地底營地】" : "【銀行】";
-  const lines = [
-    title,
-    "",
-    "🏦 銀行",
-    `目前餘額：${player.bankGold}`,
-    `身上金幣：${player.gold}`,
-    `總資產：${getTotalAsset(player)}`
-  ];
-  if (actionMessage) lines.unshift(actionMessage, "");
-  return lines.join("\n");
-}
-
-function depositBank(playerInput) {
-  const player = getPlayer(playerInput);
-
-  if (!canUseBank(player)) {
-    return {
-      ok: false,
-      player,
-      message: "銀行只能在地表或地底營地使用。"
-    };
-  }
-
-  if (player.gold <= 0) {
-    return {
-      ok: false,
-      player,
-      message: formatBankMessage(player, "身上沒有金幣可以存入銀行。")
-    };
-  }
-
-  const amount = player.gold;
-  player.gold = 0;
-  player.bankGold += amount;
-
-  return {
-    ok: true,
-    player,
-    message: formatBankMessage(player, `已存入 ${amount} 金幣。銀行金幣死亡不會噴。`)
-  };
-}
-
-function withdrawBank(playerInput) {
-  const player = getPlayer(playerInput);
-
-  if (!canUseBank(player)) {
-    return {
-      ok: false,
-      player,
-      message: "銀行只能在地表或地底營地使用。"
-    };
-  }
-
-  if (player.bankGold <= 0) {
-    return {
-      ok: false,
-      player,
-      message: formatBankMessage(player, "銀行目前沒有金幣可以領出。")
-    };
-  }
-
-  const amount = player.bankGold;
-  player.bankGold = 0;
-  player.gold += amount;
-
-  return {
-    ok: true,
-    player,
-    message: formatBankMessage(player, `已領出 ${amount} 金幣。領出後如果死亡，身上金幣會照常損失。`)
-  };
-}
-
-function travelToUndergroundCamp(playerInput, now = Date.now()) {
-  const player = getPlayer(playerInput);
-  if (!player.undergroundCampUnlocked) {
-    return { ok: false, player, message: "你尚未解鎖地底營地。" };
-  }
-  if (isInMine(player)) {
-    return { ok: false, player, message: "只有在地表可以搭電梯前往地底營地。" };
-  }
-  const cost = getElevatorCost(player);
-  if (cost <= 0) return { ok: false, player, message: "付費電梯偵測不到資產，暫時無法啟動。" };
-  payFromTotalAsset(player, cost);
-  player.zone = "undergroundCamp";
-  player.depth = CONFIG.mining.lavaDepth;
-  player.lastElevatorAt = now;
-  return { ok: true, player, message: `已支付 ${cost} 金幣搭乘電梯抵達地底營地。` };
-}
-
-function openUndergroundInn(playerInput) {
-  const player = getPlayer(playerInput);
-  if (player.zone !== "undergroundCamp") {
-    return { ok: false, player, message: "地底客棧只能在地底營地使用。" };
-  }
-  return {
-    ok: true,
-    player,
-    message: "【地底客棧】\n顛倒礦石與顛倒寶石的兌換功能即將開放。\n敬請期待。"
-  };
-}
+const depositBank = (playerInput) => economySystem.depositBank(playerInput, isInMine);
+const withdrawBank = (playerInput) => economySystem.withdrawBank(playerInput, isInMine);
+const travelToUndergroundCamp = (playerInput, now = Date.now()) => (
+  economySystem.travelToUndergroundCamp(playerInput, isInMine, now)
+);
+const openUndergroundInn = economySystem.openUndergroundInn;
 
 function chooseRunMode(playerInput, mode, random = null) {
   const player = getPlayer(playerInput);
