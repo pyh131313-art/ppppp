@@ -914,7 +914,7 @@ async function handleMiningButton(interaction) {
   const players = await loadPlayers();
   const panelPlayer = getPlayer(players[panelTargetUserId]);
   const panelMessageId = interaction.message && interaction.message.id ? interaction.message.id : "";
-  if (panelPlayer.activeMinePanelMessageId && panelMessageId && panelPlayer.activeMinePanelMessageId !== panelMessageId) {
+  if (!isRescueButton && panelPlayer.activeMinePanelMessageId && panelMessageId && panelPlayer.activeMinePanelMessageId !== panelMessageId) {
     await interaction.reply({
       content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。",
       ephemeral: true
