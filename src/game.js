@@ -2386,7 +2386,14 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       const lost = Math.min(player.gold, Math.ceil(player.gold * 0.12));
       player.gold -= lost;
       const gained = addItemReward(player, eventId === "sky_light_crack" ? "orichalcum" : "invertedGem", eventId === "sky_light_crack" ? 1 : 2);
-      return { ok: true, player, title: event.title, message: `你衝進反轉亂流，上升 3 層，獲得 ${gained} 個反轉資源，但失去 ${lost} 金幣。` };
+      const extremeMessages = {
+        reverse_gravity_vein: `你跳進反重力礦脈，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
+        sky_light_crack: `你鑽進天光裂縫，上升 3 層，獲得 ${gained} 塊奧利哈鋼，但失去 ${lost} 金幣。`,
+        inverted_merchant: `你強行交易失控，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
+        broken_sky_stone: `你背起天空石核心，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
+        rising_turbulence: `你衝進反轉亂流，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`
+      };
+      return { ok: true, player, title: event.title, message: extremeMessages[eventId] || `你選擇極端處理，上升 3 層，獲得 ${gained} 個反轉資源，但失去 ${lost} 金幣。` };
     }
     if (eventId === "inverted_merchant") {
       return { ok: true, player, title: event.title, message: "倒置商人看了看你的顛倒礦石：兌換功能即將開放，敬請期待。" };

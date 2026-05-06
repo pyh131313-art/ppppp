@@ -804,6 +804,27 @@ test("新增事件池包含普通寶石上位與反轉事件", () => {
   assert.equal(reverseCount, 5);
 });
 
+test("反轉事件極端選項會顯示各自事件文案", () => {
+  const crack = resolveRandomEvent({
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: -12,
+    pendingEvent: "sky_light_crack"
+  }, "extreme", () => 0.5, 1000);
+  const turbulence = resolveRandomEvent({
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: -12,
+    pendingEvent: "rising_turbulence"
+  }, "extreme", () => 0.5, 1000);
+
+  assert.match(crack.message, /天光裂縫/);
+  assert.doesNotMatch(crack.message, /反轉亂流/);
+  assert.match(turbulence.message, /反轉亂流/);
+});
+
 test("寶箱可以開出下一場限定詞條與礦工帽", () => {
   const trait = resolveRandomEvent({
     ...chooseRunMode(createPlayer(), "safe").player,
