@@ -208,6 +208,82 @@ function getDigPathPrefix(playerInput, sideOrPath) {
   return path ? `${path.label}。` : "";
 }
 
+const MEMORY_EVENT_CHOICES = ["risk", "safe", "extreme"];
+const MEMORY_EVENT_OPTION_LABELS = {
+  risk: "①",
+  safe: "②",
+  extreme: "③"
+};
+
+function recordDigPathVisit(player, sideOrPath) {
+  const path = getDigPath(player, sideOrPath);
+  if (!path || !path.label) return;
+  player.digPathHistory = [
+    ...(Array.isArray(player.digPathHistory) ? player.digPathHistory : []),
+    {
+      label: path.label,
+      depth: player.depth || 0
+    }
+  ].slice(-10);
+}
+
+function rotateOrder(list, amount = 1) {
+  if (list.length <= 1) return [...list];
+  const offset = ((amount % list.length) + list.length) % list.length;
+  return [...list.slice(offset), ...list.slice(0, offset)];
+}
+
+function buildWrongMemoryOrders(correctOrder) {
+  const candidates = [
+    [...correctOrder].reverse(),
+    rotateOrder(correctOrder, 1),
+    rotateOrder(correctOrder, 2),
+    [...correctOrder.slice(1).reverse(), correctOrder[0]].filter(Boolean)
+  ];
+  const correctKey = correctOrder.join(">");
+  const unique = [];
+  const seen = new Set([correctKey]);
+  for (const order of candidates) {
+    const key = order.join(">");
+    if (order.length === correctOrder.length && !seen.has(key)) {
+      seen.add(key);
+      unique.push(order);
+    }
+  }
+  while (unique.length < 2) {
+    unique.push([...correctOrder]);
+  }
+  return unique.slice(0, 2);
+}
+
+function setupMemoryChallenge(player, event, eventId, random = Math.random) {
+  if (!event || !event.requiresPathHistory) return "";
+  const count = event.requiresPathHistory;
+  const correctOrder = (player.digPathHistory || [])
+    .slice(-count)
+    .map((entry) => entry.label);
+  if (correctOrder.length < count) return "";
+
+  const correctChoice = MEMORY_EVENT_CHOICES[Math.floor(random() * MEMORY_EVENT_CHOICES.length)] || "risk";
+  const wrongOrders = buildWrongMemoryOrders(correctOrder);
+  const options = {};
+  let wrongIndex = 0;
+  for (const choice of MEMORY_EVENT_CHOICES) {
+    options[choice] = choice === correctChoice ? correctOrder : wrongOrders[wrongIndex++];
+  }
+
+  player.memoryChallenge = {
+    eventId,
+    correctChoice,
+    options
+  };
+
+  const lines = MEMORY_EVENT_CHOICES.map((choice) => (
+    `${MEMORY_EVENT_OPTION_LABELS[choice]} ${options[choice].join(" → ")}`
+  ));
+  return `\n\n請選出前 ${count} 段礦區的正確順序：\n${lines.join("\n")}`;
+}
+
 function applyDigPathWeights(weights, playerInput, sideOrPath) {
   const path = getDigPath(playerInput, sideOrPath);
   if (!path || !path.weightMultipliers) return weights;
@@ -508,6 +584,8 @@ function resetRunState(player, random = Math.random) {
   player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
+  player.digPathHistory = [];
+  player.memoryChallenge = null;
   player.nextEventDepth = 4;
   player.eventMissCount = 0;
   player.tempEffects = [];
@@ -1295,7 +1373,8 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   else eventId = pickRandomEvent(player, random);
   player.pendingEvent = eventId;
   const event = getRandomEvent(eventId);
-  return `\n\n事件出現：${event.title}。\n${event.description}`;
+  const memoryMessage = setupMemoryChallenge(player, event, eventId, random);
+  return `\n\n事件出現：${event.title}。\n${event.description}${memoryMessage}`;
 }
 
 function addBombDamage(player, now = Date.now(), amount = 1) {
@@ -1933,6 +2012,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   player.stats.totalMines += 1;
   if (player.zone === "lavaPool") return crossLavaPool(player, random, now);
   if (player.zone === "upward") return mineUpward(player, random, now);
+  recordDigPathVisit(player, digPath);
   const mode = getMode(player);
   const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
   const repeatLayer = player.tempEffects.some((effect) => effect.id === "repeat_layer");
@@ -2316,6 +2396,69 @@ function resolveReverseEvent(player, eventId, event, choice, random = Math.rando
   return { ok: true, player, title, message: `你處理反轉事件，獲得 ${gained} 塊顛倒礦石。` };
 }
 
+function resolveMemoryEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
+  const challenge = player.memoryChallenge && player.memoryChallenge.eventId === eventId
+    ? player.memoryChallenge
+    : null;
+  player.memoryChallenge = null;
+
+  if (!challenge || !MEMORY_EVENT_CHOICES.includes(choice)) {
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: "記憶回音散掉了，你沒有得到任何東西。"
+    };
+  }
+
+  if (choice !== challenge.correctChoice) {
+    const lostGold = Math.min(player.gold || 0, Math.max(10, Math.floor((player.gold || 0) * 0.12)));
+    player.gold = Math.max(0, (player.gold || 0) - lostGold);
+    const damage = addBombDamage(player, now);
+    const correctOrder = challenge.options && challenge.options[challenge.correctChoice]
+      ? challenge.options[challenge.correctChoice].join(" → ")
+      : "未知";
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `順序錯了，機關啟動。正確順序是：${correctOrder}。\n${damage.message}失去 ${lostGold} 金幣。`
+    };
+  }
+
+  if (event.memoryReward === "ore") {
+    const amount = 3 + getDepthBonus(player.depth);
+    const reward = addOreReward(player, amount, "ore");
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `順序正確，測繪圖打開暗格。獲得 ${reward.gained} 塊${getOreName(reward.target)}。`
+    };
+  }
+
+  if (event.memoryReward === "buff") {
+    addTempEffect(player, { id: "memory_focus", remaining: 3, rewardMultiplier: 1.25 });
+    player.chargeValue = Math.min(100, (player.chargeValue || 0) + 20);
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: "順序正確，鐵門後方的礦脈共鳴。接下來 3 層收益 +25%，能量 +20。"
+    };
+  }
+
+  const gold = 80 + Math.max(0, player.depth || 0) * 4;
+  player.gold += gold;
+  onGoldGained(player);
+  return {
+    ok: true,
+    player,
+    title: event.title,
+    message: `順序正確，記憶碑吐出金砂。獲得 ${gold} 金幣。`
+  };
+}
+
 function resolveRandomEvent(playerInput, choice, random = Math.random, now = Date.now()) {
   const player = getPlayer(playerInput);
   const eventId = player.pendingEvent;
@@ -2331,6 +2474,10 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
   }
 
   player.pendingEvent = null;
+
+  if (event.requiresPathHistory) {
+    return resolveMemoryEvent(player, eventId, event, choice, random, now);
+  }
 
   if (eventId === "cracked_wall") {
     if (choice === "risk") {

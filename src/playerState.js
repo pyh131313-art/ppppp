@@ -89,6 +89,8 @@ function createPlayer() {
     pendingEvent: null,
     nextEventDepth: 4,
     eventMissCount: 0,
+    digPathHistory: [],
+    memoryChallenge: null,
     tempEffects: [],
     forcedNextResult: null,
     goldBeast: null,
@@ -172,6 +174,24 @@ function getPlayer(player) {
   next.tempEffects = Array.isArray(player && player.tempEffects)
     ? player.tempEffects.map((effect) => ({ ...effect }))
     : [];
+  next.digPathHistory = Array.isArray(player && player.digPathHistory)
+    ? player.digPathHistory
+      .filter((entry) => entry && typeof entry.label === "string" && entry.label.trim())
+      .map((entry) => ({
+        label: entry.label.trim(),
+        depth: Number.isFinite(entry.depth) ? entry.depth : 0
+      }))
+      .slice(-10)
+    : [];
+  next.memoryChallenge = player && player.memoryChallenge && typeof player.memoryChallenge === "object"
+    ? {
+      eventId: player.memoryChallenge.eventId || "",
+      correctChoice: player.memoryChallenge.correctChoice || "",
+      options: player.memoryChallenge.options && typeof player.memoryChallenge.options === "object"
+        ? { ...player.memoryChallenge.options }
+        : {}
+    }
+    : null;
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
   next.undergroundStorage = {
     ...createPlayer().undergroundStorage,

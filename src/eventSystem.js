@@ -196,6 +196,27 @@ const RANDOM_EVENTS = {
     title: "失控礦燈",
     description: "礦燈亮得刺眼，陰影裡的東西變得難辨。",
     buttons: { safe: "關掉礦燈", risk: "借光挖礦", extreme: "過載礦燈" }
+  },
+  route_memory_totem: {
+    title: "礦區記憶碑",
+    description: "石碑亮起三道刻痕，要求你排出剛才走過的礦區順序。",
+    requiresPathHistory: 3,
+    memoryReward: "gold",
+    buttons: { risk: "選①", safe: "選②", extreme: "選③" }
+  },
+  echo_survey_map: {
+    title: "回音測繪圖",
+    description: "測繪圖只記得回音，不記得文字。它要你補回前面的礦區順序。",
+    requiresPathHistory: 3,
+    memoryReward: "ore",
+    buttons: { risk: "選①", safe: "選②", extreme: "選③" }
+  },
+  old_miner_password: {
+    title: "老礦工暗號",
+    description: "一道舊鐵門要求你說出前幾段礦區的名字，順序錯了就會觸發機關。",
+    requiresPathHistory: 4,
+    memoryReward: "buff",
+    buttons: { risk: "選①", safe: "選②", extreme: "選③" }
   }
 };
 
@@ -337,6 +358,7 @@ function canEventAppear(event, player) {
   if (event.caveType && player.caveType !== event.caveType) return false;
   if (event.reverseOnly && player.zone !== "upward") return false;
   if (event.highTier && !player.highTierEligible) return false;
+  if (event.requiresPathHistory && (!Array.isArray(player.digPathHistory) || player.digPathHistory.length < event.requiresPathHistory)) return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.caveType === "gem") return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.zone === "upward") return false;
   if (!event.requiresGem) return true;

@@ -334,6 +334,53 @@ test("事件選項會清除事件並套用結果", () => {
   assert.equal(result.player.ore, 2);
 });
 
+test("礦區記憶事件只會在有足夠路線紀錄時出現", () => {
+  const player = chooseRunMode(createPlayer(), "safe").player;
+  assert.equal(
+    pickRandomEvent(player, () => 0, (id) => id === "route_memory_totem"),
+    undefined
+  );
+
+  player.digPathHistory = [
+    { label: "穩固石壁", depth: 1 },
+    { label: "貪婪金脈", depth: 2 },
+    { label: "炸裂裂縫", depth: 3 }
+  ];
+  assert.equal(
+    pickRandomEvent(player, () => 0, (id) => id === "route_memory_totem"),
+    "route_memory_totem"
+  );
+});
+
+test("礦區記憶事件排對給獎勵，排錯會受罰", () => {
+  const base = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "route_memory_totem",
+    depth: 10,
+    gold: 100,
+    memoryChallenge: {
+      eventId: "route_memory_totem",
+      correctChoice: "safe",
+      options: {
+        risk: ["炸裂裂縫", "貪婪金脈", "穩固石壁"],
+        safe: ["穩固石壁", "貪婪金脈", "炸裂裂縫"],
+        extreme: ["貪婪金脈", "炸裂裂縫", "穩固石壁"]
+      }
+    }
+  };
+
+  const correct = resolveRandomEvent(base, "safe", () => 0);
+  assert.equal(correct.ok, true);
+  assert.equal(correct.player.pendingEvent, null);
+  assert.equal(correct.player.memoryChallenge, null);
+  assert.equal(correct.player.gold, 220);
+
+  const wrong = resolveRandomEvent(base, "risk", () => 0);
+  assert.equal(wrong.ok, true);
+  assert.equal(wrong.player.gold, 88);
+  assert.equal(wrong.player.bombs, 0.5);
+});
+
 test("遺失的背包可以本次擴大包包容量", () => {
   const result = resolveRandomEvent(
     { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_backpack" },
