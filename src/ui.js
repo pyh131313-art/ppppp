@@ -918,7 +918,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   return rows;
 }
 
-function buildShopComponents(progressInput = {}, playerInput = null) {
+function buildShopComponents(progressInput = {}, playerInput = null, targetUserId = null) {
   const player = getPlayer(playerInput);
   const progress = {
     healingPotionUnlocked: false,
@@ -957,7 +957,7 @@ function buildShopComponents(progressInput = {}, playerInput = null) {
     ));
   }
   rows.push(new ActionRowBuilder().addComponents(
-    makeButton(CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
+    makeButton(targetUserId ? `${CUSTOM_IDS.shopExit}:${targetUserId}` : CUSTOM_IDS.shopExit, "返回礦場", ButtonStyle.Secondary, "↩️")
   ));
   return rows;
 }

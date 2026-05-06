@@ -60,6 +60,7 @@ function createPlayer() {
     orichalcum: 0,
     platinumJunk: 0,
     uiMode: "full",
+    activeMinePanelMessageId: "",
     runMode: null,
     runModeOptions: [],
     digPathOptions: {},

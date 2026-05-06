@@ -114,7 +114,7 @@ function parseAmountInput(input) {
   return value;
 }
 
-function buildAmountInputModal(action, targetUserId, issuerId) {
+function buildAmountInputModal(action, targetUserId, issuerId, panelMessageId = "") {
   const [title, label, placeholder] = action === "deposit"
     ? ["存入金幣", "存入多少金幣", "輸入要存入的金幣（不填即視為全部）"]
     : action === "withdraw"
@@ -122,7 +122,7 @@ function buildAmountInputModal(action, targetUserId, issuerId) {
       : ["鑄造紀念幣", "鑄造數量", "輸入要鑄造的數量"];
 
   const modal = new ModalBuilder()
-    .setCustomId(`${BANK_MODAL_PREFIX}:${action}:${targetUserId}:${issuerId}`)
+    .setCustomId(`${BANK_MODAL_PREFIX}:${action}:${targetUserId}:${issuerId}:${panelMessageId || "none"}`)
     .setTitle(title);
   const input = new TextInputBuilder()
     .setCustomId("amount")
@@ -195,9 +195,21 @@ function makeReply(title, body) {
 }
 
 async function handleBankModalSubmit(interaction) {
-  const [, , action, targetUserId, issuerId] = interaction.customId.split(":");
+  const [, , action, targetUserId, issuerId, panelMessageId] = interaction.customId.split(":");
   if (interaction.user.id !== issuerId) {
     await interaction.reply({ content: "只有發起按鈕的玩家可以送出這筆數值。", ephemeral: true });
+    return;
+  }
+
+  const beforePlayers = await loadPlayers();
+  const beforePlayer = getPlayer(beforePlayers[targetUserId]);
+  if (
+    beforePlayer.activeMinePanelMessageId
+    && panelMessageId
+    && panelMessageId !== "none"
+    && beforePlayer.activeMinePanelMessageId !== panelMessageId
+  ) {
+    await interaction.reply({ content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。", ephemeral: true });
     return;
   }
 
@@ -250,7 +262,7 @@ async function handleBankModalSubmit(interaction) {
     ? buildShopEmbed(player, result.message, progress)
     : buildPanelEmbed(player, title, result.message, interaction.user, currentPage);
   const components = action === "exchange"
-    ? buildShopComponents(progress, player)
+    ? buildShopComponents(progress, player, targetUserId)
     : buildBankComponents(targetUserId);
   try {
     if (interaction.message && interaction.message.edit && interaction.message.editable) {
@@ -338,6 +350,10 @@ function getPanelTargetUserId(interaction) {
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
       }
       if (customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`) || customId.startsWith(`${CUSTOM_IDS.bankWithdraw}:`)) {
+        const targetUserId = customId.split(":")[2];
+        return targetUserId && targetUserId !== "none" ? targetUserId : null;
+      }
+      if (customId.startsWith(`${CUSTOM_IDS.shopExit}:`)) {
         const targetUserId = customId.split(":")[2];
         return targetUserId && targetUserId !== "none" ? targetUserId : null;
       }
@@ -432,6 +448,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
         files: buildHudFiles(player),
         components: buildPanelComponents(interaction.user.id, player, progress)
+      });
+      const reply = await interaction.fetchReply();
+      await updatePlayer(interaction.user.id, (current) => {
+        const next = getPlayer(current);
+        next.activeMinePanelMessageId = reply.id;
+        return next;
       });
       return;
     }
@@ -732,6 +754,17 @@ async function handleMiningButton(interaction) {
     return;
   }
 
+  const players = await loadPlayers();
+  const panelPlayer = getPlayer(players[panelTargetUserId]);
+  const panelMessageId = interaction.message && interaction.message.id ? interaction.message.id : "";
+  if (panelPlayer.activeMinePanelMessageId && panelMessageId && panelPlayer.activeMinePanelMessageId !== panelMessageId) {
+    await interaction.reply({
+      content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。",
+      ephemeral: true
+    });
+    return;
+  }
+
   const openAmountModal = interaction.customId === CUSTOM_IDS.bankDeposit
     || interaction.customId.startsWith(`${CUSTOM_IDS.bankDeposit}:`)
     || interaction.customId === CUSTOM_IDS.bankWithdraw
@@ -746,7 +779,8 @@ async function handleMiningButton(interaction) {
           ? "withdraw"
           : "exchange",
       panelTargetUserId,
-      interaction.user.id
+      interaction.user.id,
+      panelMessageId
     ));
     return;
   }
@@ -934,7 +968,7 @@ async function handleMiningButton(interaction) {
       embeds: [embed],
       files,
       attachments: [],
-      components: buildShopComponents(progress, player)
+      components: buildShopComponents(progress, player, panelTargetUserId)
     });
     return;
   }
@@ -953,7 +987,7 @@ async function handleMiningButton(interaction) {
     return;
   }
 
-  if (interaction.customId === CUSTOM_IDS.shopExit) {
+  if (interaction.customId === CUSTOM_IDS.shopExit || interaction.customId.startsWith(`${CUSTOM_IDS.shopExit}:`)) {
     const progress = getProgressWithGlobal(await loadPlayers());
     const player = await updatePlayer(panelTargetUserId, (current) => getPlayer(current));
     componentPlayer = player;
@@ -991,7 +1025,7 @@ async function handleMiningButton(interaction) {
       embeds: [embed],
       files,
       attachments: [],
-      components: buildShopComponents(shopProgress, componentPlayer)
+      components: buildShopComponents(shopProgress, componentPlayer, panelTargetUserId)
     });
     return;
   }
@@ -1010,7 +1044,7 @@ async function handleMiningButton(interaction) {
       embeds: [embed],
       files,
       attachments: [],
-      components: buildShopComponents(progress, componentPlayer)
+      components: buildShopComponents(progress, componentPlayer, panelTargetUserId)
     });
     return;
   }
@@ -1036,7 +1070,7 @@ async function handleMiningButton(interaction) {
       embeds: [embed],
       files,
       attachments: [],
-      components: buildShopComponents(shopProgress, componentPlayer)
+      components: buildShopComponents(shopProgress, componentPlayer, panelTargetUserId)
     });
     return;
   }
