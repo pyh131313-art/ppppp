@@ -301,6 +301,42 @@ function clearTrade(tradeId) {
   activeTrades.delete(tradeId);
 }
 
+function cleanupExpiredTrades() {
+  for (const trade of [...activeTrades.values()]) {
+    if (Date.now() > trade.expiresAt) clearTrade(trade.id);
+  }
+}
+
+function hasActiveTradeForUsers(...userIds) {
+  const ids = new Set(userIds.filter(Boolean));
+  return [...activeTrades.values()].some((trade) => (
+    ids.has(trade.fromId) || ids.has(trade.toId)
+  ));
+}
+
+function createPendingTrade(trade) {
+  const tradeId = `${Date.now()}_${trade.fromId}_${trade.toId}`;
+  const timer = setTimeout(() => clearTrade(tradeId), 60_000);
+  const pending = {
+    id: tradeId,
+    ...trade,
+    expiresAt: Date.now() + 60_000,
+    timer
+  };
+  activeTrades.set(tradeId, pending);
+  return pending;
+}
+
+function describeTradeRequest(trade, fromMention, toMention) {
+  if (trade.kind === "healingPotion") {
+    return `${fromMention} 想給 ${toMention} 治療藥水 x${trade.amount}`;
+  }
+  const parts = [];
+  if (trade.itemId && trade.amount > 0) parts.push(`紀念幣 x${trade.amount}`);
+  if (trade.gold > 0) parts.push(`${trade.gold} 金幣`);
+  return `${fromMention} 想給 ${toMention} ${parts.join("、")}`;
+}
+
 function getGlobalBestDepth(players) {
   return Object.values(players).reduce((best, player) => {
     const normalized = getPlayer(player);
@@ -418,14 +454,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       const result = await updatePlayers((players) => {
-        const transfer = transferHealingPotion(players[trade.fromId], players[trade.toId], trade.amount);
+        const transfer = trade.kind === "healingPotion"
+          ? transferHealingPotion(players[trade.fromId], players[trade.toId], trade.amount)
+          : transferCollectible(players[trade.fromId], players[trade.toId], trade.itemId, trade.amount, trade.gold);
         players[trade.fromId] = transfer.from;
         players[trade.toId] = transfer.to;
         return transfer;
       });
       clearTrade(tradeId);
       await interaction.update({
-        content: result.ok ? `交易完成：<@${trade.fromId}> 給 <@${trade.toId}> 治療藥水 x${trade.amount}。` : `交易失敗：${result.message}`,
+        content: result.ok ? `交易完成：<@${trade.fromId}> 給 <@${trade.toId}> ${trade.summary}。` : `交易失敗：${result.message}`,
         components: []
       });
       return;
@@ -600,6 +638,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
+      cleanupExpiredTrades();
+      if (hasActiveTradeForUsers(interaction.user.id, target.id)) {
+        await interaction.reply({ content: "你或對方已有進行中的交易，請先完成或等待逾時。", ephemeral: true });
+        return;
+      }
+
       if (itemId === "healingPotion") {
         if (gold > 0) {
           await interaction.reply({ content: "治療藥水交易請勿同時指定金幣。", ephemeral: true });
@@ -609,37 +653,56 @@ client.on(Events.InteractionCreate, async (interaction) => {
           await interaction.reply({ content: "交易數量必須大於 0。", ephemeral: true });
           return;
         }
-        for (const trade of [...activeTrades.values()]) {
-          if (Date.now() > trade.expiresAt) clearTrade(trade.id);
-        }
-        const duplicate = [...activeTrades.values()].some((trade) => (
-          trade.fromId === interaction.user.id
-          || trade.toId === interaction.user.id
-          || trade.fromId === target.id
-          || trade.toId === target.id
-        ));
-        if (duplicate) {
-          await interaction.reply({ content: "你或對方已有進行中的交易，請先完成或等待逾時。", ephemeral: true });
-          return;
-        }
         const sender = getPlayer((await loadPlayers())[interaction.user.id]);
         if (sender.healingPotion < amount) {
           await interaction.reply({ content: `你的治療藥水不足，目前只有 ${sender.healingPotion} 瓶。`, ephemeral: true });
           return;
         }
-        const tradeId = `${Date.now()}_${interaction.user.id}_${target.id}`;
-        const timer = setTimeout(() => clearTrade(tradeId), 60_000);
-        activeTrades.set(tradeId, {
-          id: tradeId,
+        const pending = createPendingTrade({
+          kind: "healingPotion",
           fromId: interaction.user.id,
           toId: target.id,
           amount,
-          expiresAt: Date.now() + 60_000,
-          timer
+          itemId: null,
+          gold: 0,
+          summary: `治療藥水 x${amount}`
         });
         await interaction.reply({
-          content: `**交易請求**\n${interaction.user} 想給 ${target} 治療藥水 x${amount}\n60 秒內有效。`,
-          components: makeTradeComponents(tradeId)
+          content: `**交易請求**\n${describeTradeRequest(pending, interaction.user, target)}\n60 秒內有效。`,
+          components: makeTradeComponents(pending.id)
+        });
+        return;
+      }
+
+      const players = await loadPlayers();
+      const validation = transferCollectible(
+        players[interaction.user.id],
+        players[target.id],
+        itemId,
+        itemId ? amount : 0,
+        gold
+      );
+      if (!validation.ok) {
+        await interaction.reply({ content: validation.message, ephemeral: true });
+        return;
+      }
+
+      if (gold > 0) {
+        const summaryParts = [];
+        if (itemId && amount > 0) summaryParts.push(`紀念幣 x${amount}`);
+        summaryParts.push(`${gold} 金幣`);
+        const pending = createPendingTrade({
+          kind: "collectible",
+          fromId: interaction.user.id,
+          toId: target.id,
+          itemId,
+          amount: itemId ? amount : 0,
+          gold,
+          summary: summaryParts.join("、")
+        });
+        await interaction.reply({
+          content: `**交易請求**\n${describeTradeRequest(pending, interaction.user, target)}\n對方接受後才會扣除金幣。\n60 秒內有效。`,
+          components: makeTradeComponents(pending.id)
         });
         return;
       }
