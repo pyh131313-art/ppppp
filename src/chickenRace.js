@@ -107,7 +107,8 @@ function parseRaceCustomId(customId) {
 function isCurrentRaceComponent(race, customId) {
   const parsed = parseRaceCustomId(customId);
   if (!parsed || !race) return false;
-  return !parsed.raceId || parsed.raceId === race.id;
+  if (!parsed.raceId) return false;
+  return parsed.raceId === race.id;
 }
 
 function resetRaceState(scopeKey = null) {

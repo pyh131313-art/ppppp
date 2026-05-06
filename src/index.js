@@ -96,10 +96,15 @@ function clearRaceTimers(race) {
 
 async function editRaceMessage(race, message = "") {
   if (!race || !race.message) return;
-  await race.message.edit({
-    embeds: [buildRaceEmbed(race, message)],
-    components: buildRaceComponents(race)
-  });
+  try {
+    await race.message.edit({
+      embeds: [buildRaceEmbed(race, message)],
+      components: buildRaceComponents(race)
+    });
+  } catch (error) {
+    race.message = null;
+    console.error("賽雞面板更新失敗，流程會繼續避免卡住：", error);
+  }
 }
 
 function scheduleRaceBettingEnd(race) {
@@ -731,19 +736,31 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.shopBuyOne) {
+    let shopProgress = null;
     await updatePlayers((players) => {
       const progress = getProgressWithGlobal(players);
       const shopItem = getShopItems()[0];
       const result = shopItem
         ? buyShopItem(players[panelTargetUserId], shopItem.id, 1, progress)
         : { player: getPlayer(players[panelTargetUserId]), message: "商店目前沒有商品。" };
+      const nextProgress = result.globalState
+        ? { ...progress, globalState: result.globalState }
+        : progress;
+      shopProgress = nextProgress;
       componentPlayer = result.player;
-      embed = buildShopEmbed(result.player, result.message, progress);
+      embed = buildShopEmbed(result.player, result.message, nextProgress);
       files = buildHudFiles(result.player);
       players[panelTargetUserId] = result.player;
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
       return players;
     });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(shopProgress, componentPlayer)
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.shopShimmer) {
@@ -767,16 +784,28 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.shopBuyPotion || interaction.customId === CUSTOM_IDS.shopBuyTotem) {
     const itemId = interaction.customId === CUSTOM_IDS.shopBuyPotion ? "healingPotion" : "undyingTotem";
+    let shopProgress = null;
     await updatePlayers((players) => {
       const progress = getProgressWithGlobal(players);
       const result = buyShopItem(players[panelTargetUserId], itemId, 1, progress);
+      const nextProgress = result.globalState
+        ? { ...progress, globalState: result.globalState }
+        : progress;
+      shopProgress = nextProgress;
       componentPlayer = result.player;
-      embed = buildShopEmbed(result.player, result.message, progress);
+      embed = buildShopEmbed(result.player, result.message, nextProgress);
       files = buildHudFiles(result.player);
       players[panelTargetUserId] = result.player;
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
       return players;
     });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildShopComponents(shopProgress, componentPlayer)
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.drinkPotion) {

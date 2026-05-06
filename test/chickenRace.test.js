@@ -132,6 +132,7 @@ test("賽雞按鈕會綁定 raceId 避免舊面板干擾", () => {
 
   assert.equal(ids.every((id) => id.includes(":8000")), true);
   assert.equal(isCurrentRaceComponent(race, ids[0]), true);
+  assert.equal(isCurrentRaceComponent(race, `chicken_race:bet:normal:${race.selectedChickens[0].id}`), false);
   assert.equal(isCurrentRaceComponent(race, ids[0].replace(":8000:", ":old:")), false);
   assert.deepEqual(parseRaceCustomId(ids[0]), {
     action: "bet",
