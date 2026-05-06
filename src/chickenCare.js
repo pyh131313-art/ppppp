@@ -159,6 +159,42 @@ const EVOLUTION_TYPES = {
     weak: true,
     mature: { minLevel: 6, minWins: 0, minPoints: 8 },
     complete: { minLevel: 16, minWins: 5, minPoints: 22 }
+  },
+  mineCrystal: {
+    name: "礦晶雞",
+    icon: "🐔💎",
+    activeSkill: "crystalPeck",
+    passiveSkill: "mineSense",
+    title: "礦晶尋路者",
+    entryEffect: "💎 牠的羽毛像礦脈一樣閃光。",
+    pointKey: "mine",
+    special: true,
+    mature: { minLevel: 6, minWins: 2, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 10, minPoints: 14 }
+  },
+  rustFeather: {
+    name: "鏽羽雞",
+    icon: "🐓🟧",
+    activeSkill: "rustScratch",
+    passiveSkill: "oldMineMemory",
+    title: "古礦鏽羽",
+    entryEffect: "🟧 鏽色羽毛擦過地面，留下細碎火星。",
+    pointKey: "mine",
+    special: true,
+    mature: { minLevel: 6, minWins: 1, minPoints: 5 },
+    complete: { minLevel: 16, minWins: 8, minPoints: 15 }
+  },
+  abyssEcho: {
+    name: "深鳴雞",
+    icon: "🐓🌌",
+    activeSkill: "abyssCry",
+    passiveSkill: "deepEcho",
+    title: "深層回音",
+    entryEffect: "🌌 牠一叫，賽道像礦坑一樣回音不斷。",
+    pointKey: "mine",
+    special: true,
+    mature: { minLevel: 6, minWins: 3, minPoints: 5 },
+    complete: { minLevel: 16, minWins: 12, minPoints: 16 }
   }
 };
 
@@ -186,7 +222,13 @@ const CHICKEN_SKILLS = {
   boxHide: { name: "紙箱躲避", text: "偶爾躲過干擾" },
   paperWing: { name: "紙翅膀", text: "衝刺不穩定" },
   wrongWay: { name: "跑錯邊", text: "可能爆笑失速" },
-  lostAgain: { name: "又迷路", text: "路線波動更大" }
+  lostAgain: { name: "又迷路", text: "路線波動更大" },
+  crystalPeck: { name: "礦晶啄擊", text: "挖到節奏時會爆衝" },
+  mineSense: { name: "礦脈感知", text: "賽道事件更容易吃到好結果" },
+  rustScratch: { name: "鏽羽刮擊", text: "干擾時有額外拖慢" },
+  oldMineMemory: { name: "老礦記憶", text: "中後段更穩" },
+  abyssCry: { name: "深鳴", text: "落後時大幅追趕" },
+  deepEcho: { name: "深層回音", text: "後段爆發更強" }
 };
 
 const BOSS_CHICKENS = [
@@ -316,6 +358,46 @@ function makeOwnedChicken(random = Math.random) {
   };
 }
 
+function makeWildMineChicken(depth = 1, random = Math.random) {
+  const specialTypes = Object.entries(EVOLUTION_TYPES)
+    .filter(([, type]) => type.special)
+    .map(([id]) => id);
+  const evolutionType = specialTypes[Math.floor(random() * specialTypes.length)] || "mineCrystal";
+  const evolution = EVOLUTION_TYPES[evolutionType];
+  const personalityIds = ["steady", "veteran", "chosen", "sneaky", "gambler"];
+  const personality = getPersonality(personalityIds[Math.floor(random() * personalityIds.length)] || "steady");
+  const depthBonus = Math.min(5, Math.floor(Math.max(0, depth || 0) / 20));
+  const rollStat = () => clampStat(7 + depthBonus + Math.floor(random() * 6));
+  const chicken = {
+    id: `mine-${Date.now()}-${Math.floor(random() * 100000)}`,
+    name: ["礦坑小咕", "晶羽", "鏽鏽", "深層咕", "岩壁跑者"][Math.floor(random() * 5)] || "礦坑小咕",
+    icon: evolution.icon,
+    personalityId: personality.id,
+    level: 1,
+    exp: 0,
+    speed: clampStat(rollStat() + personality.speed),
+    sprint: clampStat(rollStat() + personality.sprint),
+    stability: clampStat(rollStat() + personality.stability),
+    stamina: clampStat(rollStat() + personality.stamina),
+    wins: 0,
+    races: 0,
+    highestComeback: 0,
+    currentWinStreak: 0,
+    longestWinStreak: 0,
+    bossWins: 0,
+    evolutionPoints: createEvolutionPoints({ [evolution.pointKey]: 6 + depthBonus }),
+    evolutionType,
+    activeSkill: evolution.activeSkill,
+    passiveSkill: evolution.passiveSkill,
+    titles: ["礦坑邂逅"],
+    frame: "",
+    entryEffect: "⛏️ 牠是在礦洞裡被你抓到的特殊雞。",
+    levelUpOptions: [],
+    origin: "mine"
+  };
+  return normalizeChickenMeta(chicken);
+}
+
 function normalizeOwnedChicken(input) {
   if (!input || typeof input !== "object") return null;
   const personality = getPersonality(input.personalityId);
@@ -345,7 +427,8 @@ function normalizeOwnedChicken(input) {
     passiveSkill: CHICKEN_SKILLS[input.passiveSkill] ? input.passiveSkill : null,
     titles: normalizeChickenArray(input.titles),
     frame: typeof input.frame === "string" ? input.frame : "",
-    entryEffect: typeof input.entryEffect === "string" ? input.entryEffect : ""
+    entryEffect: typeof input.entryEffect === "string" ? input.entryEffect : "",
+    origin: typeof input.origin === "string" ? input.origin : ""
   });
 }
 
@@ -701,6 +784,9 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (chicken.passiveSkill === "sparkFeather" && random() < 0.12) step += 1.6;
   if (chicken.passiveSkill === "winnerAura" && chicken.currentWinStreak >= 2) step += 0.45;
   if (chicken.passiveSkill === "clearMind" && ["體力耗盡", "干擾"].includes(event)) step += 0.55;
+  if (chicken.passiveSkill === "mineSense" && ["衝刺", "終點爆衝", "逆轉"].includes(event)) step += 0.7;
+  if (chicken.passiveSkill === "oldMineMemory" && progress > 0.45) step += 0.45;
+  if (chicken.passiveSkill === "deepEcho" && progress > 0.6) step += 0.75;
   if (event === "衝刺") step += chicken.sprint * 0.18;
   if (event === "體力耗盡") step -= Math.max(0, 2.2 - chicken.stamina * 0.16);
   if (event === "終點爆衝" && progress > 0.65) step += chicken.sprint * 0.25;
@@ -713,6 +799,8 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (event === "跌倒" && chicken.activeSkill === "mudRoll") step += 0.8;
   if (event === "干擾" && chicken.activeSkill === "shadowSlip") step += 0.8;
   if (event === "衝刺" && chicken.activeSkill === "wrongWay" && random() < 0.25) step -= 2.2;
+  if (event === "衝刺" && chicken.activeSkill === "crystalPeck" && random() < 0.28) step += 2;
+  if (event === "逆轉" && chicken.activeSkill === "abyssCry") step += 1.8;
   return Math.max(0, step);
 }
 
@@ -745,6 +833,7 @@ function applyPkEvent(left, right, event, random = Math.random) {
       + (target.chicken.passiveSkill === "sneakyPeck" ? 0.12 : 0);
     if (random() < 0.45 + sneakyBonus) {
       other.position -= target.chicken.activeSkill === "disruptCrow" ? 2.4 : 1.6;
+      if (target.chicken.activeSkill === "rustScratch") other.position -= 0.8;
       addBattlePoint(target, "trickster", 2);
       addBattlePoint(target, "shadow", 1);
       message = `😈 ${target.chicken.icon || "🐔"} 干擾了對手！`;
@@ -1071,6 +1160,7 @@ module.exports = {
   isChickenPkComponent,
   isChickenPanelComponent,
   isChickenUpgradeComponent,
+  makeWildMineChicken,
   normalizeOwnedChicken,
   renameChicken,
   roastOwnedChicken,

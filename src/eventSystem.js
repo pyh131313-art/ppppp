@@ -217,6 +217,11 @@ const RANDOM_EVENTS = {
     requiresPathHistory: 4,
     memoryReward: "buff",
     buttons: { risk: "選①", safe: "選②", extreme: "選③" }
+  },
+  wild_mine_chicken: {
+    title: "礦洞裡的特殊雞",
+    description: "一隻羽毛沾著礦光的雞躲在岩縫旁。牠可能很強，也可能一轉身就跑掉。",
+    buttons: { safe: "放牠離開", risk: "烤掉原雞捕捉", extreme: "徒手硬抓" }
   }
 };
 

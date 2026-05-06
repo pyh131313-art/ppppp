@@ -52,6 +52,7 @@ const {
   createPlayer,
   getPlayer
 } = require("./playerState");
+const { makeWildMineChicken } = require("./chickenCare");
 
 function rollWeighted(weights, random = Math.random) {
   const entries = Object.entries(weights).filter(([, weight]) => weight > 0);
@@ -2883,6 +2884,72 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       player,
       title: event.title,
       message: `你先摸了摸超大洞穴蟑螂的頭，再把破爛餵給牠。牠吃掉 ${eatenJunk} 個超級破爛和 ${eatenPlatinumJunk} 個白金破爛，包包空出 ${freedSlots} 格。`
+    };
+  }
+
+  if (eventId === "wild_mine_chicken") {
+    if (choice === "safe") {
+      if (player.ownedChicken) {
+        player.ownedChicken.evolutionPoints = player.ownedChicken.evolutionPoints || {};
+        player.ownedChicken.evolutionPoints.mine = (player.ownedChicken.evolutionPoints.mine || 0) + 1;
+      }
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: "你放牠離開。牠回頭叫了一聲，像是在記住你的味道。"
+      };
+    }
+
+    const hadChicken = Boolean(player.ownedChicken);
+    const oldChicken = player.ownedChicken;
+    if (choice === "extreme" && hadChicken) {
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `你想徒手硬抓，但「${oldChicken.name}」叫了一聲，特殊雞立刻鑽進岩縫。想抓牠，得先下定決心騰出位置。`
+      };
+    }
+    const depthBonus = Math.min(0.12, Math.max(0, player.depth || 0) * 0.002);
+    const successChance = choice === "risk"
+      ? (hadChicken ? 0.62 : 0.42) + depthBonus
+      : 0.32 + depthBonus;
+
+    if (choice === "risk" && hadChicken) {
+      player.ownedChicken = null;
+    }
+
+    if (random() < successChance) {
+      const wildChicken = makeWildMineChicken(player.depth, random);
+      player.ownedChicken = wildChicken;
+      const specialName = {
+        mineCrystal: "礦晶雞",
+        rustFeather: "鏽羽雞",
+        abyssEcho: "深鳴雞"
+      }[wildChicken.evolutionType] || "礦坑系特殊雞";
+      const sacrificeText = choice === "risk" && oldChicken
+        ? `你烤掉了「${oldChicken.name}」當誘餌，`
+        : "你壓低腳步靠近，";
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `${sacrificeText}成功抓到 ${wildChicken.icon}「${wildChicken.name}」。\n牠是礦坑特殊雞，數值偏高，未來可能進化成 ${specialName}。`
+      };
+    }
+
+    const damageText = choice === "extreme" && random() < 0.45
+      ? `\n牠逃跑時踢落碎石，${addBombDamage(player, now).message}`
+      : "";
+    const lostText = choice === "risk" && oldChicken
+      ? `你烤掉了「${oldChicken.name}」，但特殊雞沒有上鉤。你現在沒有自己的雞了。`
+      : "你撲了個空，特殊雞鑽進岩縫消失了。";
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `${lostText}${damageText}`
     };
   }
 

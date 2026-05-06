@@ -433,6 +433,61 @@ test("礦區記憶事件排對給獎勵，排錯會受罰", () => {
   assert.equal(wrong.player.bombs, 0.5);
 });
 
+test("礦洞特殊雞事件可以犧牲原雞捕捉特殊雞", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 25,
+    pendingEvent: "wild_mine_chicken",
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 3,
+      exp: 0,
+      speed: 5,
+      sprint: 5,
+      stability: 5,
+      stamina: 5,
+      wins: 0,
+      races: 0,
+      evolutionPoints: {}
+    }
+  };
+  const rolls = [0.1];
+  const result = resolveRandomEvent(player, "risk", () => rolls.shift() ?? 0);
+
+  assert.equal(result.ok, true);
+  assert.notEqual(result.player.ownedChicken.name, "阿咕霸王");
+  assert.equal(result.player.ownedChicken.origin, "mine");
+  assert.equal(result.player.ownedChicken.evolutionType, "mineCrystal");
+  assert.match(result.message, /成功抓到/);
+});
+
+test("礦洞特殊雞捕捉失敗會失去原本的雞", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 10,
+    pendingEvent: "wild_mine_chicken",
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 3,
+      exp: 0,
+      speed: 5,
+      sprint: 5,
+      stability: 5,
+      stamina: 5,
+      wins: 0,
+      races: 0,
+      evolutionPoints: {}
+    }
+  };
+  const result = resolveRandomEvent(player, "risk", () => 0.99);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.ownedChicken, null);
+  assert.match(result.message, /現在沒有自己的雞/);
+});
+
 test("遺失的背包可以本次擴大包包容量", () => {
   const result = resolveRandomEvent(
     { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_backpack" },

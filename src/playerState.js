@@ -24,7 +24,8 @@ const CHICKEN_EVOLUTION_POINT_KEYS = [
   "thunder",
   "shadow",
   "crystal",
-  "clumsy"
+  "clumsy",
+  "mine"
 ];
 const STACKABLE_ITEM_KEYS = new Set([
   "ore",
@@ -244,6 +245,7 @@ function getPlayer(player) {
         : [],
       frame: typeof player.ownedChicken.frame === "string" ? player.ownedChicken.frame : "",
       entryEffect: typeof player.ownedChicken.entryEffect === "string" ? player.ownedChicken.entryEffect : "",
+      origin: typeof player.ownedChicken.origin === "string" ? player.ownedChicken.origin : "",
       levelUpOptions: Array.isArray(player.ownedChicken.levelUpOptions)
         ? player.ownedChicken.levelUpOptions.filter((id) => typeof id === "string").slice(0, 3)
         : []
