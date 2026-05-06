@@ -45,16 +45,21 @@ test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
     a: ensureOwnedChicken(createPlayer(), () => 0),
     b: ensureOwnedChicken(createPlayer(), () => 0.7)
   };
+  players.a.ownedChicken.name = "超級無敵長名字";
+  players.a.ownedChicken.icon = "🐔";
+  players.b.ownedChicken.icon = "🐓";
   const created = createBattle("a", "b", players, 1000, () => 0, "guild");
 
   assert.equal(created.ok, true);
   assert.equal(createBattle("a", "b", players, 1001, () => 0, "guild").ok, false);
 
   const battle = created.battle;
-  updateBattleFrame(battle, players, 0, () => 0.5);
+  const frame = updateBattleFrame(battle, players, 0, () => 0.5);
   updateBattleFrame(battle, players, 1, () => 0.5);
   const settled = settleBattle(battle, players, () => 0.99, 2000);
 
+  assert.match(frame, /🐔/);
+  assert.doesNotMatch(frame, /超級無敵長名字/);
   assert.match(settled.message, /勝利/);
   assert.equal(settled.players.a.ownedChicken.races + settled.players.b.ownedChicken.races, 2);
   clearBattle(battle.id);

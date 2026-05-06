@@ -23,6 +23,7 @@ const PERSONALITIES = [
 ];
 
 const BASE_NAMES = ["小咕", "阿雞", "咕咕", "雞腿", "金冠", "小翅"];
+const CHICKEN_ICONS = ["🐔", "🐓", "🐤", "🦃", "🦆", "🦚", "🐧", "🪽"];
 const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
 const chickenBattleCooldowns = new Map();
@@ -41,6 +42,7 @@ function makeOwnedChicken(random = Math.random) {
   return {
     id: `${Date.now()}-${Math.floor(random() * 100000)}`,
     name: BASE_NAMES[Math.floor(random() * BASE_NAMES.length)] || "小咕",
+    icon: CHICKEN_ICONS[Math.floor(random() * CHICKEN_ICONS.length)] || "🐔",
     personalityId: personality.id,
     level: 1,
     exp: 0,
@@ -60,6 +62,7 @@ function normalizeOwnedChicken(input) {
   return {
     id: input.id || `${Date.now()}-legacy`,
     name: String(input.name || "小咕").slice(0, 12),
+    icon: CHICKEN_ICONS.includes(input.icon) ? input.icon : "🐔",
     personalityId: personality.id,
     level: Math.max(1, Math.floor(input.level || 1)),
     exp: Math.max(0, Math.floor(input.exp || 0)),
@@ -162,7 +165,7 @@ function formatOwnedChicken(playerInput) {
     ? `\n\n✨ 可升級：${chicken.levelUpOptions.map((id) => getUpgradePool().find((item) => item.id === id).label).join("｜")}`
     : "";
   return [
-    `🐔 ${chicken.name}`,
+    `${chicken.icon || "🐔"} ${chicken.name}`,
     "",
     `等級：${chicken.level}｜經驗：${chicken.exp}/${getExpToLevel(chicken)}`,
     `性格：${personality.label}`,
@@ -270,7 +273,7 @@ function applyPkEvent(left, right, event, random = Math.random) {
 
 function buildPkTrack(runner) {
   const position = Math.max(0, Math.min(PK_TRACK_LENGTH, Math.floor(runner.position)));
-  return `${"—".repeat(position)}${runner.chicken.name}${"—".repeat(PK_TRACK_LENGTH - position)}🏁`;
+  return `${"—".repeat(position)}${runner.chicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH - position)}🏁`;
 }
 
 function createBattle(challengerId, targetId, players, now = Date.now(), random = Math.random, guildId = "global") {
@@ -346,16 +349,16 @@ function buildBattleEmbed(battle, players, message = "") {
   const challenger = ensureOwnedChicken(players[battle.challengerId]);
   const target = ensureOwnedChicken(players[battle.targetId]);
   const frame = battle.frames[battle.frames.length - 1] || [
-    `${challenger.ownedChicken.name}${"—".repeat(PK_TRACK_LENGTH)}🏁`,
-    `${target.ownedChicken.name}${"—".repeat(PK_TRACK_LENGTH)}🏁`
+    `${challenger.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`,
+    `${target.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`
   ].join("\n");
   return new EmbedBuilder()
     .setColor(battle.status === "settled" ? 0xfacc15 : 0xef4444)
     .setTitle("1v1 賽雞 PK")
     .setDescription([
       message,
-      `<@${battle.challengerId}>：${challenger.ownedChicken.name}`,
-      `<@${battle.targetId}>：${target.ownedChicken.name}`,
+      `<@${battle.challengerId}>：${challenger.ownedChicken.icon || "🐔"} ${challenger.ownedChicken.name}`,
+      `<@${battle.targetId}>：${target.ownedChicken.icon || "🐔"} ${target.ownedChicken.name}`,
       "",
       frame
     ].filter(Boolean).join("\n").slice(0, 4096));
@@ -424,7 +427,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     buildPkTrack(finalWinner),
     buildPkTrack(finalLoser),
     "",
-    `🏆 勝利：${finalWinner.chicken.name}（<@${finalWinner.userId}>）`,
+    `🏆 勝利：${finalWinner.chicken.icon || "🐔"} ${finalWinner.chicken.name}（<@${finalWinner.userId}>）`,
     ...battle.runners.map((runner) => runner.levelMessage).filter(Boolean)
   ].join("\n");
   battle.frames.push(finalFrame);

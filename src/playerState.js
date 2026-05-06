@@ -205,6 +205,7 @@ function getPlayer(player) {
     ? {
       id: player.ownedChicken.id || `${Date.now()}-legacy`,
       name: String(player.ownedChicken.name || "小咕").slice(0, 12),
+      icon: typeof player.ownedChicken.icon === "string" && player.ownedChicken.icon ? player.ownedChicken.icon : "🐔",
       personalityId: player.ownedChicken.personalityId || "charger",
       level: Math.max(1, Math.floor(player.ownedChicken.level || 1)),
       exp: Math.max(0, Math.floor(player.ownedChicken.exp || 0)),
