@@ -9,8 +9,12 @@ const {
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
+  createBossBattle,
+  determineEvolutionType,
   ensureOwnedChicken,
   formatOwnedChicken,
+  getChickenRequiredExp,
+  getChickenStage,
   renameChicken,
   roastOwnedChicken,
   settleBattle,
@@ -40,6 +44,24 @@ test("雞升級會三選一並套用能力", () => {
   assert.deepEqual(upgraded.player.ownedChicken.levelUpOptions, []);
 });
 
+test("雞經驗曲線會隨等級非線性增加並顯示階段", () => {
+  assert.equal(getChickenRequiredExp(1), 100);
+  assert.equal(getChickenRequiredExp(2), 180);
+  assert.equal(getChickenRequiredExp(5), 800);
+  assert.equal(getChickenRequiredExp(6) > 800, true);
+  assert.equal(getChickenStage({ level: 4 }).id, "young");
+  assert.equal(getChickenStage({ level: 10 }).id, "mature");
+  assert.equal(getChickenStage({ level: 16 }).id, "complete");
+});
+
+test("進化方向會依行為點數與能力判定", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.evolutionPoints = { blaze: 1, iron: 20, miracle: 0, trickster: 0 };
+  player.ownedChicken.stability = 14;
+
+  assert.equal(determineEvolutionType(player.ownedChicken), "iron");
+});
+
 test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   const players = {
     a: ensureOwnedChicken(createPlayer(), () => 0),
@@ -67,6 +89,26 @@ test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   const afterCooldown = createBattle("a", "b", players, 33000, () => 0, "guild");
   assert.equal(afterCooldown.ok, true);
   clearBattle(afterCooldown.battle.id);
+});
+
+test("賽雞館挑戰會使用館主並在勝利時給稱號獎勵", () => {
+  const players = {
+    bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.bossPlayer.ownedChicken.speed = 20;
+  players.bossPlayer.ownedChicken.sprint = 20;
+  const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "ironCrown");
+
+  assert.equal(created.ok, true);
+  const battle = created.battle;
+  updateBattleFrame(battle, players, 0, () => 0.99);
+  battle.runners[0].position = 14;
+  battle.runners[1].position = 0;
+  const settled = settleBattle(battle, players, () => 0.99, 2000);
+
+  assert.equal(settled.players.bossPlayer.ownedChicken.titles.includes("鐵冠挑戰者"), true);
+  assert.equal(settled.players.bossPlayer.chickenTraitTickets, 1);
+  clearBattle(battle.id);
 });
 
 test("烤掉自己的雞會清空 ownedChicken 並給下礦生命加成", () => {

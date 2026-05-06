@@ -80,6 +80,7 @@ const {
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
+  createBossBattle,
   ensureOwnedChicken,
   getBattle,
   isChickenPanelComponent,
@@ -835,6 +836,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       await interaction.editReply({
         embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！直接開跑！`)],
+        components: []
+      });
+      created.battle.message = await interaction.fetchReply();
+      await startChickenBattleAnimation(created.battle);
+      return;
+    }
+
+    if (name === "賽雞館") {
+      const activeRace = getRaceState(interaction.guildId);
+      if (activeRace && activeRace.status !== "settled" && getPlayerTicket(activeRace, interaction.user.id)) {
+        await interaction.reply({ content: "你已經參與目前的賽雞場，等這場結束後再挑戰館主。", ephemeral: true });
+        return;
+      }
+      await interaction.deferReply();
+      let created = null;
+      await updatePlayers((players) => {
+        created = createBossBattle(interaction.user.id, players, Date.now(), Math.random, interaction.guildId);
+        return created.players || players;
+      });
+      if (!created.ok) {
+        await interaction.editReply(created.message);
+        return;
+      }
+      await interaction.editReply({
+        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `🏟️ <@${interaction.user.id}> 挑戰 ${created.boss.icon} ${created.boss.name}！`)],
         components: []
       });
       created.battle.message = await interaction.fetchReply();

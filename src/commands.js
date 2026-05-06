@@ -38,6 +38,9 @@ const commands = [
       .setDescription("要挑戰的玩家。")
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName("賽雞館")
+    .setDescription("挑戰賽雞館館主，贏取稱號與稀有獎勵。"),
+  new SlashCommandBuilder()
     .setName("烤掉雞")
     .setDescription("烤掉自己的養成雞，下一場下礦最大生命 +1。"),
   new SlashCommandBuilder()

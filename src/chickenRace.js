@@ -18,12 +18,12 @@ const FRAME_COUNT = 8;
 const TRACK_LENGTH = 18;
 
 const CHICKENS = [
-  { id: "gugugu", emoji: "🐔", name: "故咕顧", style: "穩定", speed: 1.05, burst: 0.08, late: 0 },
-  { id: "black", emoji: "🐓", name: "黑吉吉", style: "爆發", speed: 0.95, burst: 0.22, late: 0 },
-  { id: "yellow", emoji: "🐤", name: "小黃", style: "慢熱", speed: 0.9, burst: 0.1, late: 0.35 },
-  { id: "kfc", emoji: "🐔", name: "肯德基", style: "抗干擾", speed: 1, burst: 0.1, late: 0.1, resist: 0.45 },
-  { id: "jj", emoji: "🐓", name: "ㄐㄐ", style: "高風險", speed: 1.1, burst: 0.3, late: 0, fallRisk: 0.18 },
-  { id: "j8", emoji: "🐔", name: "J8", style: "後期爆發", speed: 0.88, burst: 0.12, late: 0.55 }
+  { id: "gugugu", emoji: "🐔", name: "故咕顧", style: "穩定型", speed: 1.05, burst: 0.06, late: 0.05, resist: 0.28, stamina: 0.15, signature: "故咕顧穩穩往前推進。" },
+  { id: "black", emoji: "🐓", name: "黑吉吉", style: "爆發型", speed: 0.94, burst: 0.3, late: 0, fallRisk: 0.08, signature: "黑吉吉突然暴衝！" },
+  { id: "yellow", emoji: "🐤", name: "小黃", style: "慢熱型", speed: 0.86, burst: 0.1, late: 0.48, stamina: 0.25, signature: "小黃開始進入狀態…" },
+  { id: "kfc", emoji: "🐔", name: "肯德基", style: "抗干擾型", speed: 1, burst: 0.09, late: 0.1, resist: 0.58, stamina: 0.1, signature: "肯德基硬扛住了干擾！" },
+  { id: "jj", emoji: "🐓", name: "ㄐㄐ", style: "高風險型", speed: 1.12, burst: 0.38, late: 0, fallRisk: 0.26, chaos: 0.25, signature: "ㄐㄐ失控了！！" },
+  { id: "j8", emoji: "🐔", name: "J8", style: "後期爆發型", speed: 0.9, burst: 0.12, late: 0.62, stamina: 0.2, signature: "J8 在終點前突然加速！" }
 ];
 
 const RACE_EVENTS = [
@@ -217,21 +217,41 @@ function roastChicken(race, chickenId, player) {
 function applyEvent(chickens, event, random = Math.random) {
   const target = chickens[Math.floor(random() * chickens.length)];
   const sorted = [...chickens].sort((a, b) => b.position - a.position);
+  let message = "";
   if (event === "起跑失誤") target.position -= 1.7;
   if (event === "神速衝刺") target.position += 3.2;
-  if (event === "香蕉皮" && random() > (target.resist || 0)) target.position -= 2.6;
+  if (event === "香蕉皮") {
+    if (random() > (target.resist || 0)) {
+      target.position -= 2.6 + (target.fallRisk || 0) * 4;
+      message = `🍌 ${target.name} 滑了一下！`;
+    } else {
+      message = `🛡️ ${target.name} 硬扛住了香蕉皮！`;
+    }
+  }
   if (event === "觀眾歡呼") sorted[0].position += 1.8;
-  if (event === "高貴閃光") target.position += 2.4;
+  if (event === "高貴閃光") {
+    target.position += 2.4 + (target.burst || 0) * 2;
+    message = `✨ ${target.name} 亮出高貴閃光！`;
+  }
   if (event === "雞群混亂") {
     const positions = chickens.map((chicken) => chicken.position).reverse();
     chickens.forEach((chicken, index) => {
-      chicken.position = positions[index];
+      chicken.position = chicken.resist && random() < chicken.resist ? chicken.position : positions[index];
     });
+    message = "😵 雞群混亂，名次重新洗牌！";
   }
   if (event === "突然打鳴") sorted[sorted.length - 1].position += 3.4;
   if (event === "體力耗盡") sorted[0].position -= 2.3;
-  if (event === "神秘飼料") target.position += random() < 0.5 ? 3.2 : -2.2;
-  if (event === "終點爆衝") target.position += 4.2;
+  if (event === "神秘飼料") {
+    const good = random() < 0.5 + (target.chaos || 0) * 0.2;
+    target.position += good ? 3.2 + (target.burst || 0) * 2 : -2.2;
+    message = good ? `🔥 ${target.name} 吃到神秘飼料開始爆衝！` : `💫 ${target.name} 被神秘飼料搞暈了！`;
+  }
+  if (event === "終點爆衝") {
+    const finisher = sorted[1] && random() < 0.45 ? sorted[1] : target;
+    finisher.position += 4.2 + (finisher.late || 0) * 4;
+    message = `🔥 ${finisher.name} 終點爆衝！`;
+  }
   if (event === "貼身纏鬥" && sorted[0] && sorted[1]) {
     sorted[1].position += 2.2;
     sorted[0].position -= 0.8;
@@ -243,10 +263,11 @@ function applyEvent(chickens, event, random = Math.random) {
     }
   }
   if (event === "最後壓線" && sorted[1]) sorted[1].position += 3.8;
+  if (!message && target.signature && random() < 0.45) message = target.signature;
   for (const chicken of chickens) {
     chicken.position = Math.max(0, Math.min(TRACK_LENGTH, chicken.position));
   }
-  return target;
+  return { target, message };
 }
 
 function buildTrack(chicken) {
@@ -262,12 +283,14 @@ function updateRaceFrame(race, frameIndex, random = Math.random) {
     const burst = random() < runner.burst ? baseStep * 1.25 : 0;
     const fall = random() < (runner.fallRisk || 0) && random() > (runner.resist || 0) ? -baseStep * 0.9 : 0;
     const lateKick = runner.late * progress * baseStep;
-    runner.position += baseStep * runner.speed + burst + fall + lateKick;
+    const staminaPush = (runner.stamina || 0) * progress * baseStep;
+    const chaosSwing = runner.chaos ? (random() - 0.35) * runner.chaos * baseStep * 3 : 0;
+    runner.position += baseStep * runner.speed + burst + fall + lateKick + staminaPush + chaosSwing;
   }
   const event = RACE_EVENTS[Math.floor(random() * RACE_EVENTS.length)];
-  applyEvent(runners, event, random);
+  const eventResult = applyEvent(runners, event, random);
   const lines = runners.map((runner) => buildTrack(runner));
-  const hint = {
+  const hint = eventResult.message ? `🎙️ ${eventResult.message}` : {
     神速衝刺: "💥 加速！",
     香蕉皮: "🍌 跌倒！",
     終點爆衝: "🔥 爆衝！",

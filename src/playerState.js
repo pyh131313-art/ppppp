@@ -215,6 +215,24 @@ function getPlayer(player) {
       stamina: Math.max(1, Math.min(20, Math.floor(player.ownedChicken.stamina || 5))),
       wins: Math.max(0, Math.floor(player.ownedChicken.wins || 0)),
       races: Math.max(0, Math.floor(player.ownedChicken.races || 0)),
+      highestComeback: Math.max(0, Math.floor(player.ownedChicken.highestComeback || 0)),
+      currentWinStreak: Math.max(0, Math.floor(player.ownedChicken.currentWinStreak || 0)),
+      longestWinStreak: Math.max(0, Math.floor(player.ownedChicken.longestWinStreak || 0)),
+      bossWins: Math.max(0, Math.floor(player.ownedChicken.bossWins || 0)),
+      evolutionPoints: {
+        blaze: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.blaze || 0)),
+        iron: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.iron || 0)),
+        miracle: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.miracle || 0)),
+        trickster: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.trickster || 0))
+      },
+      evolutionType: typeof player.ownedChicken.evolutionType === "string" ? player.ownedChicken.evolutionType : null,
+      activeSkill: typeof player.ownedChicken.activeSkill === "string" ? player.ownedChicken.activeSkill : null,
+      passiveSkill: typeof player.ownedChicken.passiveSkill === "string" ? player.ownedChicken.passiveSkill : null,
+      titles: Array.isArray(player.ownedChicken.titles)
+        ? player.ownedChicken.titles.filter((title) => typeof title === "string").slice(0, 12)
+        : [],
+      frame: typeof player.ownedChicken.frame === "string" ? player.ownedChicken.frame : "",
+      entryEffect: typeof player.ownedChicken.entryEffect === "string" ? player.ownedChicken.entryEffect : "",
       levelUpOptions: Array.isArray(player.ownedChicken.levelUpOptions)
         ? player.ownedChicken.levelUpOptions.filter((id) => typeof id === "string").slice(0, 3)
         : []

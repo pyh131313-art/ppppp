@@ -24,6 +24,103 @@ const PERSONALITIES = [
 
 const BASE_NAMES = ["小咕", "阿雞", "咕咕", "雞腿", "金冠", "小翅"];
 const CHICKEN_ICONS = ["🐔", "🐓", "🐤", "🦃", "🦆", "🦚", "🐧", "🪽"];
+const EVOLUTION_TYPES = {
+  blaze: {
+    name: "爆炎雞",
+    icon: "🐓🔥",
+    activeSkill: "blazeDash",
+    passiveSkill: "hotStart",
+    title: "爆炎新星",
+    entryEffect: "🔥 火羽劃過賽道。"
+  },
+  iron: {
+    name: "鐵壁雞",
+    icon: "🐔🛡️",
+    activeSkill: "guardStep",
+    passiveSkill: "stableSteps",
+    title: "鐵壁守門員",
+    entryEffect: "🛡️ 牠踏上賽道，腳步穩得嚇人。"
+  },
+  miracle: {
+    name: "奇蹟雞",
+    icon: "🐤✨",
+    activeSkill: "miracleComeback",
+    passiveSkill: "lastHope",
+    title: "逆轉之星",
+    entryEffect: "✨ 觀眾開始期待奇蹟。"
+  },
+  trickster: {
+    name: "惡作劇雞",
+    icon: "🐓😈",
+    activeSkill: "disruptCrow",
+    passiveSkill: "sneakyPeck",
+    title: "賽道惡作劇王",
+    entryEffect: "😈 牠看起來準備做壞事。"
+  }
+};
+
+const CHICKEN_SKILLS = {
+  blazeDash: { name: "爆炎衝刺", text: "終點前有機率大加速" },
+  hotStart: { name: "火羽開局", text: "前段偶爾爆衝" },
+  guardStep: { name: "鐵壁步伐", text: "跌倒時高機率硬扛" },
+  stableSteps: { name: "穩定步伐", text: "負面事件更容易抵抗" },
+  miracleComeback: { name: "奇蹟逆轉", text: "落後時終盤爆衝" },
+  lastHope: { name: "最後希望", text: "最後一名時額外加速" },
+  disruptCrow: { name: "干擾鳴叫", text: "干擾時讓對手更慢" },
+  sneakyPeck: { name: "偷啄", text: "偶爾偷走對手節奏" }
+};
+
+const BOSS_CHICKENS = [
+  {
+    id: "ironCrown",
+    name: "鐵冠雞",
+    icon: "🐓👑",
+    title: "鐵冠館主",
+    personalityId: "steady",
+    level: 10,
+    speed: 9,
+    sprint: 7,
+    stability: 16,
+    stamina: 12,
+    evolutionType: "iron",
+    activeSkill: "guardStep",
+    passiveSkill: "stableSteps",
+    rewardTitle: "鐵冠挑戰者"
+  },
+  {
+    id: "tyrant",
+    name: "暴君雞",
+    icon: "🐓🔥",
+    title: "暴君館主",
+    personalityId: "madDog",
+    level: 12,
+    speed: 11,
+    sprint: 17,
+    stability: 7,
+    stamina: 10,
+    evolutionType: "blaze",
+    activeSkill: "blazeDash",
+    passiveSkill: "hotStart",
+    rewardTitle: "暴君剋星"
+  },
+  {
+    id: "miracle",
+    name: "奇蹟雞",
+    icon: "🐤✨",
+    title: "奇蹟館主",
+    personalityId: "chosen",
+    level: 12,
+    speed: 10,
+    sprint: 12,
+    stability: 10,
+    stamina: 16,
+    evolutionType: "miracle",
+    activeSkill: "miracleComeback",
+    passiveSkill: "lastHope",
+    rewardTitle: "深淵賽雞王"
+  }
+];
+
 const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
 const chickenBattleCooldowns = new Map();
@@ -34,6 +131,37 @@ function clampStat(value) {
 
 function getPersonality(id) {
   return PERSONALITIES.find((item) => item.id === id) || PERSONALITIES[0];
+}
+
+function createEvolutionPoints(input = {}) {
+  return {
+    blaze: Math.max(0, Math.floor(input.blaze || 0)),
+    iron: Math.max(0, Math.floor(input.iron || 0)),
+    miracle: Math.max(0, Math.floor(input.miracle || 0)),
+    trickster: Math.max(0, Math.floor(input.trickster || 0))
+  };
+}
+
+function normalizeChickenArray(input, limit = 12) {
+  return Array.isArray(input)
+    ? input.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()).slice(0, limit)
+    : [];
+}
+
+function normalizeChickenMeta(chicken) {
+  if (!chicken || typeof chicken !== "object") return chicken;
+  chicken.evolutionPoints = createEvolutionPoints(chicken.evolutionPoints);
+  chicken.evolutionType = EVOLUTION_TYPES[chicken.evolutionType] ? chicken.evolutionType : null;
+  chicken.activeSkill = CHICKEN_SKILLS[chicken.activeSkill] ? chicken.activeSkill : null;
+  chicken.passiveSkill = CHICKEN_SKILLS[chicken.passiveSkill] ? chicken.passiveSkill : null;
+  chicken.highestComeback = Math.max(0, Math.floor(chicken.highestComeback || 0));
+  chicken.currentWinStreak = Math.max(0, Math.floor(chicken.currentWinStreak || 0));
+  chicken.longestWinStreak = Math.max(0, Math.floor(chicken.longestWinStreak || 0));
+  chicken.bossWins = Math.max(0, Math.floor(chicken.bossWins || 0));
+  chicken.titles = normalizeChickenArray(chicken.titles);
+  chicken.frame = typeof chicken.frame === "string" ? chicken.frame : "";
+  chicken.entryEffect = typeof chicken.entryEffect === "string" ? chicken.entryEffect : "";
+  return chicken;
 }
 
 function makeOwnedChicken(random = Math.random) {
@@ -52,6 +180,17 @@ function makeOwnedChicken(random = Math.random) {
     stamina: clampStat(roll() + personality.stamina),
     wins: 0,
     races: 0,
+    highestComeback: 0,
+    currentWinStreak: 0,
+    longestWinStreak: 0,
+    bossWins: 0,
+    evolutionPoints: createEvolutionPoints(),
+    evolutionType: null,
+    activeSkill: null,
+    passiveSkill: null,
+    titles: [],
+    frame: "",
+    entryEffect: "",
     levelUpOptions: []
   };
 }
@@ -59,10 +198,10 @@ function makeOwnedChicken(random = Math.random) {
 function normalizeOwnedChicken(input) {
   if (!input || typeof input !== "object") return null;
   const personality = getPersonality(input.personalityId);
-  return {
+  return normalizeChickenMeta({
     id: input.id || `${Date.now()}-legacy`,
     name: String(input.name || "小咕").slice(0, 12),
-    icon: CHICKEN_ICONS.includes(input.icon) ? input.icon : "🐔",
+    icon: typeof input.icon === "string" && input.icon ? input.icon : "🐔",
     personalityId: personality.id,
     level: Math.max(1, Math.floor(input.level || 1)),
     exp: Math.max(0, Math.floor(input.exp || 0)),
@@ -75,7 +214,7 @@ function normalizeOwnedChicken(input) {
     levelUpOptions: Array.isArray(input.levelUpOptions)
       ? input.levelUpOptions.filter((id) => getUpgradePool().some((option) => option.id === id)).slice(0, 3)
       : []
-  };
+  });
 }
 
 function ensureOwnedChicken(playerInput, random = Math.random) {
@@ -100,8 +239,73 @@ function renameChicken(playerInput, name, random = Math.random) {
   return { ok: true, player, message: `🐔 你的雞現在叫做：\n「${cleaned}」` };
 }
 
+function getChickenRequiredExp(chickenOrLevel) {
+  const level = Math.max(1, Math.floor(typeof chickenOrLevel === "number" ? chickenOrLevel : chickenOrLevel.level || 1));
+  const earlyCurve = {
+    1: 100,
+    2: 180,
+    3: 300,
+    4: 500,
+    5: 800
+  };
+  if (earlyCurve[level]) return earlyCurve[level];
+  return Math.floor(800 * Math.pow(1.28, level - 5) + (level - 5) * 120);
+}
+
 function getExpToLevel(chicken) {
-  return Math.max(40, chicken.level * 50);
+  return getChickenRequiredExp(chicken);
+}
+
+function getChickenStage(chicken) {
+  const level = Math.max(1, Math.floor(chicken && chicken.level ? chicken.level : 1));
+  if (level <= 5) return { id: "young", label: "🐤 幼雞期" };
+  if (level <= 15) return { id: "mature", label: "🐔 成熟期" };
+  return { id: "complete", label: "🐓✨ 完全體" };
+}
+
+function determineEvolutionType(chicken) {
+  normalizeChickenMeta(chicken);
+  const points = chicken.evolutionPoints;
+  const statBias = {
+    blaze: points.blaze + chicken.sprint + Math.floor(chicken.speed / 2),
+    iron: points.iron + chicken.stability + Math.floor(chicken.stamina / 2),
+    miracle: points.miracle + chicken.stamina + Math.floor(chicken.sprint / 2),
+    trickster: points.trickster + Math.floor(chicken.stability / 2)
+  };
+  const personalityBias = {
+    charger: "blaze",
+    madDog: "blaze",
+    steady: "iron",
+    veteran: "iron",
+    sleepy: "miracle",
+    chosen: "miracle",
+    sneaky: "trickster",
+    gambler: "miracle"
+  }[chicken.personalityId];
+  if (personalityBias) statBias[personalityBias] += 3;
+  return Object.entries(statBias).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+function applyChickenEvolution(chicken) {
+  normalizeChickenMeta(chicken);
+  if (chicken.level < 6) return "";
+  const nextType = chicken.evolutionType || determineEvolutionType(chicken);
+  const evolution = EVOLUTION_TYPES[nextType];
+  if (!evolution) return "";
+  const firstEvolution = chicken.evolutionType !== nextType;
+  const wasComplete = chicken.titles.includes(evolution.title);
+  chicken.evolutionType = nextType;
+  chicken.activeSkill = chicken.activeSkill || evolution.activeSkill;
+  chicken.passiveSkill = chicken.passiveSkill || evolution.passiveSkill;
+  if (chicken.level >= 16) {
+    chicken.icon = evolution.icon;
+    chicken.frame = chicken.frame || evolution.title;
+    chicken.entryEffect = chicken.entryEffect || evolution.entryEffect;
+    if (!chicken.titles.includes(evolution.title)) chicken.titles.push(evolution.title);
+  }
+  if (firstEvolution) return `✨ ${chicken.name} 進化成 ${evolution.name}！`;
+  if (chicken.level >= 16 && !wasComplete) return `🐓✨ ${chicken.name} 進入完全體！`;
+  return "";
 }
 
 function getUpgradePool() {
@@ -134,6 +338,7 @@ function rollUpgradeOptions(random = Math.random) {
 function addChickenExp(player, amount, random = Math.random) {
   const chicken = player.ownedChicken;
   if (!chicken) return "";
+  normalizeChickenMeta(chicken);
   chicken.exp += Math.max(0, Math.floor(amount || 0));
   const messages = [];
   while (chicken.exp >= getExpToLevel(chicken) && chicken.levelUpOptions.length === 0) {
@@ -141,6 +346,8 @@ function addChickenExp(player, amount, random = Math.random) {
     chicken.level += 1;
     chicken.levelUpOptions = rollUpgradeOptions(random);
     messages.push(`✨ ${chicken.name} 升到 Lv.${chicken.level}，可選擇成長方向。`);
+    const evolutionMessage = applyChickenEvolution(chicken);
+    if (evolutionMessage) messages.push(evolutionMessage);
   }
   return messages.join("\n");
 }
@@ -160,15 +367,23 @@ function chooseChickenUpgrade(playerInput, optionId) {
 function formatOwnedChicken(playerInput) {
   const player = ensureOwnedChicken(playerInput);
   const chicken = player.ownedChicken;
+  normalizeChickenMeta(chicken);
   const personality = getPersonality(chicken.personalityId);
+  const stage = getChickenStage(chicken);
+  const evolution = EVOLUTION_TYPES[chicken.evolutionType];
+  const activeSkill = CHICKEN_SKILLS[chicken.activeSkill];
+  const passiveSkill = CHICKEN_SKILLS[chicken.passiveSkill];
   const upgradeLine = chicken.levelUpOptions.length
     ? `\n\n✨ 可升級：${chicken.levelUpOptions.map((id) => getUpgradePool().find((item) => item.id === id).label).join("｜")}`
     : "";
   return [
-    `${chicken.icon || "🐔"} ${chicken.name}`,
+    `${chicken.icon || "🐔"} ${chicken.name}${chicken.frame ? `｜${chicken.frame}` : ""}`,
     "",
-    `等級：${chicken.level}｜經驗：${chicken.exp}/${getExpToLevel(chicken)}`,
+    `Lv.${chicken.level}｜${stage.label}`,
+    `EXP：${chicken.exp} / ${getExpToLevel(chicken)}`,
     `性格：${personality.label}`,
+    `進化：${evolution ? evolution.name : "未定"}`,
+    `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,
     "",
     `速度：${chicken.speed}`,
     `衝刺：${chicken.sprint}`,
@@ -177,6 +392,8 @@ function formatOwnedChicken(playerInput) {
     "",
     `勝場：${chicken.wins}`,
     `出賽：${chicken.races}`,
+    `最高逆轉：${chicken.highestComeback}`,
+    `最長連勝：${chicken.longestWinStreak}`,
     upgradeLine
   ].join("\n");
 }
@@ -230,7 +447,21 @@ function buildChickenPanelComponents(playerInput, ownerId = "none") {
   ];
 }
 
+function addBattlePoint(runner, key, amount = 1) {
+  if (!runner || !key) return;
+  runner.battleStats = {
+    burst: 0,
+    stable: 0,
+    miracle: 0,
+    trickster: 0,
+    comeback: 0,
+    ...(runner.battleStats || {})
+  };
+  runner.battleStats[key] = (runner.battleStats[key] || 0) + amount;
+}
+
 function getChickenPower(chicken, frameIndex, event, random = Math.random) {
+  normalizeChickenMeta(chicken);
   const personality = getPersonality(chicken.personalityId);
   const progress = (frameIndex + 1) / PK_FRAME_COUNT;
   let step = 0.55
@@ -245,9 +476,14 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (personality.rare && random() < personality.rare) step += 2.5;
   if (personality.latePenalty && progress > 0.65) step -= personality.latePenalty * 2;
   if (personality.failRisk && random() < personality.failRisk) step -= 1.8;
+  if (chicken.passiveSkill === "hotStart" && progress < 0.35 && random() < 0.22) step += 1.4;
+  if (chicken.passiveSkill === "lastHope" && progress > 0.55) step += 0.4;
+  if (chicken.passiveSkill === "sneakyPeck" && random() < 0.12) step += 0.7;
   if (event === "衝刺") step += chicken.sprint * 0.18;
   if (event === "體力耗盡") step -= Math.max(0, 2.2 - chicken.stamina * 0.16);
   if (event === "終點爆衝" && progress > 0.65) step += chicken.sprint * 0.25;
+  if (event === "終點爆衝" && progress > 0.65 && chicken.activeSkill === "blazeDash" && random() < 0.35) step += 3;
+  if (event === "逆轉" && progress > 0.55 && chicken.activeSkill === "miracleComeback" && random() < 0.35) step += 2.6;
   return Math.max(0, step);
 }
 
@@ -255,25 +491,65 @@ function applyPkEvent(left, right, event, random = Math.random) {
   const all = [left, right];
   const target = all[Math.floor(random() * all.length)];
   const other = target === left ? right : left;
+  normalizeChickenMeta(target.chicken);
+  normalizeChickenMeta(other.chicken);
   const personality = getPersonality(target.chicken.personalityId);
+  let message = "";
   if (event === "跌倒") {
-    const resist = target.chicken.stability * 0.04 + (personality.resist || 0);
-    if (random() > resist) target.position -= 2.4;
+    const skillResist = target.chicken.activeSkill === "guardStep" ? 0.25 : 0;
+    const passiveResist = target.chicken.passiveSkill === "stableSteps" ? 0.18 : 0;
+    const resist = target.chicken.stability * 0.04 + (personality.resist || 0) + skillResist + passiveResist;
+    if (random() > resist) {
+      target.position -= 2.4;
+      addBattlePoint(target, "miracle", 1);
+      message = `🍌 ${target.chicken.icon || "🐔"} 踩到香蕉皮！`;
+    } else {
+      addBattlePoint(target, "stable", 2);
+      message = `🛡️ ${target.chicken.icon || "🐔"} 硬扛住了香蕉皮！`;
+    }
   }
   if (event === "干擾") {
-    const sneakyBonus = getPersonality(target.chicken.personalityId).interfere || 0;
-    if (random() < 0.45 + sneakyBonus) other.position -= 1.6;
+    const sneakyBonus = (getPersonality(target.chicken.personalityId).interfere || 0)
+      + (target.chicken.activeSkill === "disruptCrow" ? 0.24 : 0)
+      + (target.chicken.passiveSkill === "sneakyPeck" ? 0.12 : 0);
+    if (random() < 0.45 + sneakyBonus) {
+      other.position -= target.chicken.activeSkill === "disruptCrow" ? 2.4 : 1.6;
+      addBattlePoint(target, "trickster", 2);
+      message = `😈 ${target.chicken.icon || "🐔"} 干擾了對手！`;
+    }
   }
   if (event === "逆轉") {
     const behind = left.position <= right.position ? left : right;
-    behind.position += 2.8 + behind.chicken.stamina * 0.08;
+    behind.position += 2.8 + behind.chicken.stamina * 0.08 + (behind.chicken.activeSkill === "miracleComeback" ? 1.4 : 0);
+    addBattlePoint(behind, "miracle", 2);
+    addBattlePoint(behind, "comeback", 1);
+    message = `🔥 ${behind.chicken.icon || "🐔"} 開始逆轉！`;
   }
   for (const runner of all) runner.position = Math.max(0, Math.min(PK_TRACK_LENGTH, runner.position));
+  return message;
 }
 
 function buildPkTrack(runner) {
   const position = Math.max(0, Math.min(PK_TRACK_LENGTH, Math.floor(runner.position)));
   return `${"—".repeat(position)}${runner.chicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH - position)}🏁`;
+}
+
+function isBossUserId(userId) {
+  return typeof userId === "string" && userId.startsWith("boss:");
+}
+
+function getBossById(id) {
+  return BOSS_CHICKENS.find((boss) => boss.id === id) || BOSS_CHICKENS[0];
+}
+
+function createRunner(userId, players, random = Math.random, bossId = null) {
+  if (isBossUserId(userId)) {
+    const boss = getBossById(bossId || userId.slice(5));
+    return { userId, chicken: normalizeChickenMeta({ ...boss, races: 0, wins: 0, exp: 0, levelUpOptions: [] }), position: 0, battleStats: {} };
+  }
+  const player = ensureOwnedChicken(players[userId], random);
+  players[userId] = player;
+  return { userId, chicken: { ...player.ownedChicken }, position: 0, battleStats: {} };
 }
 
 function createBattle(challengerId, targetId, players, now = Date.now(), random = Math.random, guildId = "global") {
@@ -309,6 +585,34 @@ function createBattle(challengerId, targetId, players, now = Date.now(), random 
   activeBattleByPlayerId.set(challengerId, battle.id);
   activeBattleByPlayerId.set(targetId, battle.id);
   return { ok: true, battle, players };
+}
+
+function createBossBattle(challengerId, players, now = Date.now(), random = Math.random, guildId = "global", bossId = null) {
+  if (activeBattleByPlayerId.has(challengerId)) return { ok: false, message: "你已經在賽雞 PK 中。" };
+  const cooldown = Math.max(0, (chickenBattleCooldowns.get(challengerId) || 0) - now);
+  if (cooldown > 0) return { ok: false, message: `賽雞挑戰冷卻中，還要 ${Math.ceil(cooldown / 1000)} 秒。` };
+  const boss = getBossById(bossId || BOSS_CHICKENS[Math.floor(random() * BOSS_CHICKENS.length)].id);
+  const challenger = ensureOwnedChicken(players[challengerId], random);
+  players[challengerId] = challenger;
+  const battle = {
+    id: `${now}-${challengerId}-boss-${boss.id}`,
+    guildId,
+    status: "pending",
+    challengerId,
+    targetId: `boss:${boss.id}`,
+    bossId: boss.id,
+    isBoss: true,
+    createdAt: now,
+    expiresAt: now + PK_TIMEOUT_MS,
+    runners: null,
+    frames: [],
+    result: null,
+    timers: [],
+    message: null
+  };
+  activeChickenBattles.set(battle.id, battle);
+  activeBattleByPlayerId.set(challengerId, battle.id);
+  return { ok: true, battle, players, boss };
 }
 
 function clearBattle(battleId) {
@@ -347,18 +651,20 @@ function buildBattleComponents(battle) {
 
 function buildBattleEmbed(battle, players, message = "") {
   const challenger = ensureOwnedChicken(players[battle.challengerId]);
-  const target = ensureOwnedChicken(players[battle.targetId]);
+  const boss = battle.isBoss ? getBossById(battle.bossId) : null;
+  const target = boss ? { ownedChicken: boss } : ensureOwnedChicken(players[battle.targetId]);
   const frame = battle.frames[battle.frames.length - 1] || [
     `${challenger.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`,
     `${target.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`
   ].join("\n");
+  const targetLabel = boss ? `${boss.icon} ${boss.name}｜${boss.title}` : `<@${battle.targetId}>：${target.ownedChicken.icon || "🐔"} ${target.ownedChicken.name}`;
   return new EmbedBuilder()
     .setColor(battle.status === "settled" ? 0xfacc15 : 0xef4444)
-    .setTitle("1v1 賽雞 PK")
+    .setTitle(battle.isBoss ? "賽雞館挑戰" : "1v1 賽雞 PK")
     .setDescription([
       message,
       `<@${battle.challengerId}>：${challenger.ownedChicken.icon || "🐔"} ${challenger.ownedChicken.name}`,
-      `<@${battle.targetId}>：${target.ownedChicken.icon || "🐔"} ${target.ownedChicken.name}`,
+      targetLabel,
       "",
       frame
     ].filter(Boolean).join("\n").slice(0, 4096));
@@ -366,19 +672,19 @@ function buildBattleEmbed(battle, players, message = "") {
 
 function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
   if (!battle.runners) {
-    const challenger = ensureOwnedChicken(players[battle.challengerId]);
-    const target = ensureOwnedChicken(players[battle.targetId]);
     battle.runners = [
-      { userId: battle.challengerId, chicken: { ...challenger.ownedChicken }, position: 0 },
-      { userId: battle.targetId, chicken: { ...target.ownedChicken }, position: 0 }
+      createRunner(battle.challengerId, players, random),
+      createRunner(battle.targetId, players, random, battle.bossId)
     ];
   }
   const events = ["衝刺", "跌倒", "干擾", "逆轉", "體力耗盡", "終點爆衝"];
   const event = events[Math.floor(random() * events.length)] || "衝刺";
   for (const runner of battle.runners) {
+    const before = runner.position;
     runner.position += getChickenPower(runner.chicken, frameIndex, event, random);
+    if (runner.position - before > 2.2) addBattlePoint(runner, "burst", 1);
   }
-  applyPkEvent(battle.runners[0], battle.runners[1], event, random);
+  const eventMessage = applyPkEvent(battle.runners[0], battle.runners[1], event, random);
   const hint = {
     衝刺: "💨 衝刺！",
     跌倒: "🍌 跌倒！",
@@ -388,8 +694,11 @@ function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
     終點爆衝: "⚡ 終點爆衝！"
   }[event];
   const frame = [
+    ...battle.runners
+      .filter((runner) => runner.chicken.entryEffect && frameIndex === 0)
+      .map((runner) => runner.chicken.entryEffect),
     ...battle.runners.map((runner) => buildPkTrack(runner)),
-    hint
+    eventMessage || hint
   ].join("\n");
   battle.frames.push(frame);
   return frame;
@@ -410,13 +719,35 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
   const finalWinner = sorted[0];
   const finalLoser = sorted[1];
   for (const runner of battle.runners) {
+    if (isBossUserId(runner.userId)) continue;
     const player = ensureOwnedChicken(players[runner.userId], random);
     const chicken = player.ownedChicken;
+    normalizeChickenMeta(chicken);
     chicken.races += 1;
     const won = runner.userId === finalWinner.userId;
-    if (won) chicken.wins += 1;
-    const exp = 18 + (won ? 32 : 10) + (close ? 8 : 0) + Math.floor(runner.position / 3);
+    if (won) {
+      chicken.wins += 1;
+      chicken.currentWinStreak += 1;
+      chicken.longestWinStreak = Math.max(chicken.longestWinStreak, chicken.currentWinStreak);
+    } else {
+      chicken.currentWinStreak = 0;
+    }
+    const stats = runner.battleStats || {};
+    chicken.evolutionPoints.blaze += (stats.burst || 0) + (chicken.sprint >= 10 ? 1 : 0);
+    chicken.evolutionPoints.iron += (stats.stable || 0) + (chicken.stability >= 10 ? 1 : 0);
+    chicken.evolutionPoints.miracle += (stats.miracle || 0) + (stats.comeback || 0) + (close ? 1 : 0);
+    chicken.evolutionPoints.trickster += stats.trickster || 0;
+    chicken.highestComeback = Math.max(chicken.highestComeback, stats.comeback || 0);
+    const exp = 18 + (won ? 32 : 10) + (battle.isBoss ? 18 : 0) + (close ? 8 : 0) + Math.floor(runner.position / 3);
     const levelMessage = addChickenExp(player, exp, random);
+    if (battle.isBoss && won) {
+      const boss = getBossById(battle.bossId);
+      chicken.bossWins += 1;
+      if (!chicken.titles.includes(boss.rewardTitle)) chicken.titles.push(boss.rewardTitle);
+      chicken.frame = chicken.frame || boss.rewardTitle;
+      player.chickenTraitTickets = (player.chickenTraitTickets || 0) + 1;
+      runner.rewardMessage = `🏅 獲得稱號：${boss.rewardTitle}\n🎟️ 獲得稀有一次性詞條權 x1`;
+    }
     players[runner.userId] = player;
     runner.levelMessage = levelMessage;
   }
@@ -427,15 +758,16 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     buildPkTrack(finalWinner),
     buildPkTrack(finalLoser),
     "",
-    `🏆 勝利：${finalWinner.chicken.icon || "🐔"} ${finalWinner.chicken.name}（<@${finalWinner.userId}>）`,
-    ...battle.runners.map((runner) => runner.levelMessage).filter(Boolean)
+    `🏆 勝利：${finalWinner.chicken.icon || "🐔"} ${finalWinner.chicken.name}${isBossUserId(finalWinner.userId) ? "" : `（<@${finalWinner.userId}>）`}`,
+    ...battle.runners.map((runner) => runner.levelMessage).filter(Boolean),
+    ...battle.runners.map((runner) => runner.rewardMessage).filter(Boolean)
   ].join("\n");
   battle.frames.push(finalFrame);
   battle.result = { winnerId: finalWinner.userId, loserId: finalLoser.userId };
   activeBattleByPlayerId.delete(battle.challengerId);
   activeBattleByPlayerId.delete(battle.targetId);
   chickenBattleCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
-  chickenBattleCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
+  if (!isBossUserId(battle.targetId)) chickenBattleCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
   return { battle, players, message: finalFrame };
 }
 
@@ -460,7 +792,7 @@ function roastOwnedChicken(playerInput) {
   return {
     ok: true,
     player,
-    message: `🍗 你烤掉了「${chicken.name}」。\n牠陪你贏過 ${chicken.wins} 場比賽。\n下一場下礦最大生命 +1。`
+    message: `🍗 你烤掉了「${chicken.name}」。\n牠陪你出賽 ${chicken.races} 場、贏過 ${chicken.wins} 場，最長連勝 ${chicken.longestWinStreak || 0} 場。\n下一場下礦最大生命 +1。`
   };
 }
 
@@ -470,6 +802,9 @@ module.exports = {
   CHICKEN_UPGRADE_PREFIX,
   PK_COOLDOWN_MS,
   PK_FRAME_COUNT,
+  BOSS_CHICKENS,
+  CHICKEN_SKILLS,
+  EVOLUTION_TYPES,
   PERSONALITIES,
   buildBattleComponents,
   buildBattleEmbed,
@@ -479,9 +814,13 @@ module.exports = {
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
+  createBossBattle,
+  determineEvolutionType,
   ensureOwnedChicken,
   formatOwnedChicken,
   getBattle,
+  getChickenRequiredExp,
+  getChickenStage,
   isChickenPkComponent,
   isChickenPanelComponent,
   isChickenUpgradeComponent,
