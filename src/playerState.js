@@ -131,6 +131,7 @@ function createPlayer() {
     chickenTraitTickets: 0,
     chickenRoastHpBonus: 0,
     chickenAmuletUsed: false,
+    ownedChicken: null,
     ...createFunState(),
     traitState: createTraitState(),
     tempMaxHp: 0,
@@ -200,6 +201,24 @@ function getPlayer(player) {
   next.pendingNextRunTraits = Array.isArray(player && player.pendingNextRunTraits)
     ? player.pendingNextRunTraits.filter((mode) => CONFIG.runModes[mode]).slice(0, 10)
     : [];
+  next.ownedChicken = player && player.ownedChicken && typeof player.ownedChicken === "object"
+    ? {
+      id: player.ownedChicken.id || `${Date.now()}-legacy`,
+      name: String(player.ownedChicken.name || "小咕").slice(0, 12),
+      personalityId: player.ownedChicken.personalityId || "charger",
+      level: Math.max(1, Math.floor(player.ownedChicken.level || 1)),
+      exp: Math.max(0, Math.floor(player.ownedChicken.exp || 0)),
+      speed: Math.max(1, Math.min(20, Math.floor(player.ownedChicken.speed || 5))),
+      sprint: Math.max(1, Math.min(20, Math.floor(player.ownedChicken.sprint || 5))),
+      stability: Math.max(1, Math.min(20, Math.floor(player.ownedChicken.stability || 5))),
+      stamina: Math.max(1, Math.min(20, Math.floor(player.ownedChicken.stamina || 5))),
+      wins: Math.max(0, Math.floor(player.ownedChicken.wins || 0)),
+      races: Math.max(0, Math.floor(player.ownedChicken.races || 0)),
+      levelUpOptions: Array.isArray(player.ownedChicken.levelUpOptions)
+        ? player.ownedChicken.levelUpOptions.filter((id) => typeof id === "string").slice(0, 3)
+        : []
+    }
+    : null;
   next.bestRecordTimestamps = Array.isArray(player && player.bestRecordTimestamps)
     ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
     : [];

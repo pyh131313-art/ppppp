@@ -21,6 +21,26 @@ const commands = [
     .setName("賽雞場")
     .setDescription("開啟賽雞場，購票下注看雞衝線。"),
   new SlashCommandBuilder()
+    .setName("我的雞")
+    .setDescription("查看自己的養成雞。"),
+  new SlashCommandBuilder()
+    .setName("命名雞")
+    .setDescription("替自己的雞命名。")
+    .addStringOption((option) => option
+      .setName("名字")
+      .setDescription("2~12 字，不可空白或特殊符號。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("賽雞pk")
+    .setDescription("向另一位玩家發起 1v1 養成雞 PK。")
+    .addUserOption((option) => option
+      .setName("對象")
+      .setDescription("要挑戰的玩家。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("烤掉雞")
+    .setDescription("烤掉自己的養成雞，下一場下礦最大生命 +1。"),
+  new SlashCommandBuilder()
     .setName("交易")
     .setDescription("向玩家提出交易請求。")
     .addUserOption((option) => option

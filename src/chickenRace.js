@@ -554,6 +554,7 @@ module.exports = {
   buyTicket,
   calculateResult,
   getRaceState,
+  getPlayerTicket,
   isRaceComponent,
   isCurrentRaceComponent,
   parseRaceCustomId,

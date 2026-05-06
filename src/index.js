@@ -61,6 +61,7 @@ const {
   buildRaceComponents,
   buildRaceEmbed,
   buyTicket,
+  getPlayerTicket,
   getRaceState,
   isRaceComponent,
   isCurrentRaceComponent,
@@ -70,6 +71,24 @@ const {
   startRace,
   updateRaceFrame
 } = require("./chickenRace");
+const {
+  PK_FRAME_COUNT,
+  buildBattleComponents,
+  buildBattleEmbed,
+  buildChickenEmbed,
+  buildChickenUpgradeComponents,
+  chooseChickenUpgrade,
+  clearBattle,
+  createBattle,
+  ensureOwnedChicken,
+  getBattle,
+  isChickenPkComponent,
+  isChickenUpgradeComponent,
+  renameChicken,
+  roastOwnedChicken,
+  settleBattle,
+  updateBattleFrame
+} = require("./chickenCare");
 const {
   CUSTOM_IDS,
   buildCollectionResponse,
@@ -108,6 +127,7 @@ const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
 const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
+const OWNED_CHICKEN_ROAST_PREFIX = "owned_chicken_roast";
 
 function parseAmountInput(input) {
   const value = Number(input);
@@ -217,6 +237,60 @@ async function finishRace(race) {
     return settled.players;
   });
   await editRaceMessage(race, settled.message);
+}
+
+function clearBattleTimers(battle) {
+  if (!battle || !Array.isArray(battle.timers)) return;
+  for (const timer of battle.timers) clearTimeout(timer);
+  battle.timers = [];
+}
+
+async function editBattleMessage(battle, players, message = "") {
+  if (!battle || !battle.message) return;
+  try {
+    await battle.message.edit({
+      embeds: [buildBattleEmbed(battle, players, message)],
+      components: buildBattleComponents(battle)
+    });
+  } catch (error) {
+    battle.message = null;
+    console.error("賽雞 PK 面板更新失敗：", error);
+  }
+}
+
+async function startChickenBattleAnimation(battle) {
+  if (!battle || battle.status !== "pending") return;
+  clearBattleTimers(battle);
+  battle.status = "racing";
+  let players = await loadPlayers();
+  updateBattleFrame(battle, players, 0, Math.random);
+  await editBattleMessage(battle, players, "⚔️ PK 開始！");
+  const interval = 1400;
+  for (let frame = 1; frame < PK_FRAME_COUNT; frame += 1) {
+    battle.timers.push(setTimeout(async () => {
+      try {
+        const currentPlayers = await loadPlayers();
+        updateBattleFrame(battle, currentPlayers, frame, Math.random);
+        await editBattleMessage(battle, currentPlayers);
+      } catch (error) {
+        console.error("賽雞 PK 更新失敗：", error);
+      }
+    }, interval * frame));
+  }
+  battle.timers.push(setTimeout(async () => {
+    try {
+      let settled = null;
+      await updatePlayers((currentPlayers) => {
+        settled = settleBattle(battle, currentPlayers, Math.random);
+        return settled.players;
+      });
+      await editBattleMessage(battle, settled.players, settled.message);
+      clearBattle(battle.id);
+    } catch (error) {
+      console.error("賽雞 PK 結算失敗：", error);
+      clearBattle(battle.id);
+    }
+  }, interval * PK_FRAME_COUNT));
 }
 
 function makeReply(title, body) {
@@ -530,6 +604,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && isChickenPkComponent(interaction.customId)) {
+      await handleChickenPkInteraction(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && isChickenUpgradeComponent(interaction.customId)) {
+      await handleChickenUpgradeInteraction(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(`${OWNED_CHICKEN_ROAST_PREFIX}:`)) {
+      await handleOwnedChickenRoastInteraction(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith(`${TRADE_CUSTOM_PREFIX}:`)) {
       const [, , action, tradeId] = interaction.customId.split(":");
       const trade = activeTrades.get(tradeId);
@@ -603,6 +692,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     if (name === "賽雞場") {
+      await updatePlayer(interaction.user.id, (player) => ensureOwnedChicken(player, Math.random));
       const race = startRace(Date.now(), Math.random, interaction.guildId, interaction.user.id);
       if (race.message && race.status !== "settled") {
         await interaction.reply({
@@ -618,6 +708,99 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
       race.message = await interaction.fetchReply();
       scheduleRaceBettingEnd(race);
+      return;
+    }
+
+    if (name === "我的雞") {
+      await interaction.deferReply({ ephemeral: true });
+      const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+      await interaction.editReply({
+        embeds: [buildChickenEmbed(player)],
+        components: buildChickenUpgradeComponents(player)
+      });
+      return;
+    }
+
+    if (name === "命名雞") {
+      const chickenName = interaction.options.getString("名字", true);
+      await interaction.deferReply({ ephemeral: true });
+      let result = null;
+      await updatePlayer(interaction.user.id, (player) => {
+        result = renameChicken(player, chickenName, Math.random);
+        return result.player;
+      });
+      await interaction.editReply({
+        embeds: [buildChickenEmbed(result.player, "命名雞", result.message)],
+        components: buildChickenUpgradeComponents(result.player)
+      });
+      return;
+    }
+
+    if (name === "烤掉雞") {
+      await interaction.deferReply({ ephemeral: true });
+      const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+      const chicken = player.ownedChicken;
+      await interaction.editReply({
+        content: [
+          `🍗 確定要烤掉「${chicken.name}」嗎？`,
+          "",
+          `牠陪你贏過 ${chicken.wins} 場比賽。`,
+          "烤掉後下一場下礦最大生命 +1，並且你之後會重新獲得一隻初始雞。"
+        ].join("\n"),
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`${OWNED_CHICKEN_ROAST_PREFIX}:confirm:${interaction.user.id}`)
+              .setLabel("確認烤掉")
+              .setEmoji("🍗")
+              .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+              .setCustomId(`${OWNED_CHICKEN_ROAST_PREFIX}:cancel:${interaction.user.id}`)
+              .setLabel("取消")
+              .setEmoji("↩️")
+              .setStyle(ButtonStyle.Secondary)
+          )
+        ]
+      });
+      return;
+    }
+
+    if (name === "賽雞pk") {
+      const target = interaction.options.getUser("對象", true);
+      if (target.bot) {
+        await interaction.reply({ content: "不能挑戰機器人。", ephemeral: true });
+        return;
+      }
+      const activeRace = getRaceState(interaction.guildId);
+      if (activeRace && activeRace.status !== "settled" && (getPlayerTicket(activeRace, interaction.user.id) || getPlayerTicket(activeRace, target.id))) {
+        await interaction.reply({ content: "其中一位玩家已經參與目前的賽雞場，等這場結束後再 PK。", ephemeral: true });
+        return;
+      }
+      await interaction.deferReply();
+      let created = null;
+      await updatePlayers((players) => {
+        created = createBattle(interaction.user.id, target.id, players, Date.now(), Math.random, interaction.guildId);
+        return created.players || players;
+      });
+      if (!created.ok) {
+        await interaction.editReply(created.message);
+        return;
+      }
+      await interaction.editReply({
+        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！`)],
+        components: buildBattleComponents(created.battle)
+      });
+      created.battle.message = await interaction.fetchReply();
+      created.battle.timers.push(setTimeout(async () => {
+        const battle = getBattle(created.battle.id);
+        if (!battle || battle.status !== "pending") return;
+        clearBattle(battle.id);
+        try {
+          await interaction.editReply({ content: "賽雞 PK 挑戰已逾時。", embeds: [], components: [] });
+        } catch (error) {
+          console.error("賽雞 PK 逾時更新失敗：", error);
+        }
+      }, 60 * 1000));
       return;
     }
 
@@ -898,6 +1081,66 @@ async function handleChickenRaceInteraction(interaction) {
     await interaction.reply({ content: result.message, ephemeral: true });
     await editRaceMessage(race, result.ok ? "🍗 烤雞香味飄過賽道。" : "");
   }
+}
+
+async function handleChickenPkInteraction(interaction) {
+  const [, action, battleId] = interaction.customId.split(":");
+  const battle = getBattle(battleId);
+  if (!battle) {
+    await interaction.reply({ content: "這場賽雞 PK 已結束或不存在。", ephemeral: true });
+    return;
+  }
+  if (interaction.user.id !== battle.targetId) {
+    await interaction.reply({ content: "只有被挑戰者可以回應這場 PK。", ephemeral: true });
+    return;
+  }
+  if (Date.now() > battle.expiresAt) {
+    clearBattle(battle.id);
+    await interaction.update({ content: "賽雞 PK 挑戰已逾時。", embeds: [], components: [] });
+    return;
+  }
+  if (action === "decline") {
+    clearBattle(battle.id);
+    await interaction.update({ content: "賽雞 PK 已拒絕。", embeds: [], components: [] });
+    return;
+  }
+  if (action === "accept") {
+    await interaction.deferUpdate();
+    battle.message = interaction.message;
+    await startChickenBattleAnimation(battle);
+  }
+}
+
+async function handleChickenUpgradeInteraction(interaction) {
+  const optionId = interaction.customId.split(":")[1];
+  await interaction.deferUpdate();
+  let result = null;
+  await updatePlayer(interaction.user.id, (player) => {
+    result = chooseChickenUpgrade(player, optionId);
+    return result.player;
+  });
+  await interaction.editReply({
+    embeds: [buildChickenEmbed(result.player, "我的雞", result.message)],
+    components: buildChickenUpgradeComponents(result.player)
+  });
+}
+
+async function handleOwnedChickenRoastInteraction(interaction) {
+  const [, action, ownerId] = interaction.customId.split(":");
+  if (interaction.user.id !== ownerId) {
+    await interaction.reply({ content: "只有雞的主人可以操作。", ephemeral: true });
+    return;
+  }
+  if (action === "cancel") {
+    await interaction.update({ content: "已取消烤雞。", embeds: [], components: [] });
+    return;
+  }
+  let result = null;
+  await updatePlayer(interaction.user.id, (player) => {
+    result = roastOwnedChicken(player);
+    return result.player;
+  });
+  await interaction.update({ content: result.message, embeds: [], components: [] });
 }
 
 async function handleMiningButton(interaction) {
