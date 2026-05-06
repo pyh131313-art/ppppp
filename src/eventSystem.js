@@ -117,6 +117,11 @@ const RANDOM_EVENTS = {
     description: "吞金獸張開嘴，似乎想吃掉你身上的所有金幣。",
     buttons: { safe: "不餵", risk: "餵食金幣" }
   },
+  treasure_chest: {
+    title: "礦道寶箱",
+    description: "一只寶箱卡在碎石後方，鎖孔裡有微光。",
+    buttons: { safe: "檢查陷阱", risk: "打開寶箱", extreme: "強行砸開" }
+  },
   lost_miner: {
     title: "迷路礦工",
     description: "一名礦工迷失在支道裡，背包還掛著半截繩子。",
@@ -295,6 +300,10 @@ function getRandomEvents() {
 
 function canEventAppear(event, player) {
   if (!event) return false;
+  if (event === RANDOM_EVENTS.gold_eater) {
+    const totalAsset = Math.max(0, (player.gold || 0) + (player.bankGold || 0));
+    if (totalAsset > 50000 || player.hasSeenGoldenBeast) return false;
+  }
   if (event.caveType && player.caveType !== event.caveType) return false;
   if (event.reverseOnly && player.zone !== "upward") return false;
   if (event.highTier && !player.highTierEligible) return false;

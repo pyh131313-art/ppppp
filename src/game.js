@@ -131,8 +131,15 @@ function createPlayer() {
     tempEffects: [],
     forcedNextResult: null,
     goldBeast: null,
+    hasSeenGoldenBeast: false,
     returnBlessing: false,
     rescueBonusCount: 0,
+    potionCooldown: 0,
+    minerHelmetCount: 0,
+    pendingNextRunTraits: [],
+    migratedToUndergroundCamp: false,
+    preUpdateDeepPlayer: false,
+    lastMigrationMessage: "",
     expansionHeart: false,
     chickenTraitTickets: 0,
     chickenRoastHpBonus: 0,
@@ -180,6 +187,9 @@ function getPlayer(player) {
     ? player.tempEffects.map((effect) => ({ ...effect }))
     : [];
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;
+  next.pendingNextRunTraits = Array.isArray(player && player.pendingNextRunTraits)
+    ? player.pendingNextRunTraits.filter((mode) => CONFIG.runModes[mode]).slice(0, 10)
+    : [];
   next.bestRecordTimestamps = Array.isArray(player && player.bestRecordTimestamps)
     ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
     : [];
@@ -249,6 +259,20 @@ function addItemReward(player, key, amount) {
 function getTotalAsset(playerInput) {
   const player = getPlayer(playerInput);
   return Math.max(0, (player.gold || 0) + (player.bankGold || 0));
+}
+
+function migratePreUpdateDeepPlayer(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.migratedToUndergroundCamp || player.zone === "undergroundCamp" || player.zone === "upward" || player.zone === "skyCamp") return player;
+  if ((player.depth || 0) < CONFIG.mining.lavaDepth) return player;
+  player.preUpdateDeepPlayer = true;
+  player.migratedToUndergroundCamp = true;
+  player.undergroundCampUnlocked = true;
+  player.zone = "undergroundCamp";
+  player.caveType = null;
+  player.depth = CONFIG.mining.lavaDepth;
+  player.lastMigrationMessage = "🌋 你穿越了崩塌的深層礦區…\n🏕️ 你抵達了地底營地。";
+  return player;
 }
 
 function payFromTotalAsset(player, amount) {
@@ -404,6 +428,7 @@ function getModeRewardMultiplier(playerInput) {
   let multiplier = 1;
   if (mode.earlyRewardMultiplier && player.depth <= 5) multiplier *= mode.earlyRewardMultiplier;
   if (mode.lowHpRewardMultiplier && getMaxBombs(player) - player.bombs <= 1) multiplier *= mode.lowHpRewardMultiplier;
+  if (mode.deepRewardMultiplier && player.depth >= 50) multiplier *= mode.deepRewardMultiplier;
   if (mode.deepInstinct) multiplier *= 1 + Math.floor(Math.max(0, player.depth) / 10) * 0.1;
   if (mode.downRewardMultiplier && player.depth > 0) multiplier *= mode.downRewardMultiplier;
   if (mode.reverseRewardMultiplier && player.zone === "upward") multiplier *= mode.reverseRewardMultiplier;
@@ -523,7 +548,8 @@ function isInMine(playerInput) {
 
 function getRunModeIds(includeChickenTraits = false) {
   return Object.keys(CONFIG.runModes).filter((id) => (
-    includeChickenTraits || !CONFIG.runModes[id].oneTimeChickenTrait
+    (includeChickenTraits || !CONFIG.runModes[id].oneTimeChickenTrait)
+      && !CONFIG.runModes[id].nextRunOnly
   ));
 }
 
@@ -531,12 +557,14 @@ function refreshRunModeOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const basePool = getRunModeIds(false);
   const chickenPool = CHICKEN_TRAIT_IDS.filter((id) => CONFIG.runModes[id]);
+  const nextRunPool = [...new Set(player.pendingNextRunTraits || [])].filter((id) => CONFIG.runModes[id]);
   const options = [];
-  while (options.length < 3 && (basePool.length > 0 || chickenPool.length > 0)) {
+  while (options.length < 3 && (basePool.length > 0 || chickenPool.length > 0 || nextRunPool.length > 0)) {
     const useChickenTrait = (player.chickenTraitTickets || 0) > 0
       && chickenPool.length > 0
       && random() < 0.35;
-    const pool = useChickenTrait ? chickenPool : basePool;
+    const useNextRunTrait = !useChickenTrait && nextRunPool.length > 0 && random() < 0.65;
+    const pool = useChickenTrait ? chickenPool : useNextRunTrait ? nextRunPool : basePool;
     if (pool.length === 0) break;
     const index = Math.floor(random() * pool.length);
     const [picked] = pool.splice(index, 1);
@@ -563,7 +591,7 @@ function getRunModeOptions(playerInput) {
 }
 
 function ensureRunModeOptions(playerInput, random = Math.random) {
-  const player = getPlayer(playerInput);
+  const player = migratePreUpdateDeepPlayer(playerInput);
   if (player.runMode || player.dead || player.runModeOptions.length > 0) return player;
   return refreshRunModeOptions(player, random);
 }
@@ -640,6 +668,8 @@ function resetRunState(player, random = Math.random) {
   player.forcedNextResult = null;
   player.goldBeast = null;
   player.returnBlessing = false;
+  player.potionCooldown = 0;
+  player.lastMigrationMessage = "";
   player.chickenAmuletUsed = false;
   resetFunRunState(player);
   player.tempMaxHp = 0;
@@ -817,6 +847,9 @@ function chooseRunMode(playerInput, mode, random = null) {
   if (config.oneTimeChickenTrait) {
     player.chickenTraitTickets = Math.max(0, (player.chickenTraitTickets || 0) - 1);
   }
+  if (config.nextRunOnly) {
+    player.pendingNextRunTraits = (player.pendingNextRunTraits || []).filter((id) => id !== mode);
+  }
   if (player.rescueBonusCount > 0) {
     for (let i = 0; i < player.rescueBonusCount; i += 1) {
       const buff = random && random() < 0.5 ? "gold" : "bomb";
@@ -980,6 +1013,84 @@ function getShopConsumables(progressInput = {}) {
       ? { id: "undyingTotem", ...CONFIG.shop.consumables.undyingTotem }
       : null
   ].filter(Boolean);
+}
+
+function addPendingNextRunTrait(player, traitId) {
+  if (!CONFIG.runModes[traitId]) return false;
+  player.pendingNextRunTraits = [...new Set([...(player.pendingNextRunTraits || []), traitId])].slice(0, 10);
+  return true;
+}
+
+function resolveTreasureChest(player, choice, random = Math.random, now = Date.now()) {
+  const roll = random();
+  const chestType = roll < 0.58 ? "🪵 普通寶箱" : roll < 0.86 ? "✨ 稀有寶箱" : "💀 詛咒寶箱";
+  if (choice === "safe") {
+    if (random() < 0.25) {
+      addTempEffect(player, { id: "chest_scout", remaining: 3, bombWeightMultiplier: 0.95 });
+      return { player, message: `${chestType} 安全檢查完成，接下來 3 層稍微安全。` };
+    }
+    const gold = 25 + getDepthBonus(player.depth) * 5;
+    player.gold += gold;
+    return { player, message: `${chestType} 你只拿走外層金幣：+${gold}。` };
+  }
+
+  const trapChance = choice === "extreme" ? 0.38 : chestType.includes("詛咒") ? 0.32 : 0.18;
+  if (random() < trapChance) {
+    const trapRoll = random();
+    if (trapRoll < 0.34) return { player, message: `${chestType} 炸彈陷阱！${addBombDamage(player, now).message}` };
+    if (trapRoll < 0.67) {
+      if (getBagFreeSlots(player) >= 3) player.junk += 1;
+      return { player, message: `${chestType} 裡面塞滿破爛，包包突然沉了下去。` };
+    }
+    addTempEffect(player, { id: "chest_curse", remaining: 4, bombWeightMultiplier: 1.25 });
+    return { player, message: `${chestType} 詛咒冒出黑煙，接下來 4 層炸彈 +25%。` };
+  }
+
+  const outcomeRoll = random();
+  if (outcomeRoll < 0.1) {
+    const gold = choice === "extreme" ? 220 + player.depth * 4 : 90 + player.depth * 2;
+    player.gold += gold;
+    return { player, message: `${chestType} 大量金幣！+${gold}` };
+  }
+  if (outcomeRoll < 0.2) {
+    const gems = ["redGem", "blueGem", "greenGem"];
+    const key = gems[Math.floor(random() * gems.length)];
+    const gained = addItemReward(player, key, choice === "extreme" ? 3 : 1);
+    return { player, message: `${chestType} 寶石閃光，獲得 ${gained} 顆寶石。` };
+  }
+  if (outcomeRoll < 0.3) {
+    const buff = Object.keys(CONFIG.minorBuffs)[Math.floor(random() * Object.keys(CONFIG.minorBuffs).length)];
+    player.minorBuffs[buff] = Math.min((CONFIG.minorBuffs[buff].maxStacks || 99), (player.minorBuffs[buff] || 0) + 1);
+    return { player, message: `${chestType} 裝上一個小詞條：${CONFIG.minorBuffs[buff].label}。` };
+  }
+  if (outcomeRoll < 0.4) {
+    player.minerHelmetCount += 1;
+    return { player, message: `${chestType} 獲得 ⛑️ 礦工帽，可抵擋一次鐘乳石。` };
+  }
+  if (outcomeRoll < 0.5) {
+    const traits = ["abyssMiner", "gemMania", "blastManiac", "luckySurvey", "limitBackpack"];
+    const trait = traits[Math.floor(random() * traits.length)];
+    addPendingNextRunTrait(player, trait);
+    return { player, message: `${chestType} 找到下一場限定詞條：${CONFIG.runModes[trait].label}。` };
+  }
+  if (outcomeRoll < 0.6) {
+    addTempEffect(player, { id: "chest_crit", remaining: 5, critChanceBonus: 0.08 });
+    return { player, message: `${chestType} 爆擊強化，接下來 5 層更容易爆擊。` };
+  }
+  if (outcomeRoll < 0.7) {
+    player.bagBonusSlots += choice === "extreme" ? 4 : 2;
+    return { player, message: `${chestType} 找到折疊袋，本輪包包增加。` };
+  }
+  if (outcomeRoll < 0.8) {
+    player.pendingEvent = "ancient_blessing";
+    return { player, message: `${chestType} 暗格打開，露出隱藏事件的入口。` };
+  }
+  if (outcomeRoll < 0.9) {
+    const reward = addOreReward(player, 3 + getDepthBonus(player.depth), player.depth >= 30 ? "platinumOre" : "goldOre");
+    return { player, message: `${chestType} 礦物袋：${reward.gained} 塊${getOreName(reward.target)}。` };
+  }
+  player.healingPotion += 1;
+  return { player, message: `${chestType} 稀有補給：治療藥水 +1。` };
 }
 
 function getCollectionTotal(playerInput) {
@@ -1166,6 +1277,17 @@ function addBombDamage(player, now = Date.now(), amount = 1) {
   };
 }
 
+function blockStalactiteWithHelmet(player) {
+  if ((player.minerHelmetCount || 0) <= 0) return null;
+  player.minerHelmetCount -= 1;
+  return {
+    dead: false,
+    damage: 0,
+    helmet: true,
+    message: "⛑️ 礦工帽幫你擋下了鐘乳石！"
+  };
+}
+
 function buildOutcome(kind, player, title, message, recordMessage = "", random = Math.random) {
   const eventMessage = kind === "blocked" || kind === "full" || player.dead
     ? ""
@@ -1175,11 +1297,12 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
   }
   const funMessage = applyPostDigFun(player, kind, random);
+  const tensionHint = getTensionHint(player);
   return {
     kind,
     player,
     title,
-    message: `${message}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
+    message: `${message}${tensionHint ? `\n${tensionHint}` : ""}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
     recordMessage
   };
 }
@@ -1324,6 +1447,16 @@ function getGemAmount(depth, random = Math.random) {
   return 1 + Math.floor(random() * (2 + bonus));
 }
 
+function getTensionHint(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone === "upward" && player.depth <= -90) return "☁️ 天光越來越近，反轉風壓刺得耳朵發疼。";
+  if (player.depth >= 99 && player.depth < 100) return "💀 差一層就能抵達岩漿區…";
+  if (player.depth >= 90) return "🔥 你感覺空氣開始變熱…";
+  if (player.depth >= 70 && player.bombs >= getMaxBombs(player) - 1) return "💔 只差一點就撐不住了。";
+  if (player.comboCount >= 4) return "⛏️ 這條礦脈似乎不太對勁…";
+  return "";
+}
+
 function processLayerStartEffects(player, random = Math.random, now = Date.now()) {
   const messages = [];
   for (const effect of player.tempEffects) {
@@ -1343,13 +1476,17 @@ function processLayerStartEffects(player, random = Math.random, now = Date.now()
     }
   }
 
+  if (!player.dead && player.potionCooldown > 0) {
+    player.potionCooldown = Math.max(0, player.potionCooldown - 1);
+  }
+
   if (!player.dead && player.goldBeast && player.depth >= player.goldBeast.returnDepth) {
     const roll = random();
     const multiplier = roll < 0.5 ? 1.5 : roll < 0.85 ? 2 : 3;
     const reward = Math.floor(player.goldBeast.amount * multiplier);
     player.gold += reward;
     player.goldBeast = null;
-    messages.push(`吞金獸回來了，吐出 ${reward} 金幣。`);
+    messages.push(`吞金獸回來了，吐出 ${reward} 金幣。\n你感覺牠不會再回來了…`);
   }
 
   return messages.join("\n");
@@ -1391,7 +1528,7 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
   }
 
   if (result === "stalactite") {
-    const damage = addBombDamage(player, now, 2);
+    const damage = blockStalactiteWithHelmet(player) || addBombDamage(player, now, 2);
     if (damage.dead) {
       return {
         kind: "dead",
@@ -1406,7 +1543,9 @@ function mineGemCave(player, random = Math.random, now = Date.now(), recordMessa
       "stalactite",
       player,
       "鐘乳石砸落",
-      `${pathPrefix}鐘乳石砸中你，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
+      damage.helmet
+        ? `${pathPrefix}${damage.message}`
+        : `${pathPrefix}鐘乳石砸中你，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
       recordMessage,
       random
     );
@@ -1545,17 +1684,18 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
     };
   }
 
+  if (player.zone === "undergroundCamp") {
+    if (!player.runMode) player.runMode = "reversePrep";
+    player.zone = "upward";
+    player.caveType = null;
+    player.depth = 0;
+    player.nextEventDepth = 4;
+    player.eventMissCount = 0;
+    player.nextBuffDepth = 5;
+    return mineUpward(player, random, now);
+  }
+
   if (!player.runMode) {
-    if (player.zone === "undergroundCamp") {
-      player.runMode = "reversePrep";
-      player.zone = "upward";
-      player.caveType = null;
-      player.depth = 0;
-      player.nextEventDepth = 4;
-      player.eventMissCount = 0;
-      player.nextBuffDepth = 5;
-      return mineUpward(player, random, now);
-    }
     return {
       kind: "blocked",
       player,
@@ -1740,7 +1880,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (result === "stalactite") {
-    const damage = addBombDamage(player, now, 2);
+    const damage = blockStalactiteWithHelmet(player) || addBombDamage(player, now, 2);
     if (damage.dead) {
       return {
         kind: "dead",
@@ -1755,7 +1895,9 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       "stalactite",
       player,
       "鐘乳石砸落",
-      `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}鐘乳石從頭頂砸落，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
+      damage.helmet
+        ? `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}${damage.message}`
+        : `${layerEffectMessage ? `${layerEffectMessage}\n` : ""}${pathPrefix}鐘乳石從頭頂砸落，扣 ${formatHpValue(damage.damage || 1)} 滴血。生命損傷 ${formatHpValue(player.bombs)}/${getMaxBombs(player)}。`,
       recordMessage,
       random
     );
@@ -2293,9 +2435,15 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     if (choice === "safe") return { ok: true, player, title: event.title, message: "你沒有餵食吞金獸。" };
     if (player.gold <= 0) return { ok: false, player, title: event.title, message: "你身上沒有金幣可以餵。" };
     player.goldBeast = { amount: player.gold, returnDepth: player.depth + 8 };
+    player.hasSeenGoldenBeast = true;
     const fed = player.gold;
     player.gold = 0;
-    return { ok: true, player, title: event.title, message: `你餵給吞金獸 ${fed} 金幣。牠會在第 ${player.goldBeast.returnDepth} 層回來。` };
+    return { ok: true, player, title: event.title, message: `你餵給吞金獸 ${fed} 金幣。牠會在第 ${player.goldBeast.returnDepth} 層回來。\n你感覺牠不會再回來了…` };
+  }
+
+  if (eventId === "treasure_chest") {
+    const chest = resolveTreasureChest(player, choice, random, now);
+    return { ok: true, player: chest.player, title: event.title, message: chest.message };
   }
 
   if (event.caveType === "gem") {
@@ -2595,6 +2743,13 @@ function drinkHealingPotion(playerInput) {
       message: "你沒有治療藥水。"
     };
   }
+  if ((player.potionCooldown || 0) > 0) {
+    return {
+      ok: false,
+      player,
+      message: `🧪 藥水還未恢復效果。\n剩餘冷卻：${player.potionCooldown} 層`
+    };
+  }
   if (player.bombs <= 0) {
     return {
       ok: false,
@@ -2606,6 +2761,7 @@ function drinkHealingPotion(playerInput) {
   const healed = Math.min(player.bombs, CONFIG.shop.consumables.healingPotion.healBombs);
   player.healingPotion -= 1;
   player.bombs -= healed;
+  player.potionCooldown = CONFIG.shop.consumables.healingPotion.cooldownLayers;
   return {
     ok: true,
     player,

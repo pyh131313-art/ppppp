@@ -261,6 +261,49 @@ const CONFIG = {
       bagBonusSlots: 6,
       anomalousBackpack: true
     },
+    abyssMiner: {
+      name: "深淵礦工",
+      label: "深淵礦工",
+      shortDescription: "深層收益++｜炸彈+",
+      deepInstinct: true,
+      bombWeightMultiplier: 1.18,
+      deepRewardMultiplier: 1.45,
+      nextRunOnly: true
+    },
+    gemMania: {
+      name: "寶石狂熱",
+      label: "寶石狂熱",
+      shortDescription: "寶石+50%｜普通礦-",
+      gemRewardMultiplier: 1.5,
+      oreRewardMultiplier: 0.75,
+      gemCaveChanceBonus: 0.16,
+      nextRunOnly: true
+    },
+    blastManiac: {
+      name: "爆破狂徒",
+      label: "爆破狂徒",
+      shortDescription: "炸彈可回收｜死亡扣金+",
+      blastRecycle: true,
+      bombWeightMultiplier: 1.25,
+      deathPenaltyMultiplier: 1.5,
+      nextRunOnly: true
+    },
+    luckySurvey: {
+      name: "幸運探勘",
+      label: "幸運探勘",
+      shortDescription: "爆擊+12%｜空挖+",
+      critChanceBonus: 0.12,
+      emptyWeightMultiplier: 1.25,
+      nextRunOnly: true
+    },
+    limitBackpack: {
+      name: "極限背包",
+      label: "極限背包",
+      shortDescription: "包包+10｜層數慢",
+      bagBonusSlots: 10,
+      slowDepthChance: 0.35,
+      nextRunOnly: true
+    },
     bagExpansion: {
       name: "背包擴充",
       label: "背包擴充",
@@ -428,7 +471,8 @@ const CONFIG = {
         priceGold: 100,
         unlockBestDepth: 70,
         healBombs: 1,
-        hourlyStock: 20
+        hourlyStock: 20,
+        cooldownLayers: 4
       },
       undyingTotem: {
         label: "不死圖騰",

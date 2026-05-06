@@ -50,6 +50,7 @@ const {
   buildPanelEmbed,
   CUSTOM_IDS
 } = require("../src/ui");
+const { pickRandomEvent } = require("../src/eventSystem");
 
 test("炸彈每次扣半血，累積到生命上限才死亡", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
@@ -456,6 +457,20 @@ test("普通礦洞也會出現鐘乳石並扣一滴血", () => {
   assert.match(result.message, /鐘乳石/);
 });
 
+test("礦工帽會優先抵擋一次鐘乳石", () => {
+  const start = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    minerHelmetCount: 1,
+    forcedNextResult: "stalactite"
+  };
+  const result = mine(start, () => 0.99, 1000);
+
+  assert.equal(result.kind, "stalactite");
+  assert.equal(result.player.bombs, 0);
+  assert.equal(result.player.minerHelmetCount, 0);
+  assert.match(result.message, /礦工帽/);
+});
+
 test("寶石礦洞的白金破爛佔五格包包", () => {
   const start = chooseRunMode(createPlayer(), "safe", () => 0).player;
   const result = mine(start, () => 0.95);
@@ -515,6 +530,27 @@ test("地表可以花總資產一成回到地底營地", () => {
   assert.equal(getElevatorCost({ ...createPlayer(), gold: 90, bankGold: 10 }), 10);
   assert.equal(result.player.zone, "undergroundCamp");
   assert.equal(result.player.gold + result.player.bankGold, 90);
+});
+
+test("舊版 100 層以上玩家開礦場會遷移到地底營地且保留狀態", () => {
+  const player = ensureRunModeOptions({
+    ...createPlayer(),
+    runMode: "safe",
+    depth: 126,
+    ore: 7,
+    gold: 123,
+    bombs: 1,
+    tempEffects: [{ id: "test_buff", remaining: 2 }]
+  });
+
+  assert.equal(player.zone, "undergroundCamp");
+  assert.equal(player.migratedToUndergroundCamp, true);
+  assert.equal(player.preUpdateDeepPlayer, true);
+  assert.equal(player.ore, 7);
+  assert.equal(player.gold, 123);
+  assert.equal(player.bombs, 1);
+  assert.equal(player.tempEffects.length, 1);
+  assert.match(player.lastMigrationMessage, /地底營地/);
 });
 
 test("礦石金屬錠和寶石每十個佔一格", () => {
@@ -696,6 +732,52 @@ test("新增事件池包含普通寶石上位與反轉事件", () => {
   assert.equal(gemCount, 20);
   assert.equal(highCount, 20);
   assert.equal(reverseCount, 5);
+});
+
+test("寶箱可以開出下一場限定詞條與礦工帽", () => {
+  const trait = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "treasure_chest"
+  }, "risk", () => 0.45, 1000);
+  const helmetRolls = [0.1, 0.99, 0.35];
+  const helmet = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "treasure_chest"
+  }, "risk", () => helmetRolls.shift() ?? 0.99, 1000);
+
+  assert.equal(trait.player.pendingNextRunTraits.length, 1);
+  assert.equal(helmet.player.minerHelmetCount, 1);
+});
+
+test("下一場限定詞條會進入初始選項並在選擇後消耗", () => {
+  const player = ensureRunModeOptions({
+    ...createPlayer(),
+    pendingNextRunTraits: ["abyssMiner"]
+  }, () => 0);
+  const chosen = chooseRunMode(player, "abyssMiner");
+
+  assert.equal(getRunModeOptions(player).some((option) => option.id === "abyssMiner"), true);
+  assert.equal(chosen.ok, true);
+  assert.equal(chosen.player.pendingNextRunTraits.includes("abyssMiner"), false);
+});
+
+test("吞金獸高資產或看過後不再出現", () => {
+  const rich = pickRandomEvent({ ...createPlayer(), gold: 60000 }, () => 0.99);
+  const seen = pickRandomEvent({ ...createPlayer(), hasSeenGoldenBeast: true }, () => 0.99);
+
+  assert.notEqual(rich, "gold_eater");
+  assert.notEqual(seen, "gold_eater");
+});
+
+test("吞金獸餵食後標記一生只見一次", () => {
+  const result = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "gold_eater",
+    gold: 100
+  }, "risk");
+
+  assert.equal(result.player.hasSeenGoldenBeast, true);
+  assert.match(result.message, /不會再回來/);
 });
 
 test("爆擊會在原掉落後額外加成並累積蓄力", () => {
@@ -993,6 +1075,22 @@ test("治療藥水只能下礦後使用並恢復一滴血", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.healingPotion, 0);
   assert.equal(result.player.bombs, 1);
+});
+
+test("治療藥水使用後需要等待層數冷卻", () => {
+  const player = {
+    ...chooseRunMode({ ...createPlayer(), runModeOptions: ["safe", "double"], healingPotion: 2 }, "safe").player,
+    bombs: 1
+  };
+  const first = drinkHealingPotion(player);
+  const blocked = drinkHealingPotion({ ...first.player, bombs: 1 });
+  const cooled = mine({ ...first.player, forcedNextResult: "empty" }, () => 0.99);
+
+  assert.equal(first.ok, true);
+  assert.equal(first.player.potionCooldown, 4);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.message, /剩餘冷卻/);
+  assert.equal(cooled.player.potionCooldown, 3);
 });
 
 test("共同死亡達到 100 次後商店解鎖不死圖騰", () => {
