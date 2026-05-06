@@ -711,14 +711,34 @@ function getCaveLabel(playerInput) {
   return "尚未進洞";
 }
 
+function canUseBank(playerInput) {
+  const player = getPlayer(playerInput);
+  return !isInMine(player) || player.zone === "undergroundCamp";
+}
+
+function formatBankMessage(playerInput, actionMessage = "") {
+  const player = getPlayer(playerInput);
+  const title = player.zone === "undergroundCamp" ? "【地底營地】" : "【銀行】";
+  const lines = [
+    title,
+    "",
+    "🏦 銀行",
+    `目前餘額：${player.bankGold}`,
+    `身上金幣：${player.gold}`,
+    `總資產：${getTotalAsset(player)}`
+  ];
+  if (actionMessage) lines.unshift(actionMessage, "");
+  return lines.join("\n");
+}
+
 function depositBank(playerInput) {
   const player = getPlayer(playerInput);
 
-  if (isInMine(player)) {
+  if (!canUseBank(player)) {
     return {
       ok: false,
       player,
-      message: "銀行只能在地面使用。先返回地面再存錢。"
+      message: "銀行只能在地表或地底營地使用。"
     };
   }
 
@@ -726,7 +746,7 @@ function depositBank(playerInput) {
     return {
       ok: false,
       player,
-      message: "身上沒有金幣可以存入銀行。"
+      message: formatBankMessage(player, "身上沒有金幣可以存入銀行。")
     };
   }
 
@@ -737,18 +757,26 @@ function depositBank(playerInput) {
   return {
     ok: true,
     player,
-    message: `已存入 ${amount} 金幣。銀行金幣死亡不會噴。`
+    message: formatBankMessage(player, `已存入 ${amount} 金幣。銀行金幣死亡不會噴。`)
   };
 }
 
 function withdrawBank(playerInput) {
   const player = getPlayer(playerInput);
 
+  if (!canUseBank(player)) {
+    return {
+      ok: false,
+      player,
+      message: "銀行只能在地表或地底營地使用。"
+    };
+  }
+
   if (player.bankGold <= 0) {
     return {
       ok: false,
       player,
-      message: "銀行目前沒有金幣可以領出。"
+      message: formatBankMessage(player, "銀行目前沒有金幣可以領出。")
     };
   }
 
@@ -759,7 +787,7 @@ function withdrawBank(playerInput) {
   return {
     ok: true,
     player,
-    message: `已領出 ${amount} 金幣。領出後如果死亡，身上金幣會照常損失。`
+    message: formatBankMessage(player, `已領出 ${amount} 金幣。領出後如果死亡，身上金幣會照常損失。`)
   };
 }
 

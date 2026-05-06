@@ -208,7 +208,7 @@ test("蓄力滿時會顯示可爆發能量條", () => {
   assert.match(value, /蓄力：🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 可爆發/);
 });
 
-test("銀行只能在地面存入並可以領出", () => {
+test("銀行只能在地表或地底營地存入並可以領出", () => {
   const deposited = depositBank({ ...createPlayer(), gold: 45 });
   const blocked = depositBank({ ...createPlayer(), gold: 45, runMode: "safe" });
   const withdrawn = withdrawBank(deposited.player);
@@ -520,6 +520,34 @@ test("地底客棧目前顯示敬請期待", () => {
 
   assert.equal(result.ok, true);
   assert.match(result.message, /敬請期待/);
+});
+
+test("地底營地銀行可存款提款且顯示總資產", () => {
+  const camp = {
+    ...createPlayer(),
+    runMode: "safe",
+    zone: "undergroundCamp",
+    undergroundCampUnlocked: true,
+    depth: 100,
+    gold: 75,
+    bankGold: 25
+  };
+  const deposited = depositBank(camp);
+  const withdrawn = withdrawBank(deposited.player);
+  const rows = buildPanelComponents(null, camp);
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(deposited.ok, true);
+  assert.equal(deposited.player.gold, 0);
+  assert.equal(deposited.player.bankGold, 100);
+  assert.match(deposited.message, /【地底營地】/);
+  assert.match(deposited.message, /目前餘額：100/);
+  assert.match(deposited.message, /總資產：100/);
+  assert.equal(withdrawn.ok, true);
+  assert.equal(withdrawn.player.gold, 100);
+  assert.equal(withdrawn.player.bankGold, 0);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankDeposit), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankWithdraw), true);
 });
 
 test("地表可以花總資產一成回到地底營地", () => {

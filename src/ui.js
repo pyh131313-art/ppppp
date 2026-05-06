@@ -837,8 +837,11 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       addRow(
         makeButton(CUSTOM_IDS.mine, "開始往上挖", ButtonStyle.Primary, "⬆️"),
         makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
-        makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗"),
-        makeButton(CUSTOM_IDS.bankDeposit, "存入銀行", ButtonStyle.Success, "🏦")
+        makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
+      );
+      addRow(
+        makeButton(CUSTOM_IDS.bankDeposit, "存款", ButtonStyle.Success, "🏦"),
+        makeButton(CUSTOM_IDS.bankWithdraw, "提款", ButtonStyle.Secondary, "💰")
       );
       return rows;
     }
