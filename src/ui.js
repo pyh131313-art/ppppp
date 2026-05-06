@@ -811,6 +811,28 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     return rows;
   }
 
+  if (player.zone === "undergroundCamp") {
+    if (!player.runMode) {
+      addRow(
+        ...getRunModeOptions(player).map((mode, index) => (
+          makeButton(`${CUSTOM_IDS.modePrefix}:${mode.id}`, `${modeNumbers[index] || index + 1} ${mode.name || mode.label}`, ButtonStyle.Secondary, "🎴")
+        )),
+        makeButton(CUSTOM_IDS.rerollModes, "刷新詞條 10", ButtonStyle.Primary, "🔄")
+      );
+    } else {
+      addRow(makeButton(CUSTOM_IDS.mine, "開始往上挖", ButtonStyle.Primary, "⬆️"));
+    }
+    addRow(
+      makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
+      makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
+    );
+    addRow(
+      makeButton(CUSTOM_IDS.bankDeposit, "存款", ButtonStyle.Success, "🏦"),
+      makeButton(CUSTOM_IDS.bankWithdraw, "提款", ButtonStyle.Secondary, "💰")
+    );
+    return rows;
+  }
+
   if (onSurface) {
     addRow(
       ...getRunModeOptions(player).map((mode, index) => (
@@ -833,18 +855,6 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   }
 
   if (inMine) {
-    if (player.zone === "undergroundCamp") {
-      addRow(
-        makeButton(CUSTOM_IDS.mine, "開始往上挖", ButtonStyle.Primary, "⬆️"),
-        makeButton(CUSTOM_IDS.undergroundInn, "地底客棧", ButtonStyle.Secondary, "🏨"),
-        makeButton(CUSTOM_IDS.returnSurface, `電梯回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗")
-      );
-      addRow(
-        makeButton(CUSTOM_IDS.bankDeposit, "存款", ButtonStyle.Success, "🏦"),
-        makeButton(CUSTOM_IDS.bankWithdraw, "提款", ButtonStyle.Secondary, "💰")
-      );
-      return rows;
-    }
     if (player.zone === "skyCamp") {
       addRow(makeButton(CUSTOM_IDS.returnSurface, `回地表 ${getElevatorCost(player)}`, ButtonStyle.Success, "🛗"));
       return rows;

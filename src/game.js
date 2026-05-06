@@ -557,6 +557,7 @@ const openUndergroundInn = economySystem.openUndergroundInn;
 function chooseRunMode(playerInput, mode, random = null) {
   const player = getPlayer(playerInput);
   const config = CONFIG.runModes[mode];
+  const choosingFromUndergroundCamp = player.zone === "undergroundCamp";
 
   if (!config) {
     return {
@@ -566,7 +567,7 @@ function chooseRunMode(playerInput, mode, random = null) {
     };
   }
 
-  if (isInMine(player)) {
+  if (isInMine(player) && !choosingFromUndergroundCamp) {
     return {
       ok: false,
       player,
@@ -585,9 +586,14 @@ function chooseRunMode(playerInput, mode, random = null) {
 
   player.runMode = mode;
   player.runModeOptions = [];
-  const gemChance = CONFIG.mining.gemCaveChance + (config.gemCaveChanceBonus || 0);
-  player.caveType = random && random() < gemChance ? "gem" : "normal";
-  player.zone = "mine";
+  if (choosingFromUndergroundCamp) {
+    player.caveType = null;
+    player.zone = "undergroundCamp";
+  } else {
+    const gemChance = CONFIG.mining.gemCaveChance + (config.gemCaveChanceBonus || 0);
+    player.caveType = random && random() < gemChance ? "gem" : "normal";
+    player.zone = "mine";
+  }
   player.enteringGold = player.gold;
   player.highTierEligible = getTotalAsset(player) > 0 && player.enteringGold >= getTotalAsset(player) * 0.5;
   player.minorBuffs = { ...createPlayer().minorBuffs };
@@ -628,7 +634,9 @@ function chooseRunMode(playerInput, mode, random = null) {
   return {
     ok: true,
     player,
-    message: player.caveType === "gem"
+    message: choosingFromUndergroundCamp
+      ? `已選擇 ${config.label}。可以從地底營地開始往上挖。`
+      : player.caveType === "gem"
       ? `已選擇 ${config.label}。你腳下一空，掉進了寶石礦洞。這裡只會挖到寶石、鐘乳石和白金破爛。`
       : `已選擇 ${config.label}。可以開始深入挖礦。`
   };
@@ -1550,7 +1558,14 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   }
 
   if (player.zone === "undergroundCamp") {
-    if (!player.runMode) player.runMode = "reversePrep";
+    if (!player.runMode) {
+      return {
+        kind: "blocked",
+        player,
+        title: "選擇上挖詞條",
+        message: "往上挖前請先從目前顯示的兩個初始詞條中選一個。"
+      };
+    }
     player.zone = "upward";
     player.caveType = null;
     player.depth = 0;
@@ -1565,7 +1580,7 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       kind: "blocked",
       player,
       title: "選擇下礦方式",
-      message: "下礦前請先從目前顯示的三個初始詞條中選一個。"
+      message: "下礦前請先從目前顯示的兩個初始詞條中選一個。"
     };
   }
 

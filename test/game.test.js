@@ -501,6 +501,7 @@ test("100 層後會進入岩漿池並可抵達地底營地", () => {
 test("地底營地可以開始往上挖取得顛倒資源", () => {
   const player = {
     ...createPlayer(),
+    runMode: "reversePrep",
     zone: "undergroundCamp",
     undergroundCampUnlocked: true,
     depth: 100
@@ -510,6 +511,27 @@ test("地底營地可以開始往上挖取得顛倒資源", () => {
   assert.equal(result.player.zone, "upward");
   assert.equal(result.player.depth, -1);
   assert.equal(result.player.invertedOre > 0 || result.player.invertedGem > 0, true);
+});
+
+test("地底營地往上挖前可以選擇初始詞條", () => {
+  const camp = ensureRunModeOptions({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    undergroundCampUnlocked: true,
+    depth: 100
+  }, () => 0);
+  const options = getRunModeOptions(camp);
+  const blocked = mine(camp, () => 0.2, 1000);
+  const chosen = chooseRunMode(camp, options[0].id, () => 0.99);
+  const result = mine(chosen.player, () => 0.2, 2000);
+
+  assert.equal(blocked.kind, "blocked");
+  assert.match(blocked.message, /兩個初始詞條/);
+  assert.equal(chosen.ok, true);
+  assert.equal(chosen.player.zone, "undergroundCamp");
+  assert.equal(chosen.player.depth, 100);
+  assert.equal(result.player.zone, "upward");
+  assert.equal(result.player.depth, -1);
 });
 
 test("地底客棧目前顯示敬請期待", () => {
@@ -548,6 +570,22 @@ test("地底營地銀行可存款提款且顯示總資產", () => {
   assert.equal(withdrawn.player.bankGold, 0);
   assert.equal(customIds.includes(CUSTOM_IDS.bankDeposit), true);
   assert.equal(customIds.includes(CUSTOM_IDS.bankWithdraw), true);
+});
+
+test("地底營地未選詞條時顯示詞條按鈕與銀行", () => {
+  const camp = ensureRunModeOptions({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    undergroundCampUnlocked: true,
+    depth: 100
+  }, () => 0);
+  const rows = buildPanelComponents(null, camp);
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(customIds.some((id) => id.startsWith(`${CUSTOM_IDS.modePrefix}:`)), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankDeposit), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.bankWithdraw), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.shopOpen), false);
 });
 
 test("地表可以花總資產一成回到地底營地", () => {
