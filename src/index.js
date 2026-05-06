@@ -1014,8 +1014,13 @@ async function handleMiningButton(interaction) {
     });
   }
 
-  if ([CUSTOM_IDS.mine, CUSTOM_IDS.mineLeft, CUSTOM_IDS.mineRight].includes(interaction.customId)) {
-    const digPath = interaction.customId === CUSTOM_IDS.mineLeft
+  if (
+    [CUSTOM_IDS.mine, CUSTOM_IDS.mineLeft, CUSTOM_IDS.mineRight].includes(interaction.customId)
+    || interaction.customId.startsWith(`${CUSTOM_IDS.minePathPrefix}:`)
+  ) {
+    const digPath = interaction.customId.startsWith(`${CUSTOM_IDS.minePathPrefix}:`)
+      ? interaction.customId.split(":")[2]
+      : interaction.customId === CUSTOM_IDS.mineLeft
       ? "left"
       : interaction.customId === CUSTOM_IDS.mineRight
         ? "right"

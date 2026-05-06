@@ -164,18 +164,26 @@ function getDigPathIds() {
   return Object.keys(CONFIG.mining.digPathTypes);
 }
 
+function getDigPathSidesForCount(count) {
+  if (count <= 1) return ["middle"];
+  if (count === 2) return ["left", "right"];
+  return ["left", "middle", "right"];
+}
+
 function refreshDigPathOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const pool = getDigPathIds();
+  const count = Math.min(3, Math.max(1, 1 + Math.floor(random() * 3)));
+  const sides = getDigPathSidesForCount(count);
   const options = [];
-  while (options.length < 2 && pool.length > 0) {
+  while (options.length < count && pool.length > 0) {
     const index = Math.floor(random() * pool.length);
     options.push(pool.splice(index, 1)[0]);
   }
-  player.digPathOptions = {
-    left: options[0] || "steady",
-    right: options[1] || "greedy"
-  };
+  player.digPathOptions = sides.reduce((next, side, index) => {
+    next[side] = options[index] || "steady";
+    return next;
+  }, {});
   return player;
 }
 
@@ -189,10 +197,12 @@ function getDigPath(playerInput, sideOrPath) {
 
 function getDigPathOptions(playerInput) {
   const player = getPlayer(playerInput);
-  const normalized = player.digPathOptions.left && player.digPathOptions.right
+  const currentSides = ["left", "middle", "right"].filter((side) => player.digPathOptions[side]);
+  const normalized = currentSides.length > 0
     ? player
     : refreshDigPathOptions(player, () => 0);
-  return ["left", "right"].map((side) => {
+  const sides = ["left", "middle", "right"].filter((side) => normalized.digPathOptions[side]);
+  return sides.map((side) => {
     const id = normalized.digPathOptions[side];
     const path = getDigPath(normalized, id);
     return {
@@ -300,6 +310,58 @@ function applyDigPathWeights(weights, playerInput, sideOrPath) {
 function getDigPathRewardMultiplier(playerInput, sideOrPath) {
   const path = getDigPath(playerInput, sideOrPath);
   return path && path.rewardMultiplier ? path.rewardMultiplier : 1;
+}
+
+function resolvePitDigPath(player, path, random = Math.random, now = Date.now(), recordMessage = "") {
+  const jumpRange = Array.isArray(path.jumpDepth) ? path.jumpDepth : [1, 2];
+  const minJump = Math.max(1, Math.floor(jumpRange[0] || 1));
+  const maxJump = Math.max(minJump, Math.floor(jumpRange[1] || minJump));
+  const extraDepth = minJump + Math.floor(random() * (maxJump - minJump + 1));
+  player.depth += extraDepth;
+  const extraRecord = addRunDepthProgress(player, extraDepth);
+  const damage = addBombDamage(player, now, path.damage || 1);
+  const recordLine = [recordMessage, extraRecord].filter(Boolean).join("\n");
+  const rewardType = path.pitReward === "mixed"
+    ? (random() < 0.5 ? "gold" : "ore")
+    : path.pitReward;
+  const rewardMultiplier = path.rewardMultiplier || 1;
+
+  if (player.dead) {
+    return {
+      kind: "dead",
+      player,
+      title: path.label,
+      message: `你跳進${path.label}，往下摔了 ${extraDepth} 層。\n${damage.message}${recordLine ? `\n${recordLine}` : ""}`,
+      recordMessage: recordLine
+    };
+  }
+
+  if (rewardType === "ore") {
+    const amount = Math.max(1, Math.floor((2 + getDepthBonus(player.depth)) * rewardMultiplier));
+    const reward = addOreReward(player, amount, "ore");
+    player.lastReward = makeReward(reward.target, reward.gained);
+    return buildOutcome(
+      reward.target,
+      player,
+      path.label,
+      `你跳進${path.label}，往下摔了 ${extraDepth} 層，${damage.message}\n撿到 ${reward.gained} 塊${getOreName(reward.target)}。`,
+      recordLine,
+      random
+    );
+  }
+
+  const gold = Math.max(1, Math.floor((25 + Math.max(0, player.depth) * 3) * rewardMultiplier));
+  player.gold += gold;
+  player.lastReward = makeReward("gold", gold, gold);
+  onGoldGained(player);
+  return buildOutcome(
+    "gold",
+    player,
+    path.label,
+    `你跳進${path.label}，往下摔了 ${extraDepth} 層，${damage.message}\n撿到 ${gold} 金幣。`,
+    recordLine,
+    random
+  );
 }
 
 function getMiningWeights(playerInput, digPath = null) {
@@ -1023,7 +1085,7 @@ function chooseMinorBuff(playerInput, buff) {
 
   player.minorBuffs[buff] = (player.minorBuffs[buff] || 0) + 1;
   player.minorBuffSelections.push(buff);
-  const requiredSelections = Math.min(2, Math.max(1, player.minorBuffOptions.length));
+  const requiredSelections = 1;
   const done = player.minorBuffSelections.length >= requiredSelections;
   if (done) {
     player.nextBuffDepth = Math.abs(player.depth) + 5;
@@ -1037,7 +1099,7 @@ function chooseMinorBuff(playerInput, buff) {
     player,
     message: done
       ? `已選擇 ${isBreakthrough ? "✨ " : ""}${config.label}${isBreakthrough ? "（突破）" : ""}。本次小詞條完成，下一次在第 ${player.nextBuffDepth} 層。`
-      : `已選擇 ${isBreakthrough ? "✨ " : ""}${config.label}${isBreakthrough ? "（突破）" : ""}。還可以再選 1 個小詞條。`
+      : `已選擇 ${isBreakthrough ? "✨ " : ""}${config.label}${isBreakthrough ? "（突破）" : ""}。`
   };
 }
 
@@ -2036,6 +2098,12 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       recordMessage
     };
   }
+  const selectedPath = getDigPath(player, digPath);
+  if (selectedPath && selectedPath.special === "pit") {
+    const outcome = resolvePitDigPath(player, selectedPath, random, now, recordMessage);
+    if (layerEffectMessage) outcome.message = `${layerEffectMessage}\n${outcome.message}`;
+    return outcome;
+  }
   if (player.caveType === "gem") {
     const outcome = mineGemCave(player, random, now, recordMessage, digPath);
     if (layerEffectMessage) outcome.message = `${layerEffectMessage}\n${outcome.message}`;
@@ -2810,7 +2878,8 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       return { ok: true, player, title: event.title, message: `你跳入裂縫前進到第 ${player.depth} 層，${damage.message}接下來 3 層炸彈 +25%。` };
     }
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
-    const options = getDigPathOptions(player).map((path) => `${path.side === "left" ? "左" : "右"}:${path.label}`).join("｜");
+    const sideLabels = { left: "左", middle: "中", right: "右" };
+    const options = getDigPathOptions(player).map((path) => `${sideLabels[path.side] || "路"}:${path.label}`).join("｜");
     return { ok: true, player, title: event.title, message: `低語顯示下一層路線：${options}。` };
   }
 

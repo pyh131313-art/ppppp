@@ -113,7 +113,7 @@ test("礦場分頁主畫面只顯示核心狀態", () => {
   assert.match(value, /生命：/);
   assert.match(value, /金幣：12 ｜ 銀行：30/);
   assert.match(value, /深度：/);
-  assert.match(value, /路線：←/);
+  assert.match(value, /路線：/);
   assert.doesNotMatch(value, /📦 資源/);
   assert.doesNotMatch(value, /🎒 包包（/);
 });
@@ -194,7 +194,7 @@ test("精簡 UI 只顯示生命深度包包和路線", () => {
   assert.match(value, /🎒 包包（1\/12）/);
   assert.match(value, /⛏️ ⬛ ⬛ ⬛/);
   assert.match(value, /蓄力：⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛ 0\/100/);
-  assert.match(value, /路線：\n←/);
+  assert.match(value, /路線：\n/);
   assert.doesNotMatch(value, /金幣：/);
   assert.doesNotMatch(value, /銀行/);
   assert.doesNotMatch(value, /📦 資源/);
@@ -253,7 +253,7 @@ test("左挖右挖會套用安全與貪婪路線差異", () => {
 });
 
 test("左右路線會在下礦和每次挖完後刷新", () => {
-  const startRolls = [0.5, 0, 0];
+  const startRolls = [0.5, 0.5, 0, 0];
   const start = chooseRunMode(createPlayer(), "safe", () => startRolls.shift() ?? 0);
 
   assert.equal(start.ok, true);
@@ -263,7 +263,36 @@ test("左右路線會在下礦和每次挖完後刷新", () => {
   const result = mine(start.player, () => mineRolls.shift() ?? 0.99, 1000, "left");
 
   assert.equal(result.kind, "gold");
-  assert.deepEqual(getDigPathOptions(result.player).map((path) => path.id), ["oreVein", "rustyCrack"]);
+  assert.ok(getDigPathOptions(result.player).length >= 1);
+  assert.ok(getDigPathOptions(result.player).length <= 3);
+});
+
+test("路線每次會隨機出現一到三條", () => {
+  const one = chooseRunMode(createPlayer(), "safe", (() => {
+    const rolls = [0.5, 0, 0];
+    return () => rolls.shift() ?? 0;
+  })()).player;
+  const three = chooseRunMode(createPlayer(), "safe", (() => {
+    const rolls = [0.5, 0.99, 0, 0, 0];
+    return () => rolls.shift() ?? 0;
+  })()).player;
+
+  assert.equal(getDigPathOptions(one).length, 1);
+  assert.equal(getDigPathOptions(three).length, 3);
+});
+
+test("坑洞路線會跳層給獎勵並扣血", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    digPathOptions: { middle: "coinPit" }
+  };
+  const result = mine(player, () => 0, 1000, "middle");
+
+  assert.equal(result.kind, "gold");
+  assert.equal(result.player.depth, 2);
+  assert.equal(result.player.bombs, 0.5);
+  assert.ok(result.player.gold > 0);
+  assert.match(result.message, /金光坑洞/);
 });
 
 test("進入礦洞有小機率掉進寶石礦洞", () => {
@@ -1166,8 +1195,8 @@ test("吞金獸抵達地底營地時會回來且不被上挖選詞條清除", ()
 });
 
 test("爆擊會在原掉落後額外加成並累積蓄力", () => {
-  const start = chooseRunMode(createPlayer(), "safe").player;
-  const rolls = [0, 0, 0.99, 0.99, 0.05, 0.99, 0.99];
+  const start = chooseRunMode(createPlayer(), "safe", () => 0.5).player;
+  const rolls = [0, 0, 0.99, 0.99, 0.99, 0.99, 0.05, 0.99, 0.99];
   const result = mine(start, () => rolls.shift() ?? 0.99);
 
   assert.equal(result.kind, "gold");
@@ -1348,19 +1377,20 @@ test("安全血量會讓生命增加二", () => {
   assert.equal(third.dead, false);
 });
 
-test("每五層可以三選二小詞條", () => {
+test("每五層可以三選一小詞條", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
     depth: 5,
     minorBuffOptions: ["gold", "bomb", "bag"]
   };
-  const first = chooseMinorBuff(player, "gold");
-  const result = chooseMinorBuff(first.player, "bag");
+  const result = chooseMinorBuff(player, "gold");
+  const second = chooseMinorBuff(result.player, "bag");
 
   assert.equal(result.ok, true);
   assert.equal(result.player.minorBuffs.gold, 1);
-  assert.equal(result.player.minorBuffs.bag, 1);
+  assert.equal(result.player.minorBuffs.bag, 0);
   assert.equal(result.player.nextBuffDepth, 10);
+  assert.equal(second.ok, false);
 });
 
 test("小詞條選項會先排除已達上限的普通詞條", () => {

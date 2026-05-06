@@ -166,6 +166,36 @@ const CONFIG = {
           stalactite: 1.8,
           platinumJunk: 1.4
         }
+      },
+      coinPit: {
+        label: "金光坑洞",
+        description: "跳下去會受傷，但能撿錢並跳層",
+        special: "pit",
+        pitReward: "gold",
+        jumpDepth: [1, 2],
+        damage: 1,
+        rewardMultiplier: 1.15,
+        weightMultipliers: {}
+      },
+      orePit: {
+        label: "碎礦坑洞",
+        description: "跳下去會受傷，但能撿礦並跳層",
+        special: "pit",
+        pitReward: "ore",
+        jumpDepth: [1, 2],
+        damage: 1,
+        rewardMultiplier: 1.1,
+        weightMultipliers: {}
+      },
+      deepPit: {
+        label: "深不見底",
+        description: "跳層最多，獎勵較好但更痛",
+        special: "pit",
+        pitReward: "mixed",
+        jumpDepth: [2, 3],
+        damage: 2,
+        rewardMultiplier: 1.35,
+        weightMultipliers: {}
       }
     }
   },

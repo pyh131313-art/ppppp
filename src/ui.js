@@ -39,6 +39,7 @@ const CUSTOM_IDS = {
   mine: "mine_ui:mine",
   mineLeft: "mine_ui:mine_left",
   mineRight: "mine_ui:mine_right",
+  minePathPrefix: "mine_ui:path",
   pagePrefix: "mine_ui:page",
   uiModePrefix: "mine_ui:ui",
   chargePrefix: "mine_ui:charge",
@@ -113,11 +114,16 @@ function buildCoreStatus(playerInput) {
   const maxHp = getMaxBombs(player);
   const hp = player.dead ? 0 : Math.max(0, maxHp - player.bombs);
   const digPaths = player.runMode ? getDigPathOptions(player) : [];
+  const pathName = (path) => {
+    if (path.side === "left") return `← ${path.label}`;
+    if (path.side === "right") return `${path.label} →`;
+    return `↓ ${path.label}`;
+  };
   const digPathText = player.zone === "upward"
     ? "往上挖路線"
     : player.zone === "lavaPool"
       ? "穿越岩漿池"
-      : (digPaths.length ? `← ${digPaths[0].label} ｜ ${digPaths[1].label} →` : "無");
+      : (digPaths.length ? digPaths.map(pathName).join(" ｜ ") : "無");
   return { player, maxHp, hp, digPathText };
 }
 
@@ -881,11 +887,25 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       );
     } else {
     const digPaths = getDigPathOptions(player);
-    const leftPath = digPaths.find((path) => path.side === "left") || { label: "左路" };
-    const rightPath = digPaths.find((path) => path.side === "right") || { label: "右路" };
+    const sideText = {
+      left: "左",
+      middle: "中",
+      right: "右"
+    };
+    const sideEmoji = {
+      left: "⬅️",
+      middle: "⬇️",
+      right: "➡️"
+    };
     addRow(
-      makeButton(CUSTOM_IDS.mineLeft, `左:${leftPath.label}`, ButtonStyle.Primary, "⬅️"),
-      makeButton(CUSTOM_IDS.mineRight, `右:${rightPath.label}`, ButtonStyle.Danger, "➡️"),
+      ...digPaths.map((path) => (
+        makeButton(
+          `${CUSTOM_IDS.minePathPrefix}:${path.side}`,
+          `${sideText[path.side] || "路"}:${path.label}`,
+          path.side === "right" ? ButtonStyle.Danger : ButtonStyle.Primary,
+          sideEmoji[path.side] || "⛏️"
+        )
+      )),
       makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
       player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
     );

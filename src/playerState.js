@@ -161,7 +161,7 @@ function getPlayer(player) {
     ? player.minorBuffOptions.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 3)
     : [];
   next.minorBuffSelections = Array.isArray(player && player.minorBuffSelections)
-    ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 2)
+    ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 1)
     : [];
   next.minorBuffBreakthroughMode = Boolean(player && player.minorBuffBreakthroughMode);
   next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
