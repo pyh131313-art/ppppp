@@ -68,6 +68,97 @@ const EVOLUTION_TYPES = {
     pointKey: "trickster",
     mature: { minLevel: 6, minWins: 2, minPoints: 4 },
     complete: { minLevel: 16, minWins: 10, minPoints: 14 }
+  },
+  gale: {
+    name: "疾風雞",
+    icon: "🐓💨",
+    activeSkill: "galeRush",
+    passiveSkill: "lightSteps",
+    title: "疾風跑者",
+    entryEffect: "💨 羽毛一閃，牠已經衝出去了。",
+    pointKey: "gale",
+    mature: { minLevel: 6, minWins: 1, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 9, minPoints: 13 }
+  },
+  crown: {
+    name: "金冠雞",
+    icon: "🐔👑",
+    activeSkill: "royalPace",
+    passiveSkill: "winnerAura",
+    title: "金冠勝者",
+    entryEffect: "👑 牠昂首進場，像是早就知道結果。",
+    pointKey: "crown",
+    mature: { minLevel: 6, minWins: 5, minPoints: 5 },
+    complete: { minLevel: 16, minWins: 18, minPoints: 16 }
+  },
+  thunder: {
+    name: "雷鳴雞",
+    icon: "🐓⚡",
+    activeSkill: "thunderKick",
+    passiveSkill: "sparkFeather",
+    title: "雷鳴衝線王",
+    entryEffect: "⚡ 賽道邊響起細小的電光。",
+    pointKey: "thunder",
+    mature: { minLevel: 6, minWins: 2, minPoints: 5 },
+    complete: { minLevel: 16, minWins: 11, minPoints: 15 }
+  },
+  shadow: {
+    name: "夜影雞",
+    icon: "🐔🌑",
+    activeSkill: "shadowSlip",
+    passiveSkill: "quietStep",
+    title: "夜影奇襲者",
+    entryEffect: "🌑 牠低著身子，悄悄貼近內線。",
+    pointKey: "shadow",
+    mature: { minLevel: 6, minWins: 2, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 10, minPoints: 14 }
+  },
+  crystal: {
+    name: "水晶雞",
+    icon: "🐤💎",
+    activeSkill: "crystalFocus",
+    passiveSkill: "clearMind",
+    title: "水晶預言者",
+    entryEffect: "💎 牠的羽毛反射出奇妙光芒。",
+    pointKey: "crystal",
+    mature: { minLevel: 6, minWins: 3, minPoints: 4 },
+    complete: { minLevel: 16, minWins: 12, minPoints: 14 }
+  },
+  mud: {
+    name: "泥巴雞",
+    icon: "🐔🟫",
+    activeSkill: "mudRoll",
+    passiveSkill: "heavyFeather",
+    title: "泥地常客",
+    entryEffect: "🟫 牠踩著滿腳泥巴進場。",
+    pointKey: "clumsy",
+    weak: true,
+    mature: { minLevel: 6, minWins: 0, minPoints: 5 },
+    complete: { minLevel: 16, minWins: 3, minPoints: 18 }
+  },
+  paper: {
+    name: "紙箱雞",
+    icon: "🐤📦",
+    activeSkill: "boxHide",
+    passiveSkill: "paperWing",
+    title: "紙箱勇者",
+    entryEffect: "📦 牠躲在紙箱裡，只露出一點點眼神。",
+    pointKey: "clumsy",
+    weak: true,
+    mature: { minLevel: 6, minWins: 0, minPoints: 7 },
+    complete: { minLevel: 16, minWins: 4, minPoints: 20 }
+  },
+  lost: {
+    name: "迷路雞",
+    icon: "🐔❓",
+    activeSkill: "wrongWay",
+    passiveSkill: "lostAgain",
+    title: "迷路傳說",
+    entryEffect: "❓ 牠好像不是從正確入口進場的。",
+    pointKey: "clumsy",
+    weak: true,
+    mature: { minLevel: 6, minWins: 0, minPoints: 8 },
+    complete: { minLevel: 16, minWins: 5, minPoints: 22 }
   }
 };
 
@@ -79,7 +170,23 @@ const CHICKEN_SKILLS = {
   miracleComeback: { name: "奇蹟逆轉", text: "落後時終盤爆衝" },
   lastHope: { name: "最後希望", text: "最後一名時額外加速" },
   disruptCrow: { name: "干擾鳴叫", text: "干擾時讓對手更慢" },
-  sneakyPeck: { name: "偷啄", text: "偶爾偷走對手節奏" }
+  sneakyPeck: { name: "偷啄", text: "偶爾偷走對手節奏" },
+  galeRush: { name: "疾風衝刺", text: "直線衝刺更強" },
+  lightSteps: { name: "輕羽步", text: "跌倒懲罰較小" },
+  royalPace: { name: "王者節奏", text: "領先時更穩" },
+  winnerAura: { name: "勝者氣場", text: "連勝時表現更好" },
+  thunderKick: { name: "雷鳴一蹬", text: "爆衝事件更猛" },
+  sparkFeather: { name: "電羽", text: "偶爾突然加速" },
+  shadowSlip: { name: "影步", text: "干擾事件更靈活" },
+  quietStep: { name: "靜步", text: "被干擾時較穩" },
+  crystalFocus: { name: "水晶專注", text: "終盤事件較穩定" },
+  clearMind: { name: "澄心", text: "混亂時較不失速" },
+  mudRoll: { name: "泥巴翻滾", text: "跌倒後小幅補速" },
+  heavyFeather: { name: "沉重羽毛", text: "前段速度下降" },
+  boxHide: { name: "紙箱躲避", text: "偶爾躲過干擾" },
+  paperWing: { name: "紙翅膀", text: "衝刺不穩定" },
+  wrongWay: { name: "跑錯邊", text: "可能爆笑失速" },
+  lostAgain: { name: "又迷路", text: "路線波動更大" }
 };
 
 const BOSS_CHICKENS = [
@@ -137,6 +244,10 @@ const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
 const chickenBattleCooldowns = new Map();
 
+function getEvolutionPointKeys() {
+  return [...new Set(Object.values(EVOLUTION_TYPES).map((type) => type.pointKey).filter(Boolean))];
+}
+
 function clampStat(value) {
   return Math.max(1, Math.min(20, Math.floor(value || 1)));
 }
@@ -146,12 +257,10 @@ function getPersonality(id) {
 }
 
 function createEvolutionPoints(input = {}) {
-  return {
-    blaze: Math.max(0, Math.floor(input.blaze || 0)),
-    iron: Math.max(0, Math.floor(input.iron || 0)),
-    miracle: Math.max(0, Math.floor(input.miracle || 0)),
-    trickster: Math.max(0, Math.floor(input.trickster || 0))
-  };
+  return Object.fromEntries(getEvolutionPointKeys().map((key) => [
+    key,
+    Math.max(0, Math.floor(input[key] || 0))
+  ]));
 }
 
 function normalizeChickenArray(input, limit = 12) {
@@ -225,7 +334,18 @@ function normalizeOwnedChicken(input) {
     races: Math.max(0, Math.floor(input.races || 0)),
     levelUpOptions: Array.isArray(input.levelUpOptions)
       ? input.levelUpOptions.filter((id) => getUpgradePool().some((option) => option.id === id)).slice(0, 3)
-      : []
+      : [],
+    highestComeback: Math.max(0, Math.floor(input.highestComeback || 0)),
+    currentWinStreak: Math.max(0, Math.floor(input.currentWinStreak || 0)),
+    longestWinStreak: Math.max(0, Math.floor(input.longestWinStreak || 0)),
+    bossWins: Math.max(0, Math.floor(input.bossWins || 0)),
+    evolutionPoints: createEvolutionPoints(input.evolutionPoints),
+    evolutionType: EVOLUTION_TYPES[input.evolutionType] ? input.evolutionType : null,
+    activeSkill: CHICKEN_SKILLS[input.activeSkill] ? input.activeSkill : null,
+    passiveSkill: CHICKEN_SKILLS[input.passiveSkill] ? input.passiveSkill : null,
+    titles: normalizeChickenArray(input.titles),
+    frame: typeof input.frame === "string" ? input.frame : "",
+    entryEffect: typeof input.entryEffect === "string" ? input.entryEffect : ""
   });
 }
 
@@ -278,11 +398,20 @@ function getChickenStage(chicken) {
 function determineEvolutionType(chicken) {
   normalizeChickenMeta(chicken);
   const points = chicken.evolutionPoints;
+  const losses = Math.max(0, (chicken.races || 0) - (chicken.wins || 0));
   const statBias = {
     blaze: points.blaze + chicken.sprint + Math.floor(chicken.speed / 2),
     iron: points.iron + chicken.stability + Math.floor(chicken.stamina / 2),
-    miracle: points.miracle + chicken.stamina + Math.floor(chicken.sprint / 2),
-    trickster: points.trickster + Math.floor(chicken.stability / 2)
+    miracle: points.miracle + chicken.stamina + Math.floor(chicken.sprint / 2) + Math.floor((chicken.highestComeback || 0) / 2),
+    trickster: points.trickster + Math.floor(chicken.stability / 2) + Math.floor(chicken.sprint / 3),
+    gale: points.gale + chicken.speed + Math.floor(chicken.sprint / 2),
+    crown: points.crown + (chicken.wins || 0) * 2 + Math.floor((chicken.longestWinStreak || 0) * 1.5),
+    thunder: points.thunder + chicken.sprint + Math.floor((points.blaze || 0) / 2),
+    shadow: points.shadow + (points.trickster || 0) + Math.floor(chicken.speed / 2),
+    crystal: points.crystal + (points.miracle || 0) + Math.floor(chicken.stamina / 2),
+    mud: points.clumsy + losses + Math.max(0, 7 - chicken.speed) + Math.max(0, 7 - chicken.stability),
+    paper: points.clumsy + Math.floor(losses * 1.2) + Math.max(0, 8 - chicken.stamina) + Math.max(0, 8 - chicken.stability),
+    lost: points.clumsy + losses + Math.max(0, 8 - chicken.speed) + Math.max(0, 8 - chicken.stamina)
   };
   const personalityBias = {
     charger: "blaze",
@@ -295,7 +424,20 @@ function determineEvolutionType(chicken) {
     gambler: "miracle"
   }[chicken.personalityId];
   if (personalityBias) statBias[personalityBias] += 3;
-  return Object.entries(statBias).sort((a, b) => b[1] - a[1])[0][0];
+  if (chicken.speed >= 11) statBias.gale += 2;
+  if (chicken.sprint >= 12) statBias.thunder += 2;
+  if ((chicken.wins || 0) >= 5) statBias.crown += 3;
+  if (chicken.personalityId === "chosen") statBias.crystal += 2;
+  if (chicken.personalityId === "sneaky") statBias.shadow += 2;
+  const weakTypes = Object.entries(EVOLUTION_TYPES).filter(([, type]) => type.weak).map(([id]) => id);
+  const weakScore = Math.max(...weakTypes.map((id) => statBias[id] || 0));
+  const bestNormal = Object.entries(statBias)
+    .filter(([id]) => !EVOLUTION_TYPES[id].weak)
+    .sort((a, b) => b[1] - a[1])[0];
+  if (losses >= 4 && (points.clumsy || 0) >= 5 && weakScore >= (bestNormal ? bestNormal[1] + 2 : 0)) {
+    return weakTypes.sort((a, b) => (statBias[b] || 0) - (statBias[a] || 0))[0];
+  }
+  return bestNormal[0];
 }
 
 function getEvolutionRequirement(type, phase = "mature") {
@@ -339,6 +481,23 @@ function buildEvolutionProgress(chicken) {
       : `完全體：${evolution.title}\n條件已達成，下次獲得經驗或比賽結算時進化`;
   }
   return `完全體：${evolution.title}｜已完成`;
+}
+
+function buildEvolutionCandidateSummary(chicken) {
+  normalizeChickenMeta(chicken);
+  if (chicken.evolutionType) return "";
+  const points = chicken.evolutionPoints;
+  const candidates = Object.entries(EVOLUTION_TYPES)
+    .map(([id, type]) => {
+      const point = points[type.pointKey] || 0;
+      const winBonus = id === "crown" ? (chicken.wins || 0) * 2 : 0;
+      const weakBonus = type.weak ? Math.max(0, (chicken.races || 0) - (chicken.wins || 0)) : 0;
+      return { id, type, score: point + winBonus + weakBonus };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map(({ type }) => `${type.weak ? "⚠️" : "✨"}${type.name}`);
+  return `可能進化：${candidates.join("｜")}`;
 }
 
 function applyChickenEvolution(chicken) {
@@ -438,6 +597,7 @@ function formatOwnedChicken(playerInput) {
     `EXP：${chicken.exp} / ${getExpToLevel(chicken)}`,
     `性格：${personality.label}`,
     `進化：${evolution ? evolution.name : "未定"}`,
+    buildEvolutionCandidateSummary(chicken),
     `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,
     buildEvolutionProgress(chicken),
     "",
@@ -535,11 +695,24 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (chicken.passiveSkill === "hotStart" && progress < 0.35 && random() < 0.22) step += 1.4;
   if (chicken.passiveSkill === "lastHope" && progress > 0.55) step += 0.4;
   if (chicken.passiveSkill === "sneakyPeck" && random() < 0.12) step += 0.7;
+  if (chicken.passiveSkill === "heavyFeather" && progress < 0.45) step -= 0.45;
+  if (chicken.passiveSkill === "paperWing") step += (random() - 0.58) * 1.6;
+  if (chicken.passiveSkill === "lostAgain" && random() < 0.18) step -= 1.1;
+  if (chicken.passiveSkill === "sparkFeather" && random() < 0.12) step += 1.6;
+  if (chicken.passiveSkill === "winnerAura" && chicken.currentWinStreak >= 2) step += 0.45;
+  if (chicken.passiveSkill === "clearMind" && ["體力耗盡", "干擾"].includes(event)) step += 0.55;
   if (event === "衝刺") step += chicken.sprint * 0.18;
   if (event === "體力耗盡") step -= Math.max(0, 2.2 - chicken.stamina * 0.16);
   if (event === "終點爆衝" && progress > 0.65) step += chicken.sprint * 0.25;
   if (event === "終點爆衝" && progress > 0.65 && chicken.activeSkill === "blazeDash" && random() < 0.35) step += 3;
   if (event === "逆轉" && progress > 0.55 && chicken.activeSkill === "miracleComeback" && random() < 0.35) step += 2.6;
+  if (event === "衝刺" && chicken.activeSkill === "galeRush") step += 1.5;
+  if (event === "衝刺" && chicken.activeSkill === "thunderKick" && random() < 0.4) step += 2.5;
+  if (event === "終點爆衝" && progress > 0.65 && chicken.activeSkill === "royalPace") step += 1.2;
+  if (event === "終點爆衝" && progress > 0.65 && chicken.activeSkill === "crystalFocus") step += 0.9;
+  if (event === "跌倒" && chicken.activeSkill === "mudRoll") step += 0.8;
+  if (event === "干擾" && chicken.activeSkill === "shadowSlip") step += 0.8;
+  if (event === "衝刺" && chicken.activeSkill === "wrongWay" && random() < 0.25) step -= 2.2;
   return Math.max(0, step);
 }
 
@@ -558,9 +731,11 @@ function applyPkEvent(left, right, event, random = Math.random) {
     if (random() > resist) {
       target.position -= 2.4;
       addBattlePoint(target, "miracle", 1);
+      addBattlePoint(target, "clumsy", 2);
       message = `🍌 ${target.chicken.icon || "🐔"} 踩到香蕉皮！`;
     } else {
       addBattlePoint(target, "stable", 2);
+      if (target.chicken.passiveSkill === "lightSteps") target.position += 0.8;
       message = `🛡️ ${target.chicken.icon || "🐔"} 硬扛住了香蕉皮！`;
     }
   }
@@ -571,7 +746,11 @@ function applyPkEvent(left, right, event, random = Math.random) {
     if (random() < 0.45 + sneakyBonus) {
       other.position -= target.chicken.activeSkill === "disruptCrow" ? 2.4 : 1.6;
       addBattlePoint(target, "trickster", 2);
+      addBattlePoint(target, "shadow", 1);
       message = `😈 ${target.chicken.icon || "🐔"} 干擾了對手！`;
+    } else if (other.chicken.activeSkill === "boxHide" && random() < 0.35) {
+      addBattlePoint(other, "stable", 1);
+      message = `📦 ${other.chicken.icon || "🐔"} 躲進紙箱避開干擾！`;
     }
   }
   if (event === "逆轉") {
@@ -793,6 +972,12 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     chicken.evolutionPoints.iron += (stats.stable || 0) + (chicken.stability >= 10 ? 1 : 0);
     chicken.evolutionPoints.miracle += (stats.miracle || 0) + (stats.comeback || 0) + (close ? 1 : 0);
     chicken.evolutionPoints.trickster += stats.trickster || 0;
+    chicken.evolutionPoints.gale += (chicken.speed >= 10 ? 1 : 0) + (runner.position > PK_TRACK_LENGTH * 0.75 ? 1 : 0);
+    chicken.evolutionPoints.crown += won ? 2 : 0;
+    chicken.evolutionPoints.thunder += (stats.burst || 0) + (chicken.sprint >= 12 ? 1 : 0);
+    chicken.evolutionPoints.shadow += stats.shadow || 0;
+    chicken.evolutionPoints.crystal += (close ? 1 : 0) + (chicken.personalityId === "chosen" ? 1 : 0);
+    chicken.evolutionPoints.clumsy += (stats.clumsy || 0) + (won ? 0 : 1);
     chicken.highestComeback = Math.max(chicken.highestComeback, stats.comeback || 0);
     const progressEvolutionMessage = applyChickenEvolution(chicken);
     const exp = 18 + (won ? 32 : 10) + (battle.isBoss ? 18 : 0) + (close ? 8 : 0) + Math.floor(runner.position / 3);

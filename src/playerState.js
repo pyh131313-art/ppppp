@@ -14,6 +14,18 @@ const CHICKEN_TRAIT_IDS = [
   "comebackChickenSoul",
   "roastChickenScent"
 ];
+const CHICKEN_EVOLUTION_POINT_KEYS = [
+  "blaze",
+  "iron",
+  "miracle",
+  "trickster",
+  "gale",
+  "crown",
+  "thunder",
+  "shadow",
+  "crystal",
+  "clumsy"
+];
 const STACKABLE_ITEM_KEYS = new Set([
   "ore",
   "goldOre",
@@ -220,12 +232,10 @@ function getPlayer(player) {
       currentWinStreak: Math.max(0, Math.floor(player.ownedChicken.currentWinStreak || 0)),
       longestWinStreak: Math.max(0, Math.floor(player.ownedChicken.longestWinStreak || 0)),
       bossWins: Math.max(0, Math.floor(player.ownedChicken.bossWins || 0)),
-      evolutionPoints: {
-        blaze: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.blaze || 0)),
-        iron: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.iron || 0)),
-        miracle: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.miracle || 0)),
-        trickster: Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints.trickster || 0))
-      },
+      evolutionPoints: Object.fromEntries(CHICKEN_EVOLUTION_POINT_KEYS.map((key) => [
+        key,
+        Math.max(0, Math.floor(player.ownedChicken.evolutionPoints && player.ownedChicken.evolutionPoints[key] || 0))
+      ])),
       evolutionType: typeof player.ownedChicken.evolutionType === "string" ? player.ownedChicken.evolutionType : null,
       activeSkill: typeof player.ownedChicken.activeSkill === "string" ? player.ownedChicken.activeSkill : null,
       passiveSkill: typeof player.ownedChicken.passiveSkill === "string" ? player.ownedChicken.passiveSkill : null,

@@ -86,6 +86,29 @@ test("完全體進化需要足夠勝場", () => {
   assert.match(formatOwnedChicken(player), /還差：勝場 8\/12/);
 });
 
+test("賽雞可以依不同傾向進化成更多路線", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.evolutionPoints = { gale: 12, crown: 0, thunder: 0, shadow: 0, crystal: 0, clumsy: 0 };
+  player.ownedChicken.speed = 13;
+  player.ownedChicken.sprint = 8;
+
+  assert.equal(determineEvolutionType(player.ownedChicken), "gale");
+  assert.match(formatOwnedChicken(player), /可能進化：/);
+});
+
+test("失誤和敗場太多時可能進化成爛雞", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 6;
+  player.ownedChicken.races = 8;
+  player.ownedChicken.wins = 0;
+  player.ownedChicken.speed = 4;
+  player.ownedChicken.stability = 3;
+  player.ownedChicken.evolutionPoints = { clumsy: 10 };
+
+  assert.equal(determineEvolutionType(player.ownedChicken), "paper");
+  assert.match(formatOwnedChicken(player), /⚠️紙箱雞/);
+});
+
 test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   const players = {
     a: ensureOwnedChicken(createPlayer(), () => 0),
