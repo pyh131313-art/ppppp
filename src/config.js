@@ -245,11 +245,14 @@ const CONFIG = {
     fireDragonPickaxe: {
       name: "火龍十字鎬",
       label: "火龍十字鎬",
-      shortDescription: "層數+2｜礦物→錠｜大爆炸",
+      shortDescription: "層數+2｜包包+6｜熔煉+",
       depthStep: 2,
+      bagBonusSlots: 6,
+      goldMultiplierBonus: 0.15,
+      oreRewardMultiplier: 1.25,
       smeltedSurfaceMultiplier: 1.5,
       smeltedGoblinMultiplier: 0.55,
-      megaBombChance: 0.35
+      megaBombChance: 0.2
     },
     silkTouch: {
       name: "絲綢之觸",

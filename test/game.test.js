@@ -1344,6 +1344,19 @@ test("火龍十字鎬會把金幣和礦物燒成更高地表價值的物品", ()
   assert.equal(oreReturn.player.gold, 24);
 });
 
+test("火龍十字鎬會增加包包並提高熔煉採集量", () => {
+  const start = chooseRunMode(
+    { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
+    "fireDragonPickaxe"
+  ).player;
+  const rolls = [0.5, 0.5, 0.99, 0.99, 0.99, 0.99];
+  const result = mine(start, () => rolls.shift() ?? 0.99);
+
+  assert.equal(getBagCapacity(result.player), 18);
+  assert.equal(result.kind, "oreIngot");
+  assert.equal(result.player.oreIngot >= 2, true);
+});
+
 test("火龍十字鎬的大爆炸會扣一滴血", () => {
   const start = chooseRunMode(
     { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
