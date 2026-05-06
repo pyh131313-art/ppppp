@@ -285,6 +285,36 @@ const REVERSE_EVENTS = {
     description: "亂流把礦塵往上捲，像看不見的升降梯。",
     reverseOnly: true,
     buttons: { safe: "穩住", risk: "乘風上升", extreme: "衝進亂流" }
+  },
+  mirror_lake: {
+    title: "鏡面地下湖",
+    description: "湖面倒映著背包裡的反轉資源。",
+    reverseOnly: true,
+    buttons: { safe: "輕碰湖面", risk: "投入資源", extreme: "跳進倒影" }
+  },
+  upside_down_shrine: {
+    title: "倒懸神龕",
+    description: "神龕倒掛在天花板，像在等你獻上什麼。",
+    reverseOnly: true,
+    buttons: { safe: "祈禱", risk: "獻上寶石", extreme: "拆下神龕" }
+  },
+  skyfall_debris: {
+    title: "墜天碎片",
+    description: "像天空掉下來的金屬碎片卡在岩壁裡。",
+    reverseOnly: true,
+    buttons: { safe: "撿碎屑", risk: "撬開碎片", extreme: "整塊拔出" }
+  },
+  echo_elevator: {
+    title: "回音升降梯",
+    description: "空井裡傳來上方的回音，像有人在拉動纜繩。",
+    reverseOnly: true,
+    buttons: { safe: "聽聲定位", risk: "抓住纜繩", extreme: "跳進空井" }
+  },
+  void_pocket: {
+    title: "虛空口袋",
+    description: "一個黑色口袋漂在半空，裡面比外面還大。",
+    reverseOnly: true,
+    buttons: { safe: "摸邊緣", risk: "塞進背包", extreme: "整個背上" }
   }
 };
 

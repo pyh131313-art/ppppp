@@ -1816,6 +1816,157 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   return buildOutcome("empty", player, "什麼都沒有", `${pathPrefix}這一鏟只有碎石。`, recordMessage, random);
 }
 
+function resolveReverseEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
+  const title = event.title;
+  const gain = (key, amount) => addItemReward(player, key, amount);
+  const rise = (amount) => {
+    player.depth -= amount;
+    return `上升 ${amount} 層`;
+  };
+  const loseGold = (rate) => {
+    const lost = Math.min(player.gold, Math.ceil(player.gold * rate));
+    player.gold -= lost;
+    return lost;
+  };
+  const takeDamage = (amount) => addBombDamage(player, now, amount).message;
+
+  if (choice === "safe") {
+    if (eventId === "sky_light_crack") {
+      addTempEffect(player, { id: "safe_sky_light", remaining: 2, rewardMultiplier: 1.15 });
+      return { ok: true, player, title, message: "你記住天光的位置，接下來 2 層收益 +15%。" };
+    }
+    if (eventId === "inverted_merchant") {
+      return { ok: true, player, title, message: "你沒有交易。倒置商人慢慢飄遠。" };
+    }
+    if (eventId === "rising_turbulence" || eventId === "echo_elevator") {
+      return { ok: true, player, title, message: `你穩住方向，${rise(1)}。` };
+    }
+    if (eventId === "mirror_lake") {
+      const key = player.invertedGem > 0 ? "invertedGem" : player.invertedOre > 0 ? "invertedOre" : null;
+      if (!key) return { ok: true, player, title, message: "湖面很安靜，但你身上沒有可倒映的反轉資源。" };
+      const gained = gain(key, 1);
+      return { ok: true, player, title, message: `湖面複製出 ${gained} 個${key === "invertedGem" ? "顛倒寶石" : "顛倒礦石"}。` };
+    }
+    if (eventId === "upside_down_shrine") {
+      const healed = healBombDamage(player, 1);
+      return { ok: true, player, title, message: healed > 0 ? "神龕垂下光線，回復 1 點生命。" : "神龕很安靜，你已經沒有傷勢。" };
+    }
+    if (eventId === "skyfall_debris") {
+      player.minerHelmetCount = (player.minerHelmetCount || 0) + 1;
+      return { ok: true, player, title, message: "你撿到一頂變形但能用的礦工帽。" };
+    }
+    if (eventId === "void_pocket") {
+      player.bagBonusSlots += 1;
+      return { ok: true, player, title, message: `你摸到口袋邊緣，本輪包包 +1。目前 ${getBagCapacity(player)} 格。` };
+    }
+    const gained = gain(eventId === "broken_sky_stone" ? "invertedGem" : "invertedOre", 1);
+    return { ok: true, player, title, message: `你穩定採集，獲得 ${gained} 個反轉資源。` };
+  }
+
+  if (choice === "extreme") {
+    if (eventId === "reverse_gravity_vein") {
+      const gained = gain("invertedGem", 2);
+      const damage = random() < 0.35 ? `，${takeDamage(1)}` : "";
+      return { ok: true, player, title, message: `你跳進反重力礦脈，${rise(4)}，獲得 ${gained} 顆顛倒寶石${damage}` };
+    }
+    if (eventId === "sky_light_crack") {
+      const gained = gain("orichalcum", 2);
+      return { ok: true, player, title, message: `你鑽進天光裂縫，${rise(5)}，獲得 ${gained} 塊奧利哈鋼，${takeDamage(1)}` };
+    }
+    if (eventId === "inverted_merchant") {
+      const cost = Math.min(player.invertedOre || 0, 3);
+      player.invertedOre -= cost;
+      if (cost <= 0) return { ok: true, player, title, message: `你強行交易失敗，倒置商人收走 ${loseGold(0.2)} 金幣。` };
+      const gained = gain("orichalcum", 1);
+      return { ok: true, player, title, message: `你硬談成交易，交出 ${cost} 塊顛倒礦石，換到 ${gained} 塊奧利哈鋼。` };
+    }
+    if (eventId === "broken_sky_stone") {
+      const gained = gain("invertedGem", 4);
+      player.platinumJunk += 1;
+      return { ok: true, player, title, message: `你背起天空石核心，獲得 ${gained} 顆顛倒寶石，但多了一個白金破爛。` };
+    }
+    if (eventId === "rising_turbulence") {
+      return { ok: true, player, title, message: `你衝進反轉亂流，${rise(6)}，失去 ${loseGold(0.15)} 金幣。` };
+    }
+    if (eventId === "mirror_lake") {
+      const oreGain = gain("invertedOre", Math.max(1, player.invertedOre || 1));
+      const gemGain = gain("invertedGem", Math.max(1, player.invertedGem || 1));
+      addTempEffect(player, { id: "mirror_backlash", remaining: 3, hurtChance: 0.18 });
+      return { ok: true, player, title, message: `你跳進倒影，複製 ${oreGain} 礦石與 ${gemGain} 寶石，但 3 層內倒影會反咬。` };
+    }
+    if (eventId === "upside_down_shrine") {
+      player.tempMaxHp = (player.tempMaxHp || 0) + 2;
+      player.bombs = Math.min(getMaxBombs(player) - 0.5, player.bombs + 0.5);
+      return { ok: true, player, title, message: "你拆下神龕，本輪最大生命 +2，但立刻受到半點反噬。" };
+    }
+    if (eventId === "skyfall_debris") {
+      const gained = gain("orichalcum", 3);
+      return { ok: true, player, title, message: `你整塊拔出墜天碎片，獲得 ${gained} 塊奧利哈鋼，${takeDamage(2)}` };
+    }
+    if (eventId === "echo_elevator") {
+      addTempEffect(player, { id: "echo_elevator_sick", remaining: 3, emptyWeightMultiplier: 1.25 });
+      return { ok: true, player, title, message: `你跳進空井，${rise(8)}，但接下來 3 層更容易挖空。` };
+    }
+    if (eventId === "void_pocket") {
+      player.bagBonusSlots += 6;
+      player.platinumJunk += 1;
+      return { ok: true, player, title, message: `你背上虛空口袋，本輪包包 +6，但裡面黏著 1 個白金破爛。` };
+    }
+  }
+
+  if (eventId === "reverse_gravity_vein") {
+    const gained = gain("invertedOre", 3);
+    if (random() < 0.45) player.depth -= 1;
+    return { ok: true, player, title, message: `你追著礦脈採集，獲得 ${gained} 塊顛倒礦石。` };
+  }
+  if (eventId === "sky_light_crack") {
+    if (random() < 0.55) return { ok: true, player, title, message: `你從光縫摸到 ${gain("orichalcum", 1)} 塊奧利哈鋼。` };
+    return { ok: true, player, title, message: `光縫割傷了你，${takeDamage(1)}` };
+  }
+  if (eventId === "inverted_merchant") {
+    if ((player.invertedOre || 0) < 2) return { ok: true, player, title, message: "倒置商人想收 2 塊顛倒礦石，但你不夠。" };
+    player.invertedOre -= 2;
+    const gained = gain("invertedGem", 1);
+    return { ok: true, player, title, message: `你交出 2 塊顛倒礦石，換到 ${gained} 顆顛倒寶石。` };
+  }
+  if (eventId === "broken_sky_stone") {
+    const gained = gain("invertedGem", 2);
+    player.bagBonusSlots = Math.max(0, player.bagBonusSlots - 1);
+    return { ok: true, player, title, message: `你敲下天空石核心，獲得 ${gained} 顆顛倒寶石，但本輪包包 -1。` };
+  }
+  if (eventId === "rising_turbulence") {
+    return { ok: true, player, title, message: `你乘風上升，${rise(3)}，失去 ${loseGold(0.06)} 金幣。` };
+  }
+  if (eventId === "mirror_lake") {
+    if (random() < 0.5) return { ok: true, player, title, message: `倒影成功凝結，獲得 ${gain("invertedGem", 2)} 顆顛倒寶石。` };
+    return { ok: true, player, title, message: `倒影碎裂，${takeDamage(1)}` };
+  }
+  if (eventId === "upside_down_shrine") {
+    const key = player.invertedGem > 0 ? "invertedGem" : player.orichalcum > 0 ? "orichalcum" : null;
+    if (!key) return { ok: true, player, title, message: "你沒有能獻上的反轉寶物。" };
+    player[key] -= 1;
+    player.tempMaxHp = (player.tempMaxHp || 0) + 1;
+    return { ok: true, player, title, message: "你獻上一份反轉寶物，本輪最大生命 +1。" };
+  }
+  if (eventId === "skyfall_debris") {
+    const gained = random() < 0.65 ? gain("orichalcum", 1) : 0;
+    const damage = random() < 0.35 ? `，${takeDamage(1)}` : "";
+    return { ok: true, player, title, message: gained > 0 ? `你撬出 ${gained} 塊奧利哈鋼${damage}` : `碎片崩落${damage || "，什麼都沒留下。"}` };
+  }
+  if (eventId === "echo_elevator") {
+    player.nextEventDepth += 4;
+    return { ok: true, player, title, message: `你抓住纜繩，${rise(3)}，下一次事件檢查延後。` };
+  }
+  if (eventId === "void_pocket") {
+    player.bagBonusSlots += 3;
+    player.junk += 1;
+    return { ok: true, player, title, message: `你把口袋塞進背包，本輪包包 +3，但多了一個超級破爛。` };
+  }
+
+  const gained = gain("invertedOre", 2);
+  return { ok: true, player, title, message: `你處理反轉事件，獲得 ${gained} 塊顛倒礦石。` };
+}
+
 function resolveRandomEvent(playerInput, choice, random = Math.random, now = Date.now()) {
   const player = getPlayer(playerInput);
   const eventId = player.pendingEvent;
@@ -2377,30 +2528,7 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
   }
 
   if (event.reverseOnly) {
-    if (choice === "safe") {
-      const gained = addItemReward(player, "invertedOre", 1);
-      return { ok: true, player, title: event.title, message: `你穩定處理反轉事件，獲得 ${gained} 塊顛倒礦石。` };
-    }
-    if (choice === "extreme") {
-      player.depth -= 3;
-      const lost = Math.min(player.gold, Math.ceil(player.gold * 0.12));
-      player.gold -= lost;
-      const gained = addItemReward(player, eventId === "sky_light_crack" ? "orichalcum" : "invertedGem", eventId === "sky_light_crack" ? 1 : 2);
-      const extremeMessages = {
-        reverse_gravity_vein: `你跳進反重力礦脈，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
-        sky_light_crack: `你鑽進天光裂縫，上升 3 層，獲得 ${gained} 塊奧利哈鋼，但失去 ${lost} 金幣。`,
-        inverted_merchant: `你強行交易失控，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
-        broken_sky_stone: `你背起天空石核心，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`,
-        rising_turbulence: `你衝進反轉亂流，上升 3 層，獲得 ${gained} 顆顛倒寶石，但失去 ${lost} 金幣。`
-      };
-      return { ok: true, player, title: event.title, message: extremeMessages[eventId] || `你選擇極端處理，上升 3 層，獲得 ${gained} 個反轉資源，但失去 ${lost} 金幣。` };
-    }
-    if (eventId === "inverted_merchant") {
-      return { ok: true, player, title: event.title, message: "倒置商人看了看你的顛倒礦石：兌換功能即將開放，敬請期待。" };
-    }
-    const gained = addItemReward(player, eventId === "broken_sky_stone" ? "invertedGem" : "invertedOre", 2);
-    if (random() < 0.35) player.depth -= 1;
-    return { ok: true, player, title: event.title, message: `冒險成功，獲得 ${gained} 個反轉資源。` };
+    return resolveReverseEvent(player, eventId, event, choice, random, now);
   }
 
   const newNormalEvents = new Set([

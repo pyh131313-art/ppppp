@@ -801,7 +801,7 @@ test("新增事件池包含普通寶石上位與反轉事件", () => {
   assert.equal(normalIds.every((id) => events[id]), true);
   assert.equal(gemCount, 20);
   assert.equal(highCount, 20);
-  assert.equal(reverseCount, 5);
+  assert.equal(reverseCount, 10);
 });
 
 test("反轉事件極端選項會顯示各自事件文案", () => {
@@ -823,6 +823,38 @@ test("反轉事件極端選項會顯示各自事件文案", () => {
   assert.match(crack.message, /天光裂縫/);
   assert.doesNotMatch(crack.message, /反轉亂流/);
   assert.match(turbulence.message, /反轉亂流/);
+});
+
+test("新增反轉事件有不同效果", () => {
+  const lake = resolveRandomEvent({
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: -12,
+    invertedOre: 2,
+    pendingEvent: "mirror_lake"
+  }, "safe", () => 0.5, 1000);
+  const pocket = resolveRandomEvent({
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: -12,
+    pendingEvent: "void_pocket"
+  }, "risk", () => 0.5, 1000);
+  const elevator = resolveRandomEvent({
+    ...createPlayer(),
+    runMode: "reversePrep",
+    zone: "upward",
+    depth: -12,
+    nextEventDepth: 12,
+    pendingEvent: "echo_elevator"
+  }, "risk", () => 0.5, 1000);
+
+  assert.equal(lake.player.invertedOre, 3);
+  assert.equal(pocket.player.bagBonusSlots, 3);
+  assert.equal(pocket.player.junk, 1);
+  assert.equal(elevator.player.depth, -15);
+  assert.equal(elevator.player.nextEventDepth, 16);
 });
 
 test("寶箱可以開出下一場限定詞條與礦工帽", () => {
