@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buildChickenUpgradeComponents,
+  buildChickenPanelComponents,
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
@@ -33,6 +34,7 @@ test("雞升級會三選一並套用能力", () => {
   const upgraded = chooseChickenUpgrade(player, "speed");
 
   assert.equal(buildChickenUpgradeComponents(player).length, 1);
+  assert.equal(buildChickenPanelComponents(player, "user1").length, 2);
   assert.equal(upgraded.ok, true);
   assert.equal(upgraded.player.ownedChicken.speed, before + 1);
   assert.deepEqual(upgraded.player.ownedChicken.levelUpOptions, []);

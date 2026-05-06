@@ -76,12 +76,13 @@ const {
   buildBattleComponents,
   buildBattleEmbed,
   buildChickenEmbed,
-  buildChickenUpgradeComponents,
+  buildChickenPanelComponents,
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
   ensureOwnedChicken,
   getBattle,
+  isChickenPanelComponent,
   isChickenPkComponent,
   isChickenUpgradeComponent,
   renameChicken,
@@ -127,6 +128,7 @@ const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
 const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
+const CHICKEN_RENAME_MODAL_PREFIX = "chicken_rename_modal";
 const OWNED_CHICKEN_ROAST_PREFIX = "owned_chicken_roast";
 
 function parseAmountInput(input) {
@@ -182,6 +184,22 @@ function buildStorageInputModal(action, targetUserId, issuerId, panelMessageId =
     new ActionRowBuilder().addComponents(itemInput),
     new ActionRowBuilder().addComponents(amountInput)
   );
+  return modal;
+}
+
+function buildChickenRenameModal(ownerId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`${CHICKEN_RENAME_MODAL_PREFIX}:${ownerId}`)
+    .setTitle("命名雞");
+  const input = new TextInputBuilder()
+    .setCustomId("name")
+    .setLabel("新的雞名")
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder("2~12 字，例如：阿咕霸王")
+    .setRequired(true)
+    .setMinLength(2)
+    .setMaxLength(12);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
   return modal;
 }
 
@@ -500,6 +518,25 @@ function describeTradeRequest(trade, fromMention, toMention) {
   return `${fromMention} 想給 ${toMention} ${parts.join("、")}`;
 }
 
+async function handleChickenRenameModalSubmit(interaction) {
+  const [, ownerId] = interaction.customId.split(":");
+  if (interaction.user.id !== ownerId) {
+    await interaction.reply({ content: "只有雞的主人可以命名。", ephemeral: true });
+    return;
+  }
+  const name = interaction.fields.getTextInputValue("name");
+  let result = null;
+  await updatePlayer(interaction.user.id, (player) => {
+    result = renameChicken(player, name, Math.random);
+    return result.player;
+  });
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+    components: buildChickenPanelComponents(result.player, interaction.user.id)
+  });
+}
+
 function getGlobalBestDepth(players) {
   return Object.values(players).reduce((best, player) => {
     const normalized = getPlayer(player);
@@ -599,6 +636,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${CHICKEN_RENAME_MODAL_PREFIX}:`)) {
+      await handleChickenRenameModalSubmit(interaction);
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isRaceComponent(interaction.customId)) {
       await handleChickenRaceInteraction(interaction);
       return;
@@ -611,6 +653,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isButton() && isChickenUpgradeComponent(interaction.customId)) {
       await handleChickenUpgradeInteraction(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && isChickenPanelComponent(interaction.customId)) {
+      await handleChickenPanelInteraction(interaction);
       return;
     }
 
@@ -715,8 +762,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.deferReply({ ephemeral: true });
       const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
       await interaction.editReply({
-        embeds: [buildChickenEmbed(player)],
-        components: buildChickenUpgradeComponents(player)
+        embeds: [buildChickenEmbed(player, "養雞面板")],
+        components: buildChickenPanelComponents(player, interaction.user.id)
       });
       return;
     }
@@ -730,8 +777,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return result.player;
       });
       await interaction.editReply({
-        embeds: [buildChickenEmbed(result.player, "命名雞", result.message)],
-        components: buildChickenUpgradeComponents(result.player)
+        embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+        components: buildChickenPanelComponents(result.player, interaction.user.id)
       });
       return;
     }
@@ -1120,9 +1167,58 @@ async function handleChickenUpgradeInteraction(interaction) {
     return result.player;
   });
   await interaction.editReply({
-    embeds: [buildChickenEmbed(result.player, "我的雞", result.message)],
-    components: buildChickenUpgradeComponents(result.player)
+    embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+    components: buildChickenPanelComponents(result.player, interaction.user.id)
   });
+}
+
+async function handleChickenPanelInteraction(interaction) {
+  const [, action, ownerId] = interaction.customId.split(":");
+  if (interaction.user.id !== ownerId) {
+    await interaction.reply({ content: "只有雞的主人可以操作這個面板。", ephemeral: true });
+    return;
+  }
+  if (action === "rename") {
+    await interaction.showModal(buildChickenRenameModal(ownerId));
+    return;
+  }
+  if (action === "refresh") {
+    await interaction.deferUpdate();
+    const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(player, "養雞面板", "已刷新。")],
+      components: buildChickenPanelComponents(player, interaction.user.id)
+    });
+    return;
+  }
+  if (action === "roast") {
+    await interaction.deferUpdate();
+    const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+    const chicken = player.ownedChicken;
+    await interaction.editReply({
+      content: [
+        `🍗 確定要烤掉「${chicken.name}」嗎？`,
+        "",
+        `牠陪你贏過 ${chicken.wins} 場比賽。`,
+        "烤掉後下一場下礦最大生命 +1，並且你之後會重新獲得一隻初始雞。"
+      ].join("\n"),
+      embeds: [],
+      components: [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`${OWNED_CHICKEN_ROAST_PREFIX}:confirm:${interaction.user.id}`)
+            .setLabel("確認烤掉")
+            .setEmoji("🍗")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`${OWNED_CHICKEN_ROAST_PREFIX}:cancel:${interaction.user.id}`)
+            .setLabel("取消")
+            .setEmoji("↩️")
+            .setStyle(ButtonStyle.Secondary)
+        )
+      ]
+    });
+  }
 }
 
 async function handleOwnedChickenRoastInteraction(interaction) {
@@ -1132,7 +1228,12 @@ async function handleOwnedChickenRoastInteraction(interaction) {
     return;
   }
   if (action === "cancel") {
-    await interaction.update({ content: "已取消烤雞。", embeds: [], components: [] });
+    const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+    await interaction.update({
+      content: "",
+      embeds: [buildChickenEmbed(player, "養雞面板", "已取消烤雞。")],
+      components: buildChickenPanelComponents(player, interaction.user.id)
+    });
     return;
   }
   let result = null;

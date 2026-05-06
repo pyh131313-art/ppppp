@@ -5,6 +5,7 @@ const { getPlayer } = require("./playerState");
 
 const CHICKEN_PK_PREFIX = "chicken_pk";
 const CHICKEN_UPGRADE_PREFIX = "chicken_upgrade";
+const CHICKEN_PANEL_PREFIX = "chicken_panel";
 const PK_FRAME_COUNT = 6;
 const PK_TRACK_LENGTH = 14;
 const PK_TIMEOUT_MS = 60 * 1000;
@@ -196,6 +197,31 @@ function buildChickenUpgradeComponents(playerInput) {
         .setEmoji("✨")
         .setStyle(ButtonStyle.Primary);
     }))
+  ];
+}
+
+function buildChickenPanelComponents(playerInput, ownerId = "none") {
+  const player = getPlayer(playerInput);
+  const upgradeRows = buildChickenUpgradeComponents(player);
+  return [
+    ...upgradeRows,
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:rename:${ownerId}`)
+        .setLabel("命名")
+        .setEmoji("✏️")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:roast:${ownerId}`)
+        .setLabel("烤雞")
+        .setEmoji("🍗")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:refresh:${ownerId}`)
+        .setLabel("刷新")
+        .setEmoji("🔄")
+        .setStyle(ButtonStyle.Secondary)
+    )
   ];
 }
 
@@ -408,6 +434,10 @@ function isChickenUpgradeComponent(customId) {
   return typeof customId === "string" && customId.startsWith(`${CHICKEN_UPGRADE_PREFIX}:`);
 }
 
+function isChickenPanelComponent(customId) {
+  return typeof customId === "string" && customId.startsWith(`${CHICKEN_PANEL_PREFIX}:`);
+}
+
 function roastOwnedChicken(playerInput) {
   const player = getPlayer(playerInput);
   if (!player.ownedChicken) return { ok: false, player, message: "你目前沒有自己的雞。" };
@@ -423,12 +453,14 @@ function roastOwnedChicken(playerInput) {
 
 module.exports = {
   CHICKEN_PK_PREFIX,
+  CHICKEN_PANEL_PREFIX,
   CHICKEN_UPGRADE_PREFIX,
   PK_FRAME_COUNT,
   PERSONALITIES,
   buildBattleComponents,
   buildBattleEmbed,
   buildChickenEmbed,
+  buildChickenPanelComponents,
   buildChickenUpgradeComponents,
   chooseChickenUpgrade,
   clearBattle,
@@ -437,6 +469,7 @@ module.exports = {
   formatOwnedChicken,
   getBattle,
   isChickenPkComponent,
+  isChickenPanelComponent,
   isChickenUpgradeComponent,
   normalizeOwnedChicken,
   renameChicken,
