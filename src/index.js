@@ -19,6 +19,7 @@ const {
   buyShopItem,
   chooseMinorBuff,
   chooseRunMode,
+  createPlayer,
   depositBank,
   discardItem,
   drinkHealingPotion,
@@ -144,6 +145,7 @@ const client = new Client({
 
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
+const ADMIN_RESET_PREFIX = "admin_reset";
 const ADMIN_USER_IDS = new Set([
   "712287814192201790",
   ...String(process.env.ADMIN_USER_IDS || process.env.BOT_OWNER_IDS || "")
@@ -167,6 +169,23 @@ function parseAmountInput(input) {
 
 function canUseAdminCommand(userId) {
   return ADMIN_USER_IDS.has(String(userId || ""));
+}
+
+function makeAdminResetComponents(targetId, issuerId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${ADMIN_RESET_PREFIX}:confirm:${targetId}:${issuerId}`)
+        .setLabel("確認重置")
+        .setEmoji("🧨")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`${ADMIN_RESET_PREFIX}:cancel:${targetId}:${issuerId}`)
+        .setLabel("取消")
+        .setEmoji("↩️")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 
 function buildAmountInputModal(action, targetUserId, issuerId, panelMessageId = "") {
@@ -857,6 +876,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith(`${ADMIN_RESET_PREFIX}:`)) {
+      const [, action, targetId, issuerId] = interaction.customId.split(":");
+      if (interaction.user.id !== issuerId || !canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有發起重置的管理者可以操作。", ephemeral: true });
+        return;
+      }
+      if (action === "cancel") {
+        await interaction.update({ content: "已取消重置玩家資料。", components: [] });
+        return;
+      }
+      if (action === "confirm") {
+        await updatePlayer(targetId, () => createPlayer());
+        await interaction.update({ content: `已重置 <@${targetId}> 的全部遊戲資料。`, components: [] });
+        return;
+      }
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isChallengeComponent(interaction.customId)) {
       await handleChallengeInteraction(interaction);
       return;
@@ -962,6 +998,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
       await interaction.reply({
         content: `${target}：${result.message}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "重置玩家") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      await interaction.reply({
+        content: [
+          `確定要重置 ${target} 的全部遊戲資料嗎？`,
+          "這會清空金幣、銀行、包包、紀念幣、雞、排行榜進度與所有狀態。"
+        ].join("\n"),
+        components: makeAdminResetComponents(target.id, interaction.user.id),
         ephemeral: true
       });
       return;

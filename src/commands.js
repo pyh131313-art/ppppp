@@ -39,6 +39,13 @@ const commands = [
       .setDescription("要修復的玩家。")
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName("重置玩家")
+    .setDescription("管理用：重置指定玩家的全部遊戲資料。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要重置的玩家。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName("礦場ui")
     .setDescription("切換礦場顯示模式。")
     .addStringOption((option) => option
