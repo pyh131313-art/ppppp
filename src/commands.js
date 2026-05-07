@@ -20,6 +20,25 @@ const commands = [
       .setDescription("要清空金錢的玩家。")
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName("給錢")
+    .setDescription("管理用：給指定玩家金幣。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要給錢的玩家。")
+      .setRequired(true))
+    .addIntegerOption((option) => option
+      .setName("金額")
+      .setDescription("要給的金幣數量。")
+      .setRequired(true)
+      .setMinValue(1)),
+  new SlashCommandBuilder()
+    .setName("修復玩家")
+    .setDescription("管理用：修復指定玩家卡住的挖礦狀態。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要修復的玩家。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName("礦場ui")
     .setDescription("切換礦場顯示模式。")
     .addStringOption((option) => option

@@ -35,6 +35,7 @@ const {
   openUndergroundInn,
   depositUndergroundStorage,
   removeRust,
+  repairPlayerState,
   rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
@@ -922,6 +923,45 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
       await interaction.reply({
         content: `已清空 ${target} 的金錢。\n原本：身上 ${before.gold}｜銀行 ${before.bankGold}｜挑戰 ${before.challengeGold}\n現在：身上 ${player.gold}｜銀行 ${player.bankGold}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "給錢") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      const amount = interaction.options.getInteger("金額", true);
+      let beforeGold = 0;
+      const player = await updatePlayer(target.id, (current) => {
+        const next = getPlayer(current);
+        beforeGold = next.gold || 0;
+        next.gold = Math.max(0, beforeGold + amount);
+        return next;
+      });
+      await interaction.reply({
+        content: `已給 ${target} ${amount} 金幣。\n身上金幣：${beforeGold} → ${player.gold}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "修復玩家") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      let result = null;
+      await updatePlayer(target.id, (current) => {
+        result = repairPlayerState(current, Math.random);
+        return result.player;
+      });
+      await interaction.reply({
+        content: `${target}：${result.message}`,
         ephemeral: true
       });
       return;

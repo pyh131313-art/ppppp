@@ -33,6 +33,7 @@ const {
   openUndergroundInn,
   drinkHealingPotion,
   removeRust,
+  repairPlayerState,
   rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
@@ -388,6 +389,32 @@ test("隨機事件出現後會阻擋繼續挖礦直到選擇", () => {
   assert.equal(event.player.pendingEvent, "cracked_wall");
   assert.equal(blocked.kind, "blocked");
   assert.match(blocked.message, /裂開的礦牆/);
+});
+
+test("玩家修復會清除不存在的事件並重建詞條選項", () => {
+  const result = repairPlayerState({
+    ...createPlayer(),
+    pendingEvent: "missing_old_event",
+    runModeOptions: [],
+    gold: "12",
+    digPathOptions: { left: "missing_path", right: "steady" }
+  }, () => 0);
+
+  assert.equal(result.player.pendingEvent, null);
+  assert.equal(result.player.gold, 12);
+  assert.equal(result.player.runModeOptions.length, 2);
+  assert.deepEqual(result.player.digPathOptions, { right: "steady" });
+  assert.match(result.message, /已修復/);
+});
+
+test("挖礦會自動修復不存在的 pendingEvent 不再卡住", () => {
+  const result = mine({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "missing_old_event"
+  }, () => 0);
+
+  assert.notEqual(result.kind, "blocked");
+  assert.equal(result.player.pendingEvent, null);
 });
 
 test("事件選項會清除事件並套用結果", () => {

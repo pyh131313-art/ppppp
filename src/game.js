@@ -618,9 +618,88 @@ function getRunModeOptions(playerInput) {
 }
 
 function ensureRunModeOptions(playerInput, random = Math.random) {
-  const player = migratePreUpdateDeepPlayer(playerInput);
+  const repaired = repairPlayerState(playerInput, random);
+  const player = migratePreUpdateDeepPlayer(repaired.player);
   if (player.runMode || player.dead || player.runModeOptions.length > 0) return player;
   return refreshRunModeOptions(player, random);
+}
+
+function repairPlayerState(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const fixed = [];
+  const validZones = new Set(["surface", "lavaPool", "undergroundCamp", "upward", "skyCamp", "skyDown"]);
+
+  if (player.pendingEvent && !getRandomEvent(player.pendingEvent)) {
+    fixed.push(`清除不存在的事件：${player.pendingEvent}`);
+    player.pendingEvent = null;
+    player.memoryChallenge = null;
+  }
+
+  if (player.runMode && !CONFIG.runModes[player.runMode]) {
+    fixed.push(`清除不存在的詞條：${player.runMode}`);
+    player.runMode = null;
+  }
+
+  if (!validZones.has(player.zone)) {
+    fixed.push(`修正未知區域：${player.zone || "空值"}`);
+    player.zone = "surface";
+  }
+
+  const numericFields = [
+    "gold",
+    "bankGold",
+    "depth",
+    "runDepthProgress",
+    "bombs",
+    "ore",
+    "goldOre",
+    "platinumOre",
+    "goldBlock",
+    "oreIngot",
+    "goldOreIngot",
+    "platinumOreIngot",
+    "redGem",
+    "blueGem",
+    "greenGem",
+    "invertedOre",
+    "invertedGem",
+    "orichalcum",
+    "junk",
+    "platinumJunk",
+    "healingPotion",
+    "magicCandy"
+  ];
+  for (const field of numericFields) {
+    const value = Number(player[field]);
+    if (!Number.isFinite(value)) {
+      fixed.push(`修正數值欄位：${field}`);
+      player[field] = createPlayer()[field] || 0;
+    } else if (typeof player[field] !== "number") {
+      player[field] = value;
+      fixed.push(`轉換數值欄位：${field}`);
+    }
+  }
+
+  player.runModeOptions = (player.runModeOptions || []).filter((id) => CONFIG.runModes[id]).slice(0, 2);
+  if (!player.runMode && !player.dead && player.runModeOptions.length === 0) {
+    player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
+    fixed.push("重建初始詞條選項");
+  }
+
+  const beforePaths = Object.keys(player.digPathOptions || {}).length;
+  player.digPathOptions = Object.fromEntries(
+    Object.entries(player.digPathOptions || {}).filter(([side, pathId]) => (
+      ["left", "middle", "right"].includes(side) && CONFIG.mining.digPathTypes[pathId]
+    ))
+  );
+  if (beforePaths !== Object.keys(player.digPathOptions).length) fixed.push("清理錯誤路線資料");
+
+  return {
+    ok: true,
+    player,
+    fixed,
+    message: fixed.length ? `已修復：${fixed.join("、")}。` : "玩家資料看起來正常，沒有需要修復的項目。"
+  };
 }
 
 function refreshCampRunModeOptions(player, random = Math.random) {
@@ -2144,7 +2223,7 @@ function mineSkyDown(player, random = Math.random, now = Date.now()) {
 }
 
 function mine(playerInput, random = Math.random, now = Date.now(), digPath = null) {
-  const player = getPlayer(playerInput);
+  const player = repairPlayerState(playerInput, random).player;
   const pathPrefix = getDigPathPrefix(player, digPath);
   const digPathRewardMultiplier = getDigPathRewardMultiplier(player, digPath);
   if (player.dead) {
@@ -4043,7 +4122,8 @@ function rescuePlayer(rescuerInput, targetInput, now = Date.now(), random = Math
 }
 
 function formatInventory(playerInput) {
-  const player = getPlayer(playerInput);
+  const player = repairPlayerState(playerInput).player;
+  const pendingEvent = player.pendingEvent ? getRandomEvent(player.pendingEvent) : null;
   return [
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
@@ -4060,7 +4140,7 @@ function formatInventory(playerInput) {
     `下礦方式：${getRunModeLabel(player)}`,
     `礦洞：${getCaveLabel(player)}`,
     `小磁條：金幣 +${Math.round(getMinorBuffEffectiveStacks(player, "gold") * 5)}%｜防爆 ${getMinorBuffEffectiveStacks(player, "bomb").toFixed(1).replace(/\.0$/, "")}`,
-    `事件：${player.pendingEvent ? getRandomEvent(player.pendingEvent).title : "無"}`,
+    `事件：${pendingEvent ? pendingEvent.title : "無"}`,
     `炸彈次數：${player.bombs}/${getMaxBombs(player)}`,
     `狀態：${player.dead ? "死亡" : "存活"}`,
     `最深紀錄：${player.stats.bestDepth}`,
@@ -4153,6 +4233,7 @@ module.exports = {
   openUndergroundInn,
   depositUndergroundStorage,
   removeRust,
+  repairPlayerState,
   rerollRunModeOptions,
   resolveRandomEvent,
   rescuePlayer,
