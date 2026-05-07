@@ -8,6 +8,7 @@ const {
   buildChickenUpgradeComponents,
   buildChickenPanelComponents,
   applyPvpLevelBalance,
+  calculateBattleExp,
   calculateBossGoldReward,
   chooseChickenUpgrade,
   clearBattle,
@@ -281,19 +282,28 @@ test("賽雞館不能指定尚未通關的未來 Rank", () => {
   assert.match(created.message, /只能重打已通關 Rank/);
 });
 
-test("賽雞館會依玩家雞等級提高館主強度", () => {
+test("賽雞館 Rank 幾就是館主幾等", () => {
   const players = {
     strong: ensureOwnedChicken(createPlayer(), () => 0)
   };
   players.strong.ownedChicken.level = 30;
-  players.strong.chickenArenaRank = 1;
+  players.strong.chickenArenaRank = 7;
   const created = createBossBattle("strong", players, 1000, () => 0, "guild", "tyrant");
 
   assert.equal(created.ok, true);
-  assert.equal(created.battle.bossRank >= 10, true);
-  assert.equal(created.boss.level >= 32, true);
-  assert.equal(created.boss.pvePowerMultiplier > 1.5, true);
+  assert.equal(created.battle.bossRank, 7);
+  assert.equal(created.boss.level, 7);
   clearBattle(created.battle.id);
+});
+
+test("賽雞館經驗會依 Rank 變多或變少", () => {
+  const runner = { position: 12 };
+  const low = calculateBattleExp({ isBoss: true, bossRank: 1 }, runner, true, false);
+  const high = calculateBattleExp({ isBoss: true, bossRank: 10 }, runner, true, false);
+  const pvp = calculateBattleExp({ isBoss: false }, runner, true, false);
+
+  assert.equal(low < pvp, true);
+  assert.equal(high > pvp, true);
 });
 
 test("賽雞館 PVE 有雞到終點即可提早結算", () => {
@@ -302,8 +312,10 @@ test("賽雞館 PVE 有雞到終點即可提早結算", () => {
   };
   players.bossPlayer.ownedChicken.level = 40;
   const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "tyrant");
+  assert.equal(created.ok, true);
   const battle = created.battle;
   updateBattleFrame(battle, players, 0, () => 0);
+  battle.runners[0].position = 14;
 
   assert.equal(hasChickenReachedFinish(battle), true);
   clearBattle(battle.id);
@@ -331,6 +343,7 @@ test("賽雞館面板會顯示館主數值", () => {
     bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
   };
   const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "ironCrown");
+  assert.equal(created.ok, true);
   const json = buildBattleEmbed(created.battle, players).toJSON();
 
   assert.match(json.description, /館主數值：Lv\./);

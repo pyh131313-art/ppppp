@@ -930,9 +930,7 @@ function getBossById(id) {
 
 function getBossRank(playerInput) {
   const player = getPlayer(playerInput);
-  const arenaRank = Math.max(1, Math.floor(player.chickenArenaRank || 1));
-  const chickenLevel = Math.max(1, Math.floor(player.ownedChicken && player.ownedChicken.level || 1));
-  return Math.max(arenaRank, Math.floor(chickenLevel / 3));
+  return Math.max(1, Math.floor(player.chickenArenaRank || 1));
 }
 
 function scaleBossChicken(bossInput, rank = 1, challengerLevel = 1) {
@@ -941,7 +939,7 @@ function scaleBossChicken(bossInput, rank = 1, challengerLevel = 1) {
   const safeChallengerLevel = Math.max(1, Math.floor(challengerLevel || 1));
   const statBonus = Math.floor((safeRank - 1) * 1.8 + safeChallengerLevel / 6);
   const highRankBonus = safeRank >= 8 ? 5 : safeRank >= 5 ? 3 : safeRank >= 3 ? 2 : 0;
-  boss.level = Math.max(boss.level || 1, 8 + safeRank * 2, safeChallengerLevel + 2);
+  boss.level = safeRank;
   boss.speed = clampStat((boss.speed || 8) + statBonus + highRankBonus);
   boss.sprint = clampStat((boss.sprint || 8) + statBonus + (safeRank >= 8 ? 6 : highRankBonus));
   boss.stability = clampStat((boss.stability || 8) + statBonus + highRankBonus);
@@ -975,6 +973,14 @@ function calculateBossGoldReward(rank = 1, random = Math.random) {
   const min = safeRank <= 1 ? 500 : Math.floor(500 * Math.pow(1.55, safeRank - 1));
   const max = safeRank <= 1 ? 1000 : Math.floor(min * (safeRank >= 5 ? 2.4 : 2));
   return min + Math.floor(random() * Math.max(1, max - min + 1));
+}
+
+function calculateBattleExp(battle, runner, won, close) {
+  const base = 18 + (won ? 32 : 10) + (close ? 8 : 0) + Math.floor((runner.position || 0) / 3);
+  if (!battle || !battle.isBoss) return base;
+  const rank = Math.max(1, Math.floor(battle.bossRank || 1));
+  const rankMultiplier = Math.max(0.45, Math.min(3, 0.65 + rank * 0.08));
+  return Math.max(1, Math.floor(base * rankMultiplier));
 }
 
 function createRunner(userId, players, random = Math.random, bossId = null, bossRank = 1, bossChallengerLevel = 1) {
@@ -1222,7 +1228,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
     chicken.evolutionPoints.clumsy += (stats.clumsy || 0) + (won ? 0 : 1);
     chicken.highestComeback = Math.max(chicken.highestComeback, stats.comeback || 0);
     const progressEvolutionMessage = applyChickenEvolution(chicken);
-    const exp = 18 + (won ? 32 : 10) + (battle.isBoss ? 18 : 0) + (close ? 8 : 0) + Math.floor(runner.position / 3);
+    const exp = calculateBattleExp(battle, runner, won, close);
     const levelMessage = addChickenExp(player, exp, random);
     runner.expGained = exp;
     const boosterDropChance = battle.isBoss
@@ -1359,6 +1365,7 @@ module.exports = {
   clearBattle,
   createBattle,
   createBossBattle,
+  calculateBattleExp,
   calculateBossGoldReward,
   determineEvolutionType,
   getEvolutionMissingRequirements,
