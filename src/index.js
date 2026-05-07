@@ -91,6 +91,7 @@ const {
   isChickenPanelComponent,
   isChickenPkComponent,
   isChickenUpgradeComponent,
+  hasChickenReachedFinish,
   renameChicken,
   roastOwnedChicken,
   settleBattle,
@@ -355,16 +356,36 @@ async function startChickenBattleAnimation(battle) {
   if (!battle || battle.status !== "pending") return;
   clearBattleTimers(battle);
   battle.status = "racing";
-  let players = await loadPlayers();
+  let settledAlready = false;
+  async function settleNow(message = "🏁 有雞衝到終點！") {
+    if (settledAlready) return;
+    settledAlready = true;
+    clearBattleTimers(battle);
+    let settled = null;
+    await updatePlayers((currentPlayers) => {
+      settled = settleBattle(battle, currentPlayers, Math.random, Date.now());
+      return settled.players;
+    });
+    await editBattleMessage(battle, settled.players, message ? `${message}\n${settled.message}` : settled.message);
+    clearBattle(battle.id);
+  }
+
+  const players = await loadPlayers();
   updateBattleFrame(battle, players, 0, Math.random);
   await editBattleMessage(battle, players, "⚔️ PK 開始！");
+  if (hasChickenReachedFinish(battle)) {
+    await settleNow();
+    return;
+  }
   const interval = 1400;
   for (let frame = 1; frame < PK_FRAME_COUNT; frame += 1) {
     battle.timers.push(setTimeout(async () => {
       try {
+        if (settledAlready) return;
         const currentPlayers = await loadPlayers();
         updateBattleFrame(battle, currentPlayers, frame, Math.random);
         await editBattleMessage(battle, currentPlayers);
+        if (hasChickenReachedFinish(battle)) await settleNow();
       } catch (error) {
         console.error("賽雞 PK 更新失敗：", error);
       }
@@ -372,13 +393,7 @@ async function startChickenBattleAnimation(battle) {
   }
   battle.timers.push(setTimeout(async () => {
     try {
-      let settled = null;
-      await updatePlayers((currentPlayers) => {
-        settled = settleBattle(battle, currentPlayers, Math.random, Date.now());
-        return settled.players;
-      });
-      await editBattleMessage(battle, settled.players, settled.message);
-      clearBattle(battle.id);
+      await settleNow("");
     } catch (error) {
       console.error("賽雞 PK 結算失敗：", error);
       clearBattle(battle.id);

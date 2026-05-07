@@ -866,6 +866,15 @@ function buildPkTrack(runner) {
   return `${"—".repeat(position)}${runner.chicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH - position)}🏁`;
 }
 
+function hasChickenReachedFinish(battle) {
+  return Boolean(
+    battle
+    && battle.isBoss
+    && Array.isArray(battle.runners)
+    && battle.runners.some((runner) => (runner.position || 0) >= PK_TRACK_LENGTH)
+  );
+}
+
 function isBossUserId(userId) {
   return typeof userId === "string" && userId.startsWith("boss:");
 }
@@ -1257,6 +1266,7 @@ module.exports = {
   getBossRank,
   getChickenRequiredExp,
   getChickenStage,
+  hasChickenReachedFinish,
   isChickenPkComponent,
   isChickenPanelComponent,
   isChickenUpgradeComponent,

@@ -18,6 +18,7 @@ const {
   getEvolutionMissingRequirements,
   getChickenRequiredExp,
   getChickenStage,
+  hasChickenReachedFinish,
   renameChicken,
   roastOwnedChicken,
   shareRoastChickenMeal,
@@ -208,6 +209,19 @@ test("賽雞館會依玩家雞等級提高館主強度", () => {
   assert.equal(created.boss.level >= 32, true);
   assert.equal(created.boss.pvePowerMultiplier > 1.5, true);
   clearBattle(created.battle.id);
+});
+
+test("賽雞館 PVE 有雞到終點即可提早結算", () => {
+  const players = {
+    bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.bossPlayer.ownedChicken.level = 40;
+  const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "tyrant");
+  const battle = created.battle;
+  updateBattleFrame(battle, players, 0, () => 0);
+
+  assert.equal(hasChickenReachedFinish(battle), true);
+  clearBattle(battle.id);
 });
 
 test("烤掉自己的雞會清空 ownedChicken 並給下礦生命加成", () => {
