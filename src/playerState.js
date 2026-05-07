@@ -250,6 +250,17 @@ function getPlayer(player) {
       evolutionType: typeof player.ownedChicken.evolutionType === "string" ? player.ownedChicken.evolutionType : null,
       activeSkill: typeof player.ownedChicken.activeSkill === "string" ? player.ownedChicken.activeSkill : null,
       passiveSkill: typeof player.ownedChicken.passiveSkill === "string" ? player.ownedChicken.passiveSkill : null,
+      chickenCounterType: typeof player.ownedChicken.chickenCounterType === "string" ? player.ownedChicken.chickenCounterType : "",
+      skillTriggerTiming: typeof player.ownedChicken.skillTriggerTiming === "string" ? player.ownedChicken.skillTriggerTiming : "",
+      chickenStatusEffects: Array.isArray(player.ownedChicken.chickenStatusEffects)
+        ? player.ownedChicken.chickenStatusEffects
+          .filter((effect) => effect && typeof effect.id === "string")
+          .map((effect) => ({
+            id: effect.id,
+            remaining: Math.max(1, Math.min(9, Math.floor(effect.remaining || 1)))
+          }))
+          .slice(0, 5)
+        : [],
       titles: Array.isArray(player.ownedChicken.titles)
         ? player.ownedChicken.titles.filter((title) => typeof title === "string").slice(0, 12)
         : [],

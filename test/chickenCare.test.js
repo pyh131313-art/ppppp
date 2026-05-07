@@ -15,9 +15,11 @@ const {
   clearBattlesForPlayer,
   createBattle,
   createBossBattle,
+  cycleChickenSkillTiming,
   determineEvolutionType,
   ensureOwnedChicken,
   formatOwnedChicken,
+  getCounterTypeForChicken,
   getEvolutionMissingRequirements,
   getChickenRequiredExp,
   getChickenStage,
@@ -47,7 +49,7 @@ test("雞升級會三選一並套用能力", () => {
   const upgraded = chooseChickenUpgrade(player, "speed");
 
   assert.equal(buildChickenUpgradeComponents(player).length, 1);
-  assert.equal(buildChickenPanelComponents(player, "user1").length, 2);
+  assert.equal(buildChickenPanelComponents(player, "user1").length, 3);
   const panelJson = buildChickenPanelComponents({ ...player, magicCandy: 1 }, "user1")[1].toJSON();
   assert.equal(panelJson.components.some((button) => button.custom_id === "chicken_panel:candy:user1"), true);
   assert.equal(upgraded.ok, true);
@@ -177,6 +179,44 @@ test("賽雞 PK 高等級雞會依等級差被削弱", () => {
   assert.equal(runners[0].chicken.pvpPowerMultiplier < 1, true);
   assert.equal(runners[1].chicken.pvpPowerMultiplier, 1);
   assert.equal(runners[0].chicken.pvpPowerMultiplier >= 0.65, true);
+});
+
+test("賽雞 PVP 會使用互剋、賽道、狀態與隱藏資訊", () => {
+  const players = {
+    counterA: ensureOwnedChicken(createPlayer(), () => 0),
+    counterB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  players.counterA.ownedChicken.personalityId = "steady";
+  players.counterA.ownedChicken.chickenCounterType = "stable";
+  players.counterA.ownedChicken.activeSkill = "guardStep";
+  players.counterA.ownedChicken.skillTriggerTiming = "overtaken";
+  players.counterB.ownedChicken.personalityId = "madDog";
+  players.counterB.ownedChicken.chickenCounterType = "risk";
+  const created = createBattle("counterA", "counterB", players, 60000, () => 0.99, "guild");
+
+  assert.equal(created.ok, true);
+  assert.equal(getCounterTypeForChicken(players.counterA.ownedChicken), "stable");
+  assert.equal(created.battle.raceTrackModifier.id.length > 0, true);
+  const frame = updateBattleFrame(created.battle, players, 0, () => 0.99);
+  const embedText = buildBattleEmbed(created.battle, players).data.description;
+
+  assert.match(frame, /🥇/);
+  assert.match(frame, /對位有利/);
+  assert.match(embedText, /賽道：/);
+  assert.match(embedText, /概略：/);
+  assert.doesNotMatch(embedText, /對手數值：/);
+  clearBattle(created.battle.id);
+});
+
+test("雞面板可以切換技能發動時機", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.activeSkill = "blazeDash";
+  player.ownedChicken.skillTriggerTiming = "finish";
+  const result = cycleChickenSkillTiming(player);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.ownedChicken.skillTriggerTiming, "overtaken");
+  assert.match(formatOwnedChicken(result.player), /技能時機：被超車時/);
 });
 
 test("雞用強化藥劑會讓下一場比賽全數值加五並消耗加成", () => {
@@ -379,7 +419,7 @@ test("賽雞館面板會顯示館主數值", () => {
   clearBattle(created.battle.id);
 });
 
-test("賽雞 PK 面板會顯示雙方數值", () => {
+test("賽雞 PK 面板會隱藏完整數值改顯示概略資訊", () => {
   const players = {
     statPvpA: ensureOwnedChicken(createPlayer(), () => 0),
     statPvpB: ensureOwnedChicken(createPlayer(), () => 0.5)
@@ -391,9 +431,10 @@ test("賽雞 PK 面板會顯示雙方數值", () => {
   const created = createBattle("statPvpA", "statPvpB", players, 200000, () => 0, "guild");
   const json = buildBattleEmbed(created.battle, players).toJSON();
 
-  assert.match(json.description, /挑戰者數值：Lv\.7｜速11/);
-  assert.match(json.description, /對手數值：Lv\.4｜/);
-  assert.match(json.description, /穩9/);
+  assert.match(json.description, /挑戰者概略：Lv\.7/);
+  assert.match(json.description, /對手概略：Lv\.4/);
+  assert.match(json.description, /PVP：公開資訊只顯示概略/);
+  assert.doesNotMatch(json.description, /穩9/);
   clearBattle(created.battle.id);
 });
 

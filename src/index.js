@@ -87,6 +87,7 @@ const {
   clearBattlesForPlayer,
   createBattle,
   createBossBattle,
+  cycleChickenSkillTiming,
   ensureOwnedChicken,
   getBattle,
   isChickenPanelComponent,
@@ -1684,6 +1685,19 @@ async function handleChickenPanelInteraction(interaction) {
     let result = null;
     await updatePlayer(interaction.user.id, (player) => {
       result = useChickenBooster(player, Date.now(), Math.random);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+      components: buildChickenPanelComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
+  if (action === "timing") {
+    await interaction.deferUpdate();
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = cycleChickenSkillTiming(player);
       return result.player;
     });
     await interaction.editReply({
