@@ -407,6 +407,25 @@ test("玩家修復會清除不存在的事件並重建詞條選項", () => {
   assert.match(result.message, /已修復/);
 });
 
+test("玩家修復會封頂天文數字避免下礦計算壞掉", () => {
+  const result = repairPlayerState({
+    ...createPlayer(),
+    gold: Number.MAX_VALUE,
+    bankGold: 9e30,
+    healingPotion: -10,
+    challenge: {
+      active: true,
+      challengeGold: 9e30
+    }
+  }, () => 0);
+
+  assert.equal(result.player.gold, 1_000_000_000_000);
+  assert.equal(result.player.bankGold, 1_000_000_000_000);
+  assert.equal(result.player.healingPotion, 0);
+  assert.equal(result.player.challenge.challengeGold, 1_000_000_000_000);
+  assert.match(result.message, /封頂異常數值/);
+});
+
 test("挖礦會自動修復不存在的 pendingEvent 不再卡住", () => {
   const result = mine({
     ...chooseRunMode(createPlayer(), "safe").player,

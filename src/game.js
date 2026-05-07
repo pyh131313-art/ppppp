@@ -113,6 +113,7 @@ function addItemReward(player, key, amount) {
 }
 
 const getTotalAsset = economySystem.getTotalAsset;
+const PLAYER_VALUE_CAP = 1_000_000_000_000;
 
 function migratePreUpdateDeepPlayer(playerInput) {
   const player = getPlayer(playerInput);
@@ -669,6 +670,25 @@ function repairPlayerState(playerInput, random = Math.random) {
     "healingPotion",
     "magicCandy"
   ];
+  const cappedFields = new Set([
+    "gold",
+    "bankGold",
+    "ore",
+    "goldOre",
+    "platinumOre",
+    "goldBlock",
+    "oreIngot",
+    "goldOreIngot",
+    "platinumOreIngot",
+    "redGem",
+    "blueGem",
+    "greenGem",
+    "invertedOre",
+    "invertedGem",
+    "orichalcum",
+    "healingPotion",
+    "magicCandy"
+  ]);
   for (const field of numericFields) {
     const value = Number(player[field]);
     if (!Number.isFinite(value)) {
@@ -677,6 +697,25 @@ function repairPlayerState(playerInput, random = Math.random) {
     } else if (typeof player[field] !== "number") {
       player[field] = value;
       fixed.push(`轉換數值欄位：${field}`);
+    }
+    if (cappedFields.has(field) && player[field] > PLAYER_VALUE_CAP) {
+      player[field] = PLAYER_VALUE_CAP;
+      fixed.push(`封頂異常數值：${field}`);
+    }
+    if (player[field] < 0 && field !== "depth" && field !== "runDepthProgress") {
+      player[field] = 0;
+      fixed.push(`歸零負數欄位：${field}`);
+    }
+  }
+
+  if (player.challenge && typeof player.challenge === "object") {
+    const challengeGold = Number(player.challenge.challengeGold || 0);
+    if (!Number.isFinite(challengeGold) || challengeGold < 0) {
+      player.challenge.challengeGold = 0;
+      fixed.push("修正挑戰金幣");
+    } else if (challengeGold > PLAYER_VALUE_CAP) {
+      player.challenge.challengeGold = PLAYER_VALUE_CAP;
+      fixed.push("封頂異常挑戰金幣");
     }
   }
 
