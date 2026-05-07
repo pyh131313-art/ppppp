@@ -29,6 +29,7 @@ const {
   addCharge,
   applyRiskScaling,
   calculateFinalReward,
+  createFunState,
   getComboBonusMultiplier,
   resetFunRunState,
   rollCrit,
@@ -55,7 +56,8 @@ const {
 const {
   addChickenExp,
   getChickenRequiredExp,
-  makeWildMineChicken
+  makeWildMineChicken,
+  normalizeOwnedChicken
 } = require("./chickenCare");
 
 function rollWeighted(weights, random = Math.random) {
@@ -629,29 +631,58 @@ function repairPlayerState(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const fixed = [];
   const validZones = new Set(["surface", "lavaPool", "undergroundCamp", "upward", "skyCamp", "skyDown"]);
+  const basePlayer = createPlayer();
+  const addFixed = (message) => {
+    if (!fixed.includes(message)) fixed.push(message);
+  };
+  const repairNumber = (object, field, label = field, options = {}) => {
+    const fallback = options.fallback !== undefined ? options.fallback : 0;
+    const max = options.max !== undefined ? options.max : null;
+    const allowNegative = Boolean(options.allowNegative);
+    const integer = options.integer !== false;
+    const value = Number(object[field]);
+    if (!Number.isFinite(value)) {
+      object[field] = fallback;
+      addFixed(`修正數值欄位：${label}`);
+    } else if (typeof object[field] !== "number") {
+      object[field] = value;
+      addFixed(`轉換數值欄位：${label}`);
+    }
+    if (integer) object[field] = Math.floor(object[field]);
+    if (max !== null && object[field] > max) {
+      object[field] = max;
+      addFixed(`封頂異常數值：${label}`);
+    }
+    if (!allowNegative && object[field] < 0) {
+      object[field] = 0;
+      addFixed(`歸零負數欄位：${label}`);
+    }
+  };
 
   if (player.pendingEvent && !getRandomEvent(player.pendingEvent)) {
-    fixed.push(`清除不存在的事件：${player.pendingEvent}`);
+    addFixed(`清除不存在的事件：${player.pendingEvent}`);
     player.pendingEvent = null;
     player.memoryChallenge = null;
   }
 
   if (player.runMode && !CONFIG.runModes[player.runMode]) {
-    fixed.push(`清除不存在的詞條：${player.runMode}`);
+    addFixed(`清除不存在的詞條：${player.runMode}`);
     player.runMode = null;
   }
 
   if (!validZones.has(player.zone)) {
-    fixed.push(`修正未知區域：${player.zone || "空值"}`);
+    addFixed(`修正未知區域：${player.zone || "空值"}`);
     player.zone = "surface";
   }
 
   const numericFields = [
     "gold",
     "bankGold",
+    "enteringGold",
     "depth",
     "runDepthProgress",
     "bombs",
+    "mines",
     "ore",
     "goldOre",
     "platinumOre",
@@ -667,12 +698,32 @@ function repairPlayerState(playerInput, random = Math.random) {
     "orichalcum",
     "junk",
     "platinumJunk",
+    "rusty",
+    "bombItem",
+    "undyingTotem",
     "healingPotion",
-    "magicCandy"
+    "magicCandy",
+    "chickenBooster",
+    "minerHelmetCount",
+    "chickenTraitTickets",
+    "chickenArenaRank",
+    "chickenRoastHpBonus",
+    "tempMaxHp",
+    "bagBonusSlots",
+    "lavaProgress",
+    "potionCooldown",
+    "rescueBonusCount",
+    "chargeValue",
+    "comboCount",
+    "maxCombo",
+    "critCount",
+    "jackpotCount",
+    "lastDeathLostGold"
   ];
   const cappedFields = new Set([
     "gold",
     "bankGold",
+    "enteringGold",
     "ore",
     "goldOre",
     "platinumOre",
@@ -687,43 +738,108 @@ function repairPlayerState(playerInput, random = Math.random) {
     "invertedGem",
     "orichalcum",
     "healingPotion",
-    "magicCandy"
+    "magicCandy",
+    "chickenBooster",
+    "minerHelmetCount",
+    "chickenTraitTickets",
+    "lastDeathLostGold"
   ]);
   for (const field of numericFields) {
-    const value = Number(player[field]);
-    if (!Number.isFinite(value)) {
-      fixed.push(`修正數值欄位：${field}`);
-      player[field] = createPlayer()[field] || 0;
-    } else if (typeof player[field] !== "number") {
-      player[field] = value;
-      fixed.push(`轉換數值欄位：${field}`);
-    }
-    if (cappedFields.has(field) && player[field] > PLAYER_VALUE_CAP) {
-      player[field] = PLAYER_VALUE_CAP;
-      fixed.push(`封頂異常數值：${field}`);
-    }
-    if (player[field] < 0 && field !== "depth" && field !== "runDepthProgress") {
-      player[field] = 0;
-      fixed.push(`歸零負數欄位：${field}`);
-    }
+    repairNumber(player, field, field, {
+      fallback: basePlayer[field] || 0,
+      max: cappedFields.has(field) ? PLAYER_VALUE_CAP : null,
+      allowNegative: field === "depth" || field === "runDepthProgress",
+      integer: field !== "bombs"
+    });
+  }
+
+  if (!["full", "compact"].includes(player.uiMode)) {
+    player.uiMode = "full";
+    addFixed("修正 UI 模式");
+  }
+  if (typeof player.dead !== "boolean") {
+    player.dead = Boolean(player.dead);
+    addFixed("修正死亡狀態");
+  }
+  if (player.dead && !Number.isFinite(Number(player.deathAt))) {
+    player.deathAt = Date.now();
+    addFixed("補上死亡時間");
+  }
+  if (!player.dead && player.deathAt !== null) {
+    player.deathAt = null;
+    addFixed("清除多餘死亡時間");
+  }
+  const maxBombs = getMaxBombs(player);
+  if (!player.dead && player.bombs >= maxBombs) {
+    player.bombs = Math.max(0, maxBombs - DAMAGE_PER_HIT);
+    addFixed("修正超過上限的生命損傷");
+  }
+  if (player.bombs > maxBombs) {
+    player.bombs = maxBombs;
+    addFixed("封頂生命損傷");
+  }
+
+  if (player.zone !== "lavaPool" && player.lavaProgress !== 0) {
+    player.lavaProgress = 0;
+    addFixed("清除岩漿進度");
+  }
+  if (player.zone === "lavaPool" && (player.lavaProgress < 0 || player.lavaProgress > 5)) {
+    player.lavaProgress = Math.max(0, Math.min(5, player.lavaProgress));
+    addFixed("修正岩漿進度");
+  }
+  if (!["normal", "gem"].includes(player.caveType) && player.caveType !== null) {
+    player.caveType = null;
+    addFixed("修正洞窟類型");
   }
 
   if (player.challenge && typeof player.challenge === "object") {
-    const challengeGold = Number(player.challenge.challengeGold || 0);
-    if (!Number.isFinite(challengeGold) || challengeGold < 0) {
-      player.challenge.challengeGold = 0;
-      fixed.push("修正挑戰金幣");
-    } else if (challengeGold > PLAYER_VALUE_CAP) {
-      player.challenge.challengeGold = PLAYER_VALUE_CAP;
-      fixed.push("封頂異常挑戰金幣");
+    ["challengeGold", "depth", "potions", "hp", "maxHp"].forEach((field) => repairNumber(player.challenge, field, `challenge.${field}`, {
+      fallback: field === "maxHp" ? 3 : 0,
+      max: field === "challengeGold" ? PLAYER_VALUE_CAP : null,
+      integer: field !== "hp"
+    }));
+    player.challenge.hp = Math.min(player.challenge.hp, player.challenge.maxHp);
+    if (player.challenge.trait && !CONFIG.runModes[player.challenge.trait]) {
+      player.challenge.trait = null;
+      addFixed("清除挑戰模式錯誤詞條");
     }
+    player.challenge.routeOptions = Array.isArray(player.challenge.routeOptions) ? player.challenge.routeOptions.slice(0, 3) : [];
+    player.challenge.modifiers = Array.isArray(player.challenge.modifiers) ? player.challenge.modifiers.slice(0, 3) : [];
+    player.challenge.items = player.challenge.items && typeof player.challenge.items === "object" ? player.challenge.items : {};
+    Object.keys(player.challenge.items).forEach((key) => repairNumber(player.challenge.items, key, `challenge.items.${key}`, { max: PLAYER_VALUE_CAP }));
+    player.challenge.miniTraits = player.challenge.miniTraits && typeof player.challenge.miniTraits === "object" ? player.challenge.miniTraits : {};
+    Object.keys(player.challenge.miniTraits).forEach((key) => repairNumber(player.challenge.miniTraits, key, `challenge.miniTraits.${key}`, { max: 999 }));
+  } else if (player.challenge !== null) {
+    player.challenge = null;
+    addFixed("清除錯誤挑戰資料");
   }
 
   player.runModeOptions = (player.runModeOptions || []).filter((id) => CONFIG.runModes[id]).slice(0, 2);
   if (!player.runMode && !player.dead && player.runModeOptions.length === 0) {
     player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
-    fixed.push("重建初始詞條選項");
+    addFixed("重建初始詞條選項");
   }
+  player.pendingNextRunTraits = Array.isArray(player.pendingNextRunTraits)
+    ? player.pendingNextRunTraits.filter((id) => CONFIG.runModes[id]).slice(0, 10)
+    : [];
+  player.minorBuffOptions = Array.isArray(player.minorBuffOptions)
+    ? player.minorBuffOptions.filter((id) => CONFIG.minorBuffs[id]).slice(0, 3)
+    : [];
+  player.minorBuffSelections = Array.isArray(player.minorBuffSelections)
+    ? player.minorBuffSelections.filter((id) => CONFIG.minorBuffs[id]).slice(0, 1)
+    : [];
+  Object.keys(player.minorBuffs || {}).forEach((key) => {
+    if (!CONFIG.minorBuffs[key]) delete player.minorBuffs[key];
+    else repairNumber(player.minorBuffs, key, `minorBuffs.${key}`, { max: 999 });
+  });
+  for (const key of Object.keys(CONFIG.minorBuffs)) {
+    if (player.minorBuffs[key] === undefined) player.minorBuffs[key] = 0;
+  }
+  if (!player.traitState || typeof player.traitState !== "object") {
+    player.traitState = createTraitState();
+    addFixed("重建詞條狀態");
+  }
+  Object.keys(createTraitState()).forEach((key) => repairNumber(player.traitState, key, `traitState.${key}`, { max: 999 }));
 
   const beforePaths = Object.keys(player.digPathOptions || {}).length;
   player.digPathOptions = Object.fromEntries(
@@ -731,7 +847,81 @@ function repairPlayerState(playerInput, random = Math.random) {
       ["left", "middle", "right"].includes(side) && CONFIG.mining.digPathTypes[pathId]
     ))
   );
-  if (beforePaths !== Object.keys(player.digPathOptions).length) fixed.push("清理錯誤路線資料");
+  if (beforePaths !== Object.keys(player.digPathOptions).length) addFixed("清理錯誤路線資料");
+
+  const beforeHistory = Array.isArray(player.digPathHistory) ? player.digPathHistory.length : 0;
+  player.digPathHistory = Array.isArray(player.digPathHistory)
+    ? player.digPathHistory
+      .filter((entry) => entry && typeof entry.label === "string" && entry.label.trim())
+      .map((entry) => ({ label: entry.label.trim(), depth: Number.isFinite(Number(entry.depth)) ? Number(entry.depth) : 0 }))
+      .slice(-10)
+    : [];
+  if (beforeHistory !== player.digPathHistory.length) addFixed("清理礦區記憶");
+  if (player.memoryChallenge && (!player.memoryChallenge.options || !player.memoryChallenge.correctChoice)) {
+    player.memoryChallenge = null;
+    addFixed("清理錯誤記憶事件");
+  }
+  player.tempEffects = Array.isArray(player.tempEffects)
+    ? player.tempEffects
+      .filter((effect) => effect && typeof effect.id === "string" && effect.id.trim())
+      .map((effect) => ({
+        ...effect,
+        id: effect.id.trim(),
+        remaining: Math.max(0, Math.floor(effect.remaining || 0))
+      }))
+      .filter((effect) => effect.remaining > 0)
+      .slice(0, 20)
+    : [];
+  if (!["gold", "ore", "goldOre", "platinumOre", "redGem", "blueGem", "greenGem", "bomb", "empty", "gold_or_ore", "rusty", "stalactite", "platinumJunk", "junk", "bombItem"].includes(player.forcedNextResult) && player.forcedNextResult !== null) {
+    player.forcedNextResult = null;
+    addFixed("清除錯誤強制結果");
+  }
+  if (player.goldBeast && typeof player.goldBeast === "object") {
+    repairNumber(player.goldBeast, "amount", "goldBeast.amount", { max: PLAYER_VALUE_CAP });
+    repairNumber(player.goldBeast, "returnDepth", "goldBeast.returnDepth", { max: 9999 });
+  } else if (player.goldBeast !== null) {
+    player.goldBeast = null;
+    addFixed("清除錯誤吞金獸資料");
+  }
+  player.runRewardStats = player.runRewardStats && typeof player.runRewardStats === "object" ? player.runRewardStats : createFunState().runRewardStats;
+  Object.keys(createFunState().runRewardStats).forEach((key) => repairNumber(player.runRewardStats, key, `runRewardStats.${key}`, { max: PLAYER_VALUE_CAP }));
+  if (!["reward", "safe", "resource"].includes(player.chargeBurst) && player.chargeBurst !== null) {
+    player.chargeBurst = null;
+    addFixed("清除錯誤蓄力狀態");
+  }
+
+  player.collection = player.collection && typeof player.collection === "object" ? player.collection : {};
+  Object.keys(player.collection).forEach((key) => repairNumber(player.collection, key, `collection.${key}`, { max: PLAYER_VALUE_CAP }));
+  player.undergroundStorage = {
+    ...basePlayer.undergroundStorage,
+    ...(player.undergroundStorage && typeof player.undergroundStorage === "object" ? player.undergroundStorage : {})
+  };
+  Object.keys(player.undergroundStorage).forEach((key) => repairNumber(player.undergroundStorage, key, `undergroundStorage.${key}`, { max: PLAYER_VALUE_CAP }));
+  player.bestRecordTimestamps = Array.isArray(player.bestRecordTimestamps)
+    ? player.bestRecordTimestamps.filter((time) => Number.isFinite(Number(time))).map(Number).slice(-10)
+    : [];
+  player.chickenBoosterUseLog = Array.isArray(player.chickenBoosterUseLog)
+    ? player.chickenBoosterUseLog.filter((time) => Number.isFinite(Number(time))).map(Number).slice(-10)
+    : [];
+  player.stats = player.stats && typeof player.stats === "object" ? player.stats : basePlayer.stats;
+  ["bestDepth", "totalMines", "deaths"].forEach((field) => repairNumber(player.stats, field, `stats.${field}`, { max: PLAYER_VALUE_CAP }));
+  if (player.ownedChicken) {
+    const repairedChicken = normalizeOwnedChicken(player.ownedChicken);
+    if (!repairedChicken) {
+      player.ownedChicken = null;
+      addFixed("清除錯誤養雞資料");
+    } else {
+      player.ownedChicken = repairedChicken;
+    }
+  }
+  if (typeof player.activeMinePanelMessageId !== "string") {
+    player.activeMinePanelMessageId = "";
+    addFixed("清除錯誤礦場面板");
+  }
+  if (typeof player.activeMinePanelChannelId !== "string") {
+    player.activeMinePanelChannelId = "";
+    addFixed("清除錯誤礦場頻道");
+  }
 
   return {
     ok: true,

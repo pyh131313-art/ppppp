@@ -427,6 +427,62 @@ test("玩家修復會封頂天文數字避免下礦計算壞掉", () => {
   assert.match(result.message, /封頂異常數值/);
 });
 
+test("玩家修復會整理挑戰背包雞與暫時效果資料", () => {
+  const result = repairPlayerState({
+    ...createPlayer(),
+    zone: "???",
+    uiMode: "tiny",
+    dead: "yes",
+    deathAt: "bad",
+    forcedNextResult: "broken",
+    collection: { coin: "5", bad: -3 },
+    undergroundStorage: { ore: "7", healingPotion: -2 },
+    tempEffects: [{ id: "ancient_curse", remaining: "2" }, { id: "", remaining: 5 }],
+    runRewardStats: { baseReward: "10", critBonus: Number.POSITIVE_INFINITY },
+    challenge: {
+      active: true,
+      challengeGold: "999",
+      depth: "12",
+      hp: 99,
+      maxHp: 3,
+      potions: -5,
+      trait: "missing_trait",
+      items: { orichalcum: "4" },
+      miniTraits: { gold: "2" }
+    },
+    ownedChicken: {
+      name: "超級無敵長長長長長名字",
+      speed: 999,
+      sprint: -5,
+      stability: "8",
+      stamina: Number.NaN,
+      level: "3",
+      exp: "40",
+      raceStatBoost: 999,
+      titles: ["a", "b"]
+    }
+  });
+
+  assert.equal(result.player.zone, "surface");
+  assert.equal(result.player.uiMode, "full");
+  assert.equal(Number.isFinite(result.player.deathAt), true);
+  assert.equal(result.player.forcedNextResult, null);
+  assert.equal(result.player.collection.coin, 5);
+  assert.equal(result.player.collection.bad, 0);
+  assert.equal(result.player.undergroundStorage.ore, 7);
+  assert.equal(result.player.undergroundStorage.healingPotion, 0);
+  assert.equal(result.player.tempEffects.length, 1);
+  assert.equal(result.player.runRewardStats.baseReward, 10);
+  assert.equal(result.player.runRewardStats.critBonus, 0);
+  assert.equal(result.player.challenge.hp, 3);
+  assert.equal(result.player.challenge.potions, 0);
+  assert.equal(result.player.challenge.trait, null);
+  assert.equal(result.player.challenge.items.orichalcum, 4);
+  assert.equal(result.player.ownedChicken.speed, 20);
+  assert.equal(result.player.ownedChicken.raceStatBoost, 15);
+  assert.match(result.message, /已修復/);
+});
+
 test("挖礦會自動修復不存在的 pendingEvent 不再卡住", () => {
   const result = mine({
     ...chooseRunMode(createPlayer(), "safe").player,

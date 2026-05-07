@@ -1107,6 +1107,13 @@ function clearBattle(battleId) {
   activeChickenBattles.delete(battleId);
 }
 
+function clearBattlesForPlayer(userId) {
+  const battleId = activeBattleByPlayerId.get(userId);
+  if (!battleId) return false;
+  clearBattle(battleId);
+  return true;
+}
+
 function getBattle(battleId) {
   return activeChickenBattles.get(battleId) || null;
 }
@@ -1368,6 +1375,7 @@ module.exports = {
   applyPvpLevelBalance,
   chooseChickenUpgrade,
   clearBattle,
+  clearBattlesForPlayer,
   createBattle,
   createBossBattle,
   calculateBattleExp,

@@ -12,6 +12,7 @@ const {
   calculateBossGoldReward,
   chooseChickenUpgrade,
   clearBattle,
+  clearBattlesForPlayer,
   createBattle,
   createBossBattle,
   determineEvolutionType,
@@ -151,6 +152,19 @@ test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   const afterCooldown = createBattle("a", "b", players, 33000, () => 0, "guild");
   assert.equal(afterCooldown.ok, true);
   clearBattle(afterCooldown.battle.id);
+});
+
+test("可以用玩家 ID 清除卡住的賽雞 PK", () => {
+  const players = {
+    stuckA: ensureOwnedChicken(createPlayer(), () => 0),
+    stuckB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  const created = createBattle("stuckA", "stuckB", players, 50000, () => 0, "guild");
+
+  assert.equal(created.ok, true);
+  assert.equal(clearBattlesForPlayer("stuckA"), true);
+  assert.equal(createBattle("stuckA", "stuckB", players, 51000, () => 0, "guild").ok, true);
+  clearBattlesForPlayer("stuckA");
 });
 
 test("賽雞 PK 高等級雞會依等級差被削弱", () => {

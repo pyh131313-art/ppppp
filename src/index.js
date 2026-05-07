@@ -84,6 +84,7 @@ const {
   buildChickenPanelComponents,
   chooseChickenUpgrade,
   clearBattle,
+  clearBattlesForPlayer,
   createBattle,
   createBossBattle,
   ensureOwnedChicken,
@@ -1070,6 +1071,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         result = repairPlayerState(current, Math.random);
         return result.player;
       });
+      if (clearBattlesForPlayer(target.id)) {
+        result.fixed.push("清除卡住的賽雞 PK");
+        result.message = `已修復：${result.fixed.join("、")}。`;
+      }
       await interaction.reply({
         content: `${target}：${result.message}`,
         ephemeral: true
