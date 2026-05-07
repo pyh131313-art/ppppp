@@ -738,6 +738,12 @@ function buildChickenPanelComponents(playerInput, ownerId = "none") {
         .setEmoji("🍗")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:candy:${ownerId}`)
+        .setLabel(`餵糖果 ${player.magicCandy || 0}`)
+        .setEmoji("🍬")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled((player.magicCandy || 0) <= 0),
+      new ButtonBuilder()
         .setCustomId(`${CHICKEN_PANEL_PREFIX}:refresh:${ownerId}`)
         .setLabel("刷新")
         .setEmoji("🔄")
@@ -802,6 +808,7 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (event === "衝刺" && chicken.activeSkill === "crystalPeck" && random() < 0.28) step += 2;
   if (event === "逆轉" && chicken.activeSkill === "abyssCry") step += 1.8;
   step *= Math.max(0.5, Math.min(1, chicken.pvpPowerMultiplier || 1));
+  step *= Math.max(1, Math.min(3, chicken.pvePowerMultiplier || 1));
   return Math.max(0, step);
 }
 
@@ -868,19 +875,24 @@ function getBossById(id) {
 }
 
 function getBossRank(playerInput) {
-  return Math.max(1, Math.floor(playerInput && playerInput.chickenArenaRank || 1));
+  const player = getPlayer(playerInput);
+  const arenaRank = Math.max(1, Math.floor(player.chickenArenaRank || 1));
+  const chickenLevel = Math.max(1, Math.floor(player.ownedChicken && player.ownedChicken.level || 1));
+  return Math.max(arenaRank, Math.floor(chickenLevel / 3));
 }
 
-function scaleBossChicken(bossInput, rank = 1) {
+function scaleBossChicken(bossInput, rank = 1, challengerLevel = 1) {
   const boss = { ...bossInput };
   const safeRank = Math.max(1, Math.floor(rank || 1));
-  const statBonus = Math.floor((safeRank - 1) * 1.4);
-  const highRankBonus = safeRank >= 8 ? 3 : safeRank >= 5 ? 2 : safeRank >= 3 ? 1 : 0;
-  boss.level = Math.max(boss.level || 1, 8 + safeRank);
+  const safeChallengerLevel = Math.max(1, Math.floor(challengerLevel || 1));
+  const statBonus = Math.floor((safeRank - 1) * 1.8 + safeChallengerLevel / 6);
+  const highRankBonus = safeRank >= 8 ? 5 : safeRank >= 5 ? 3 : safeRank >= 3 ? 2 : 0;
+  boss.level = Math.max(boss.level || 1, 8 + safeRank * 2, safeChallengerLevel + 2);
   boss.speed = clampStat((boss.speed || 8) + statBonus + highRankBonus);
-  boss.sprint = clampStat((boss.sprint || 8) + statBonus + (safeRank >= 8 ? 4 : highRankBonus));
+  boss.sprint = clampStat((boss.sprint || 8) + statBonus + (safeRank >= 8 ? 6 : highRankBonus));
   boss.stability = clampStat((boss.stability || 8) + statBonus + highRankBonus);
   boss.stamina = clampStat((boss.stamina || 8) + statBonus + highRankBonus);
+  boss.pvePowerMultiplier = Number((1.05 + safeRank * 0.08 + Math.min(0.75, safeChallengerLevel * 0.012)).toFixed(3));
   if (safeRank >= 3) {
     boss.activeSkill = boss.activeSkill || "royalPace";
     boss.passiveSkill = boss.passiveSkill || "winnerAura";
@@ -911,9 +923,9 @@ function calculateBossGoldReward(rank = 1, random = Math.random) {
   return min + Math.floor(random() * Math.max(1, max - min + 1));
 }
 
-function createRunner(userId, players, random = Math.random, bossId = null, bossRank = 1) {
+function createRunner(userId, players, random = Math.random, bossId = null, bossRank = 1, bossChallengerLevel = 1) {
   if (isBossUserId(userId)) {
-    const boss = scaleBossChicken(getBossById(bossId || userId.slice(5)), bossRank);
+    const boss = scaleBossChicken(getBossById(bossId || userId.slice(5)), bossRank, bossChallengerLevel);
     return { userId, chicken: normalizeChickenMeta({ ...boss, races: 0, wins: 0, exp: 0, levelUpOptions: [] }), position: 0, battleStats: {} };
   }
   const player = ensureOwnedChicken(players[userId], random);
@@ -974,7 +986,8 @@ function createBossBattle(challengerId, players, now = Date.now(), random = Math
   const boss = getBossById(bossId || BOSS_CHICKENS[Math.floor(random() * BOSS_CHICKENS.length)].id);
   const challenger = ensureOwnedChicken(players[challengerId], random);
   const bossRank = getBossRank(challenger);
-  const scaledBoss = scaleBossChicken(boss, bossRank);
+  const challengerLevel = Math.max(1, Math.floor(challenger.ownedChicken && challenger.ownedChicken.level || 1));
+  const scaledBoss = scaleBossChicken(boss, bossRank, challengerLevel);
   players[challengerId] = challenger;
   const battle = {
     id: `${now}-${challengerId}-boss-${boss.id}`,
@@ -984,6 +997,7 @@ function createBossBattle(challengerId, players, now = Date.now(), random = Math
     targetId: `boss:${boss.id}`,
     bossId: boss.id,
     bossRank,
+    bossChallengerLevel: challengerLevel,
     isBoss: true,
     createdAt: now,
     expiresAt: now + PK_TIMEOUT_MS,
@@ -1034,7 +1048,7 @@ function buildBattleComponents(battle) {
 
 function buildBattleEmbed(battle, players, message = "") {
   const challenger = ensureOwnedChicken(players[battle.challengerId]);
-  const boss = battle.isBoss ? scaleBossChicken(getBossById(battle.bossId), battle.bossRank || 1) : null;
+  const boss = battle.isBoss ? scaleBossChicken(getBossById(battle.bossId), battle.bossRank || 1, battle.bossChallengerLevel || 1) : null;
   const target = boss ? { ownedChicken: boss } : ensureOwnedChicken(players[battle.targetId]);
   const frame = battle.frames[battle.frames.length - 1] || [
     `${challenger.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`,
@@ -1057,7 +1071,7 @@ function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
   if (!battle.runners) {
     battle.runners = [
       createRunner(battle.challengerId, players, random),
-      createRunner(battle.targetId, players, random, battle.bossId, battle.bossRank)
+      createRunner(battle.targetId, players, random, battle.bossId, battle.bossRank, battle.bossChallengerLevel)
     ];
     if (!battle.isBoss) applyPvpLevelBalance(battle.runners);
   }

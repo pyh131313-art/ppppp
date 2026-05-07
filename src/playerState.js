@@ -151,6 +151,9 @@ function createPlayer() {
     chickenRoastHpBonus: 0,
     chickenAmuletUsed: false,
     ownedChicken: null,
+    challenge: null,
+    challengeBestDepth: 0,
+    challengeTraitOptions: [],
     ...createFunState(),
     traitState: createTraitState(),
     tempMaxHp: 0,
@@ -260,6 +263,27 @@ function getPlayer(player) {
     ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
     : [];
   next.chickenArenaRank = Math.max(1, Math.floor(player && player.chickenArenaRank || 1));
+  next.challengeBestDepth = Math.max(0, Math.floor(player && player.challengeBestDepth || 0));
+  next.challengeTraitOptions = Array.isArray(player && player.challengeTraitOptions)
+    ? player.challengeTraitOptions.filter((id) => CONFIG.runModes[id]).slice(0, 25)
+    : [];
+  next.challenge = player && player.challenge && typeof player.challenge === "object"
+    ? {
+      ...player.challenge,
+      challengeGold: Math.max(0, Math.floor(player.challenge.challengeGold || 0)),
+      depth: Math.max(0, Math.floor(player.challenge.depth || 0)),
+      hp: Number.isFinite(player.challenge.hp) ? player.challenge.hp : 3,
+      maxHp: Math.max(1, Math.floor(player.challenge.maxHp || 3)),
+      potions: Math.max(0, Math.floor(player.challenge.potions || 0)),
+      trait: CONFIG.runModes[player.challenge.trait] ? player.challenge.trait : null,
+      modifiers: Array.isArray(player.challenge.modifiers) ? player.challenge.modifiers.slice(0, 3) : [],
+      routeOptions: Array.isArray(player.challenge.routeOptions) ? player.challenge.routeOptions.slice(0, 3) : [],
+      merchant: player.challenge.merchant && typeof player.challenge.merchant === "object" ? player.challenge.merchant : null,
+      items: player.challenge.items && typeof player.challenge.items === "object" ? { ...player.challenge.items } : {},
+      miniTraits: player.challenge.miniTraits && typeof player.challenge.miniTraits === "object" ? { ...player.challenge.miniTraits } : {},
+      stats: player.challenge.stats && typeof player.challenge.stats === "object" ? { ...player.challenge.stats } : {}
+    }
+    : null;
   Object.assign(next, normalizeFunState(player || {}));
   next.traitState = normalizeTraitState(player && player.traitState);
   next.stats = {

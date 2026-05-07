@@ -107,6 +107,20 @@ const {
   buildShopEmbed,
   isMiningUiButton
 } = require("./ui");
+const {
+  buildChallengeComponents,
+  buildChallengeEmbed,
+  buildChallengeLeaderboardEmbed,
+  chooseChallengeTrait,
+  createChallengeSetup,
+  drinkChallengePotion,
+  endChallenge,
+  handleMerchantAction,
+  isChallengeComponent,
+  mineChallengeRoute,
+  parseChallengeCustomId,
+  startChallenge
+} = require("./challengeMode");
 
 const token = cleanEnvValue(process.env.DISCORD_TOKEN);
 
@@ -129,6 +143,13 @@ const client = new Client({
 
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
+const ADMIN_USER_IDS = new Set([
+  "1313180465942888508",
+  ...String(process.env.ADMIN_USER_IDS || process.env.BOT_OWNER_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+]);
 const BANK_MODAL_PREFIX = "mine_ui:bank_modal";
 const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
 const SHOP_BUY_MODAL_PREFIX = "mine_ui:shop_buy_modal";
@@ -141,6 +162,10 @@ function parseAmountInput(input) {
   const value = Number(input);
   if (!Number.isInteger(value) || value <= 0) return null;
   return value;
+}
+
+function canUseAdminCommand(userId) {
+  return ADMIN_USER_IDS.has(String(userId || ""));
 }
 
 function buildAmountInputModal(action, targetUserId, issuerId, panelMessageId = "") {
@@ -831,6 +856,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if ((interaction.isButton() || interaction.isStringSelectMenu()) && isChallengeComponent(interaction.customId)) {
+      await handleChallengeInteraction(interaction);
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isMiningUiButton(interaction.customId)) {
       await handleMiningButton(interaction);
       return;
@@ -857,6 +887,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
         next.activeMinePanelMessageId = reply.id;
         next.activeMinePanelChannelId = reply.channelId || (interaction.channel && interaction.channel.id) || "";
         return next;
+      });
+      return;
+    }
+
+    if (name === "挖礦挑戰" || name === "挑戰模式") {
+      await interaction.deferReply();
+      const player = await updatePlayer(interaction.user.id, (current) => createChallengeSetup(current, Math.random));
+      await interaction.editReply({
+        embeds: [buildChallengeEmbed(player, "選擇大詞條後開始挑戰。", interaction.user)],
+        components: buildChallengeComponents(player, interaction.user.id)
+      });
+      return;
+    }
+
+    if (name === "清錢") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      let before = null;
+      const player = await updatePlayer(target.id, (current) => {
+        const next = getPlayer(current);
+        before = {
+          gold: next.gold || 0,
+          bankGold: next.bankGold || 0,
+          challengeGold: next.challenge && next.challenge.challengeGold ? next.challenge.challengeGold : 0
+        };
+        next.gold = 0;
+        next.bankGold = 0;
+        if (next.challenge) next.challenge.challengeGold = 0;
+        return next;
+      });
+      await interaction.reply({
+        content: `已清空 ${target} 的金錢。\n原本：身上 ${before.gold}｜銀行 ${before.bankGold}｜挑戰 ${before.challengeGold}\n現在：身上 ${player.gold}｜銀行 ${player.bankGold}`,
+        ephemeral: true
       });
       return;
     }
@@ -1406,6 +1472,19 @@ async function handleChickenPanelInteraction(interaction) {
     });
     return;
   }
+  if (action === "candy") {
+    await interaction.deferUpdate();
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = eatMagicCandy(player, Math.random);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+      components: buildChickenPanelComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
   if (action === "roast") {
     await interaction.deferUpdate();
     const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
@@ -1460,6 +1539,65 @@ async function handleOwnedChickenRoastInteraction(interaction) {
   });
   await interaction.update({ content: result.message, embeds: [], components: [] });
   if (result.ok) await publishChickenRoastFeast(interaction, interaction.user.id, chickenName);
+}
+
+async function handleChallengeInteraction(interaction) {
+  const parsed = parseChallengeCustomId(interaction.customId);
+  if (interaction.user.id !== parsed.userId) {
+    await interaction.reply({ content: "這是別人的挑戰面板。", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferUpdate();
+  let result = null;
+  let showLeaderboard = false;
+  await updatePlayer(interaction.user.id, (player) => {
+    if (parsed.action === "trait") {
+      const selected = interaction.isStringSelectMenu() ? interaction.values[0] : "";
+      result = chooseChallengeTrait(player, selected);
+      return result.player;
+    }
+    if (parsed.action === "start") {
+      result = startChallenge(player, Math.random);
+      return result.player;
+    }
+    if (parsed.action === "route") {
+      result = mineChallengeRoute(player, parsed.value, Math.random);
+      return result.player;
+    }
+    if (parsed.action === "potion") {
+      result = drinkChallengePotion(player);
+      return result.player;
+    }
+    if (parsed.action === "leave") {
+      result = endChallenge(player, false);
+      return result.player;
+    }
+    if (parsed.action === "sell" || parsed.action === "buyPotion" || parsed.action === "buyBuff" || parsed.action === "replaceTrait" || parsed.action === "skip") {
+      result = handleMerchantAction(player, parsed.action, parsed.value);
+      return result.player;
+    }
+    if (parsed.action === "leaderboard") {
+      showLeaderboard = true;
+      result = { player: getPlayer(player), message: "排行榜" };
+      return result.player;
+    }
+    result = { player: getPlayer(player), message: "未知的挑戰操作。" };
+    return result.player;
+  });
+
+  if (showLeaderboard) {
+    await interaction.editReply({
+      embeds: [buildChallengeLeaderboardEmbed(await loadPlayers())],
+      components: buildChallengeComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
+
+  await interaction.editReply({
+    embeds: [buildChallengeEmbed(result.player, result.message, interaction.user)],
+    components: buildChallengeComponents(result.player, interaction.user.id)
+  });
 }
 
 async function handleMiningButton(interaction) {

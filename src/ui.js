@@ -898,8 +898,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       addRow(
         makeButton(CUSTOM_IDS.mine, player.zone === "lavaPool" ? "穿越岩漿" : "往上挖", ButtonStyle.Primary, player.zone === "lavaPool" ? "🌋" : "⬆️"),
         makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-        player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null,
-        player.magicCandy > 0 ? makeButton(CUSTOM_IDS.eatCandy, "吃糖果", ButtonStyle.Success, "🍬") : null
+        player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
       );
     } else {
     const digPaths = getDigPathOptions(player);
@@ -923,8 +922,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
         )
       )),
       makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null,
-      player.magicCandy > 0 ? makeButton(CUSTOM_IDS.eatCandy, "吃糖果", ButtonStyle.Success, "🍬") : null
+      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
     );
     }
     addRow(

@@ -43,6 +43,8 @@ test("雞升級會三選一並套用能力", () => {
 
   assert.equal(buildChickenUpgradeComponents(player).length, 1);
   assert.equal(buildChickenPanelComponents(player, "user1").length, 2);
+  const panelJson = buildChickenPanelComponents({ ...player, magicCandy: 1 }, "user1")[1].toJSON();
+  assert.equal(panelJson.components.some((button) => button.custom_id === "chicken_panel:candy:user1"), true);
   assert.equal(upgraded.ok, true);
   assert.equal(upgraded.player.ownedChicken.speed, before + 1);
   assert.deepEqual(upgraded.player.ownedChicken.levelUpOptions, []);
@@ -191,6 +193,21 @@ test("賽雞館獎勵會隨 Rank 成長", () => {
   assert.equal(calculateBossGoldReward(1, () => 0), 500);
   assert.equal(calculateBossGoldReward(1, () => 0.999), 1000);
   assert.equal(calculateBossGoldReward(5, () => 0) > calculateBossGoldReward(1, () => 0.999), true);
+});
+
+test("賽雞館會依玩家雞等級提高館主強度", () => {
+  const players = {
+    strong: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.strong.ownedChicken.level = 30;
+  players.strong.chickenArenaRank = 1;
+  const created = createBossBattle("strong", players, 1000, () => 0, "guild", "tyrant");
+
+  assert.equal(created.ok, true);
+  assert.equal(created.battle.bossRank >= 10, true);
+  assert.equal(created.boss.level >= 32, true);
+  assert.equal(created.boss.pvePowerMultiplier > 1.5, true);
+  clearBattle(created.battle.id);
 });
 
 test("烤掉自己的雞會清空 ownedChicken 並給下礦生命加成", () => {

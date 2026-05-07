@@ -7,6 +7,19 @@ const commands = [
     .setName("礦場")
     .setDescription("打開挖礦遊戲面板。"),
   new SlashCommandBuilder()
+    .setName("挖礦挑戰")
+    .setDescription("開啟獨立高難度 roguelike 挖礦挑戰。"),
+  new SlashCommandBuilder()
+    .setName("挑戰模式")
+    .setDescription("開啟獨立高難度 roguelike 挖礦挑戰。"),
+  new SlashCommandBuilder()
+    .setName("清錢")
+    .setDescription("管理用：清空指定玩家的金幣與銀行。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要清空金錢的玩家。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName("礦場ui")
     .setDescription("切換礦場顯示模式。")
     .addStringOption((option) => option
