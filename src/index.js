@@ -144,7 +144,7 @@ const client = new Client({
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const ADMIN_USER_IDS = new Set([
-  "1313180465942888508",
+  "712287814192201790",
   ...String(process.env.ADMIN_USER_IDS || process.env.BOT_OWNER_IDS || "")
     .split(",")
     .map((id) => id.trim())
