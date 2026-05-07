@@ -1422,7 +1422,7 @@ function formatHiddenBattleChickenStats(label, chicken) {
   const speedHint = chicken.speed + chicken.sprint >= 26 ? "危險" : chicken.speed + chicken.sprint >= 18 ? "偏高" : "未知";
   const stableHint = chicken.stability >= 14 ? "偏高" : chicken.stability <= 6 ? "偏低" : "未知";
   const type = COUNTER_TYPES[getCounterTypeForChicken(chicken)] || COUNTER_TYPES.balanced;
-  return `${label}概略：Lv.${chicken.level || 1}｜爆發${speedHint}｜穩定${stableHint}｜總感覺${power >= 50 ? "危險" : power >= 32 ? "偏高" : "未知"}｜${type.label}`;
+  return `${label}概略：Lv.${chicken.level || 1}｜爆發${speedHint}｜穩定${stableHint}｜${power >= 50 ? "危險" : power >= 32 ? "偏高" : "未知"}｜${type.label}`;
 }
 
 function formatBattleStatusLine(label, runner) {
@@ -1438,6 +1438,14 @@ function getBossRuleText(rule) {
     phantomHide: "特殊規則：隱藏部分狀態",
     abyssLowHp: "特殊規則：越危險越強"
   }[rule] || "特殊規則：館主節奏";
+}
+
+function formatBattleParticipantBlock(title, nameLine, statsLine, statusLine = "") {
+  return [
+    `${title} ${nameLine}`,
+    `　${statsLine}`,
+    statusLine ? `　${statusLine}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function buildBattleEmbed(battle, players, message = "") {
@@ -1458,20 +1466,37 @@ function buildBattleEmbed(battle, players, message = "") {
     ? formatBattleChickenStats("挑戰者", challengerRunner ? challengerRunner.chicken : challenger.ownedChicken)
     : formatHiddenBattleChickenStats("挑戰者", challengerRunner ? challengerRunner.chicken : challenger.ownedChicken);
   const track = getTrackModifier(battle.raceTrackModifier && (battle.raceTrackModifier.id || battle.raceTrackModifier));
+  const trackLines = [
+    `🏁 ${track.label}｜${track.text}`,
+    boss ? `👑 ${getBossRuleText((targetRunner ? targetRunner.chicken : boss).bossRule)}` : "🕶️ PVP：只顯示概略資訊"
+  ].join("\n");
+  const participants = [
+    formatBattleParticipantBlock(
+      "①",
+      `<@${battle.challengerId}>｜${challenger.ownedChicken.icon || "🐔"} ${challenger.ownedChicken.name}`,
+      challengerStats,
+      formatBattleStatusLine("挑戰者", challengerRunner)
+    ),
+    "VS",
+    formatBattleParticipantBlock(
+      "②",
+      targetLabel,
+      targetStats,
+      formatBattleStatusLine(boss ? "館主" : "對手", targetRunner)
+    )
+  ].join("\n");
   return new EmbedBuilder()
     .setColor(battle.status === "settled" ? 0xfacc15 : 0xef4444)
     .setTitle(battle.isBoss ? "賽雞館挑戰" : battle.deathmatch ? "1v1 賽雞生死鬥" : "1v1 賽雞 PK")
     .setDescription([
       message,
-      `賽道：${track.label}｜${track.text}`,
-      boss ? getBossRuleText((targetRunner ? targetRunner.chicken : boss).bossRule) : "PVP：公開資訊只顯示概略，真正數值保留到賽後。",
-      `<@${battle.challengerId}>：${challenger.ownedChicken.icon || "🐔"} ${challenger.ownedChicken.name}`,
-      challengerStats,
-      formatBattleStatusLine("挑戰者", challengerRunner),
-      targetLabel,
-      targetStats,
-      formatBattleStatusLine(boss ? "館主" : "對手", targetRunner),
+      "🏟️【賽道】",
+      trackLines,
       "",
+      "🐔【出賽】",
+      participants,
+      "",
+      "📺【賽況】",
       frame
     ].filter(Boolean).join("\n").slice(0, 4096));
 }
@@ -1537,7 +1562,7 @@ function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
     counterLine,
     statusMessage,
     eventMessage || hint
-  ].join("\n");
+  ].filter(Boolean).join("\n");
   for (const runner of battle.runners) tickRunnerStatuses(runner);
   battle.frames.push(frame);
   return frame;

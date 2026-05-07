@@ -202,7 +202,7 @@ test("賽雞 PVP 會使用互剋、賽道、狀態與隱藏資訊", () => {
 
   assert.match(frame, /🥇/);
   assert.match(frame, /對位有利/);
-  assert.match(embedText, /賽道：/);
+  assert.match(embedText, /【賽道】/);
   assert.match(embedText, /概略：/);
   assert.doesNotMatch(embedText, /對手數值：/);
   clearBattle(created.battle.id);
@@ -433,7 +433,7 @@ test("賽雞 PK 面板會隱藏完整數值改顯示概略資訊", () => {
 
   assert.match(json.description, /挑戰者概略：Lv\.7/);
   assert.match(json.description, /對手概略：Lv\.4/);
-  assert.match(json.description, /PVP：公開資訊只顯示概略/);
+  assert.match(json.description, /PVP：只顯示概略資訊/);
   assert.doesNotMatch(json.description, /穩9/);
   clearBattle(created.battle.id);
 });
