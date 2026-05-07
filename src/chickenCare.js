@@ -285,7 +285,6 @@ const BOSS_CHICKENS = [
 const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
 const chickenPvpCooldowns = new Map();
-const chickenPveCooldowns = new Map();
 
 function getEvolutionPointKeys() {
   return [...new Set(Object.values(EVOLUTION_TYPES).map((type) => type.pointKey).filter(Boolean))];
@@ -972,8 +971,6 @@ function createBattle(challengerId, targetId, players, now = Date.now(), random 
 
 function createBossBattle(challengerId, players, now = Date.now(), random = Math.random, guildId = "global", bossId = null) {
   if (activeBattleByPlayerId.has(challengerId)) return { ok: false, message: "你已經在賽雞 PK 中。" };
-  const cooldown = Math.max(0, (chickenPveCooldowns.get(challengerId) || 0) - now);
-  if (cooldown > 0) return { ok: false, message: `賽雞挑戰冷卻中，還要 ${Math.ceil(cooldown / 1000)} 秒。` };
   const boss = getBossById(bossId || BOSS_CHICKENS[Math.floor(random() * BOSS_CHICKENS.length)].id);
   const challenger = ensureOwnedChicken(players[challengerId], random);
   const bossRank = getBossRank(challenger);
@@ -1174,9 +1171,7 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
   battle.result = { winnerId: finalWinner.userId, loserId: finalLoser.userId };
   activeBattleByPlayerId.delete(battle.challengerId);
   activeBattleByPlayerId.delete(battle.targetId);
-  if (battle.isBoss) {
-    chickenPveCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
-  } else {
+  if (!battle.isBoss) {
     chickenPvpCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
     if (!isBossUserId(battle.targetId)) chickenPvpCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
   }

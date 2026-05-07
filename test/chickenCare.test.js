@@ -179,7 +179,9 @@ test("賽雞館挑戰會使用館主並在勝利時給稱號獎勵", () => {
   assert.equal(settled.players.bossPlayer.chickenArenaRank, 2);
   assert.match(settled.message, /賽雞館 Rank 1/);
   clearBattle(battle.id);
-  assert.match(createBossBattle("bossPlayer", players, 3000, () => 0, "guild", "ironCrown").message, /冷卻/);
+  const bossAgain = createBossBattle("bossPlayer", players, 3000, () => 0, "guild", "ironCrown");
+  assert.equal(bossAgain.ok, true);
+  clearBattle(bossAgain.battle.id);
   const pvpAfterBoss = createBattle("bossPlayer", "otherPlayer", players, 3000, () => 0, "guild");
   assert.equal(pvpAfterBoss.ok, true);
   clearBattle(pvpAfterBoss.battle.id);
