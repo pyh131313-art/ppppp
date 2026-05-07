@@ -293,6 +293,21 @@ test("賽雞館 Rank 幾就是館主幾等", () => {
   assert.equal(created.ok, true);
   assert.equal(created.battle.bossRank, 7);
   assert.equal(created.boss.level, 7);
+  assert.equal(created.boss.speed <= 10, true);
+  clearBattle(created.battle.id);
+});
+
+test("低 Rank 館主數值會像低等雞", () => {
+  const players = {
+    lowBoss: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.lowBoss.chickenArenaRank = 1;
+  const created = createBossBattle("lowBoss", players, 1000, () => 0, "guild", "ironCrown");
+
+  assert.equal(created.ok, true);
+  assert.equal(created.boss.level, 1);
+  assert.equal(created.boss.speed <= 4, true);
+  assert.equal(created.boss.stability <= 6, true);
   clearBattle(created.battle.id);
 });
 

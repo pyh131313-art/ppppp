@@ -936,15 +936,20 @@ function getBossRank(playerInput) {
 function scaleBossChicken(bossInput, rank = 1, challengerLevel = 1) {
   const boss = { ...bossInput };
   const safeRank = Math.max(1, Math.floor(rank || 1));
-  const safeChallengerLevel = Math.max(1, Math.floor(challengerLevel || 1));
-  const statBonus = Math.floor((safeRank - 1) * 1.8 + safeChallengerLevel / 6);
-  const highRankBonus = safeRank >= 8 ? 5 : safeRank >= 5 ? 3 : safeRank >= 3 ? 2 : 0;
+  const archetypeStats = {
+    ironCrown: { speed: -1, sprint: -2, stability: 3, stamina: 1 },
+    tyrant: { speed: 1, sprint: 4, stability: -2, stamina: 0 },
+    miracle: { speed: 0, sprint: 1, stability: 1, stamina: 3 }
+  }[boss.id] || { speed: 0, sprint: 0, stability: 0, stamina: 0 };
+  const base = 2 + Math.floor(safeRank * 0.75);
+  const highRankBonus = safeRank >= 15 ? 4 : safeRank >= 10 ? 3 : safeRank >= 6 ? 2 : safeRank >= 3 ? 1 : 0;
+  const scaleStat = (offset = 0) => clampStat(base + offset + highRankBonus);
   boss.level = safeRank;
-  boss.speed = clampStat((boss.speed || 8) + statBonus + highRankBonus);
-  boss.sprint = clampStat((boss.sprint || 8) + statBonus + (safeRank >= 8 ? 6 : highRankBonus));
-  boss.stability = clampStat((boss.stability || 8) + statBonus + highRankBonus);
-  boss.stamina = clampStat((boss.stamina || 8) + statBonus + highRankBonus);
-  boss.pvePowerMultiplier = Number((1.05 + safeRank * 0.08 + Math.min(0.75, safeChallengerLevel * 0.012)).toFixed(3));
+  boss.speed = scaleStat(archetypeStats.speed);
+  boss.sprint = scaleStat(archetypeStats.sprint);
+  boss.stability = scaleStat(archetypeStats.stability);
+  boss.stamina = scaleStat(archetypeStats.stamina);
+  boss.pvePowerMultiplier = Number((0.8 + safeRank * 0.035 + highRankBonus * 0.04).toFixed(3));
   if (safeRank >= 3) {
     boss.activeSkill = boss.activeSkill || "royalPace";
     boss.passiveSkill = boss.passiveSkill || "winnerAura";
