@@ -372,7 +372,7 @@ async function startChickenBattleAnimation(battle) {
 
   const players = await loadPlayers();
   updateBattleFrame(battle, players, 0, Math.random);
-  await editBattleMessage(battle, players, "⚔️ PK 開始！");
+  await editBattleMessage(battle, players, battle.isBoss ? "🏟️ 挑戰開始！" : "⚔️ PK 開始！");
   if (hasChickenReachedFinish(battle)) {
     await settleNow();
     return;

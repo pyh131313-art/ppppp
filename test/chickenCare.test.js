@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  buildBattleEmbed,
   buildChickenUpgradeComponents,
   buildChickenPanelComponents,
   applyPvpLevelBalance,
@@ -222,6 +223,52 @@ test("賽雞館 PVE 有雞到終點即可提早結算", () => {
 
   assert.equal(hasChickenReachedFinish(battle), true);
   clearBattle(battle.id);
+});
+
+test("賽雞 PK 也會在有雞到終點時可提早結算", () => {
+  const players = {
+    fastPvpA: ensureOwnedChicken(createPlayer(), () => 0),
+    fastPvpB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  players.fastPvpA.ownedChicken.speed = 20;
+  players.fastPvpA.ownedChicken.sprint = 20;
+  const created = createBattle("fastPvpA", "fastPvpB", players, 100000, () => 0, "guild");
+  assert.equal(created.ok, true);
+  const battle = created.battle;
+  updateBattleFrame(battle, players, 0, () => 0);
+  battle.runners[0].position = 14;
+
+  assert.equal(hasChickenReachedFinish(battle), true);
+  clearBattle(battle.id);
+});
+
+test("賽雞館面板會顯示館主數值", () => {
+  const players = {
+    bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "ironCrown");
+  const json = buildBattleEmbed(created.battle, players).toJSON();
+
+  assert.match(json.description, /館主數值：Lv\./);
+  clearBattle(created.battle.id);
+});
+
+test("賽雞 PK 面板會顯示雙方數值", () => {
+  const players = {
+    statPvpA: ensureOwnedChicken(createPlayer(), () => 0),
+    statPvpB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  players.statPvpA.ownedChicken.level = 7;
+  players.statPvpA.ownedChicken.speed = 11;
+  players.statPvpB.ownedChicken.level = 4;
+  players.statPvpB.ownedChicken.stability = 9;
+  const created = createBattle("statPvpA", "statPvpB", players, 200000, () => 0, "guild");
+  const json = buildBattleEmbed(created.battle, players).toJSON();
+
+  assert.match(json.description, /挑戰者數值：Lv\.7｜速11/);
+  assert.match(json.description, /對手數值：Lv\.4｜/);
+  assert.match(json.description, /穩9/);
+  clearBattle(created.battle.id);
 });
 
 test("烤掉自己的雞會清空 ownedChicken 並給下礦生命加成", () => {

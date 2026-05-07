@@ -869,7 +869,6 @@ function buildPkTrack(runner) {
 function hasChickenReachedFinish(battle) {
   return Boolean(
     battle
-    && battle.isBoss
     && Array.isArray(battle.runners)
     && battle.runners.some((runner) => (runner.position || 0) >= PK_TRACK_LENGTH)
   );
@@ -1055,6 +1054,10 @@ function buildBattleComponents(battle) {
   ];
 }
 
+function formatBattleChickenStats(label, chicken) {
+  return `${label}數值：Lv.${chicken.level || 1}｜速${chicken.speed || 0} 衝${chicken.sprint || 0} 穩${chicken.stability || 0} 耐${chicken.stamina || 0}`;
+}
+
 function buildBattleEmbed(battle, players, message = "") {
   const challenger = ensureOwnedChicken(players[battle.challengerId]);
   const boss = battle.isBoss ? scaleBossChicken(getBossById(battle.bossId), battle.bossRank || 1, battle.bossChallengerLevel || 1) : null;
@@ -1064,13 +1067,17 @@ function buildBattleEmbed(battle, players, message = "") {
     `${target.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`
   ].join("\n");
   const targetLabel = boss ? `${boss.icon} ${boss.name}｜${boss.title}` : `<@${battle.targetId}>：${target.ownedChicken.icon || "🐔"} ${target.ownedChicken.name}`;
+  const challengerStats = formatBattleChickenStats("挑戰者", challenger.ownedChicken);
+  const targetStats = boss ? formatBattleChickenStats("館主", boss) : formatBattleChickenStats("對手", target.ownedChicken);
   return new EmbedBuilder()
     .setColor(battle.status === "settled" ? 0xfacc15 : 0xef4444)
     .setTitle(battle.isBoss ? "賽雞館挑戰" : "1v1 賽雞 PK")
     .setDescription([
       message,
       `<@${battle.challengerId}>：${challenger.ownedChicken.icon || "🐔"} ${challenger.ownedChicken.name}`,
+      challengerStats,
       targetLabel,
+      targetStats,
       "",
       frame
     ].filter(Boolean).join("\n").slice(0, 4096));
