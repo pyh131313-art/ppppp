@@ -47,6 +47,8 @@ function createPlayer() {
     bankGold: 0,
     healingPotion: 0,
     magicCandy: 0,
+    chickenBooster: 0,
+    chickenBoosterUseLog: [],
     undyingTotem: 0,
     rusty: 0,
     collection: {},
@@ -253,6 +255,7 @@ function getPlayer(player) {
         : [],
       frame: typeof player.ownedChicken.frame === "string" ? player.ownedChicken.frame : "",
       entryEffect: typeof player.ownedChicken.entryEffect === "string" ? player.ownedChicken.entryEffect : "",
+      raceStatBoost: Math.max(0, Math.min(15, Math.floor(player.ownedChicken.raceStatBoost || 0))),
       origin: typeof player.ownedChicken.origin === "string" ? player.ownedChicken.origin : "",
       levelUpOptions: Array.isArray(player.ownedChicken.levelUpOptions)
         ? player.ownedChicken.levelUpOptions.filter((id) => typeof id === "string").slice(0, 3)
@@ -263,6 +266,10 @@ function getPlayer(player) {
     ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
     : [];
   next.chickenArenaRank = Math.max(1, Math.floor(player && player.chickenArenaRank || 1));
+  next.chickenBooster = Math.max(0, Math.floor(player && player.chickenBooster || 0));
+  next.chickenBoosterUseLog = Array.isArray(player && player.chickenBoosterUseLog)
+    ? player.chickenBoosterUseLog.filter((time) => Number.isFinite(time)).slice(-10)
+    : [];
   next.challengeBestDepth = Math.max(0, Math.floor(player && player.challengeBestDepth || 0));
   next.challengeTraitOptions = Array.isArray(player && player.challengeTraitOptions)
     ? player.challengeTraitOptions.filter((id) => CONFIG.runModes[id]).slice(0, 25)

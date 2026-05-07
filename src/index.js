@@ -96,7 +96,8 @@ const {
   roastOwnedChicken,
   settleBattle,
   shareRoastChickenMeal,
-  updateBattleFrame
+  updateBattleFrame,
+  useChickenBooster
 } = require("./chickenCare");
 const {
   CUSTOM_IDS,
@@ -367,12 +368,15 @@ async function startChickenBattleAnimation(battle) {
       return settled.players;
     });
     await editBattleMessage(battle, settled.players, message ? `${message}\n${settled.message}` : settled.message);
+    if (battle.deathmatchFeast && battle.message) {
+      await publishChickenRoastFeastFromMessage(battle.message, battle.deathmatchFeast.ownerId, battle.deathmatchFeast.chickenName);
+    }
     clearBattle(battle.id);
   }
 
   const players = await loadPlayers();
   updateBattleFrame(battle, players, 0, Math.random);
-  await editBattleMessage(battle, players, battle.isBoss ? "🏟️ 挑戰開始！" : "⚔️ PK 開始！");
+  await editBattleMessage(battle, players, battle.isBoss ? "🏟️ 挑戰開始！" : battle.deathmatch ? "⚔️ 生死鬥開始！" : "⚔️ PK 開始！");
   if (hasChickenReachedFinish(battle)) {
     await settleNow();
     return;
@@ -1173,6 +1177,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "賽雞pk") {
       const target = interaction.options.getUser("對象", true);
+      const deathmatch = interaction.options.getBoolean("生死鬥") || false;
       if (target.bot) {
         await interaction.reply({ content: "不能挑戰機器人。", ephemeral: true });
         return;
@@ -1185,18 +1190,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.deferReply();
       let created = null;
       await updatePlayers((players) => {
-        created = createBattle(interaction.user.id, target.id, players, Date.now(), Math.random, interaction.guildId);
+        created = createBattle(interaction.user.id, target.id, players, Date.now(), Math.random, interaction.guildId, { deathmatch });
         return created.players || players;
       });
       if (!created.ok) {
         await interaction.editReply(created.message);
         return;
       }
+      const intro = deathmatch
+        ? `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞生死鬥！\n輸家的雞會被烤掉，需要對方同意。`
+        : `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！直接開跑！`;
       await interaction.editReply({
-        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `⚔️ <@${interaction.user.id}> 向 <@${target.id}> 發起賽雞 PK！直接開跑！`)],
-        components: []
+        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), intro)],
+        components: deathmatch ? buildBattleComponents(created.battle) : []
       });
       created.battle.message = await interaction.fetchReply();
+      if (deathmatch) return;
       await startChickenBattleAnimation(created.battle);
       return;
     }
@@ -1209,16 +1218,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       await interaction.deferReply();
       let created = null;
+      const requestedRank = interaction.options.getInteger("rank");
       await updatePlayers((players) => {
-        created = createBossBattle(interaction.user.id, players, Date.now(), Math.random, interaction.guildId);
+        created = createBossBattle(interaction.user.id, players, Date.now(), Math.random, interaction.guildId, null, requestedRank);
         return created.players || players;
       });
       if (!created.ok) {
         await interaction.editReply(created.message);
         return;
       }
+      const replayText = created.battle.bossReplayRank ? ` Rank ${created.battle.bossRank} 重打` : "";
       await interaction.editReply({
-        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `🏟️ <@${interaction.user.id}> 挑戰 ${created.boss.icon} ${created.boss.name}！`)],
+        embeds: [buildBattleEmbed(created.battle, await loadPlayers(), `🏟️ <@${interaction.user.id}> 挑戰${replayText} ${created.boss.icon} ${created.boss.name}！`)],
         components: []
       });
       created.battle.message = await interaction.fetchReply();
@@ -1588,6 +1599,19 @@ async function publishChickenRoastFeast(interaction, ownerId, chickenName) {
   });
 }
 
+async function publishChickenRoastFeastFromMessage(message, ownerId, chickenName) {
+  const feast = createChickenRoastFeast(ownerId, chickenName);
+  const content = [
+    `🍗 生死鬥結束，<@${ownerId}> 的「${chickenName}」被烤來吃了。`,
+    "香味飄滿整個頻道，大家可以一起吃。",
+    "每人限吃一次：下一場下礦最大生命 +1。"
+  ].join("\n");
+  return message.reply({
+    content,
+    components: buildChickenRoastFeastComponents(feast)
+  });
+}
+
 async function handleChickenRoastFeastInteraction(interaction) {
   const [, action, feastId] = interaction.customId.split(":");
   const feast = activeChickenRoastFeasts.get(feastId);
@@ -1637,6 +1661,19 @@ async function handleChickenPanelInteraction(interaction) {
     let result = null;
     await updatePlayer(interaction.user.id, (player) => {
       result = eatMagicCandy(player, Math.random);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+      components: buildChickenPanelComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
+  if (action === "booster") {
+    await interaction.deferUpdate();
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = useChickenBooster(player, Date.now(), Math.random);
       return result.player;
     });
     await interaction.editReply({

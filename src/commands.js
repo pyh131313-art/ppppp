@@ -101,10 +101,19 @@ const commands = [
     .addUserOption((option) => option
       .setName("對象")
       .setDescription("要挑戰的玩家。")
-      .setRequired(true)),
+      .setRequired(true))
+    .addBooleanOption((option) => option
+      .setName("生死鬥")
+      .setDescription("需要對方同意，輸家的雞會被烤掉。")
+      .setRequired(false)),
   new SlashCommandBuilder()
     .setName("賽雞館")
-    .setDescription("挑戰賽雞館館主，贏取稱號與稀有獎勵。"),
+    .setDescription("挑戰賽雞館館主，贏取稱號與稀有獎勵。")
+    .addIntegerOption((option) => option
+      .setName("rank")
+      .setDescription("可重打已通關 Rank；重打不掉金幣。")
+      .setMinValue(1)
+      .setRequired(false)),
   new SlashCommandBuilder()
     .setName("烤掉雞")
     .setDescription("烤掉自己的養成雞，下一場下礦最大生命 +1。"),

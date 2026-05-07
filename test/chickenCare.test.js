@@ -24,7 +24,8 @@ const {
   roastOwnedChicken,
   shareRoastChickenMeal,
   settleBattle,
-  updateBattleFrame
+  updateBattleFrame,
+  useChickenBooster
 } = require("../src/chickenCare");
 const { createPlayer } = require("../src/game");
 
@@ -163,6 +164,55 @@ test("賽雞 PK 高等級雞會依等級差被削弱", () => {
   assert.equal(runners[0].chicken.pvpPowerMultiplier >= 0.65, true);
 });
 
+test("雞用強化藥劑會讓下一場比賽全數值加五並消耗加成", () => {
+  const players = {
+    boostA: ensureOwnedChicken({ ...createPlayer(), chickenBooster: 1 }, () => 0),
+    boostB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  players.boostA.ownedChicken.speed = 6;
+  const used = useChickenBooster(players.boostA, 1000, () => 0.99);
+  players.boostA = used.player;
+
+  assert.equal(used.ok, true);
+  assert.equal(players.boostA.chickenBooster, 0);
+  assert.equal(players.boostA.ownedChicken.raceStatBoost, 5);
+  const created = createBattle("boostA", "boostB", players, 70000, () => 0, "guild");
+  updateBattleFrame(created.battle, players, 0, () => 0.5);
+
+  assert.equal(created.battle.runners[0].chicken.speed, 11);
+  const settled = settleBattle(created.battle, players, () => 0.99, 71000);
+  assert.equal(settled.players.boostA.ownedChicken.raceStatBoost, 0);
+  clearBattle(created.battle.id);
+});
+
+test("短時間內連用太多強化藥劑可能讓雞死亡", () => {
+  let player = ensureOwnedChicken({ ...createPlayer(), chickenBooster: 3 }, () => 0);
+  player = useChickenBooster(player, 1000, () => 0.99).player;
+  player = useChickenBooster(player, 2000, () => 0.99).player;
+  const result = useChickenBooster(player, 3000, () => 0);
+
+  assert.equal(result.chickenDied, true);
+  assert.equal(result.player.ownedChicken, null);
+});
+
+test("生死鬥輸家的雞會被烤掉", () => {
+  const players = {
+    deathA: ensureOwnedChicken(createPlayer(), () => 0),
+    deathB: ensureOwnedChicken(createPlayer(), () => 0.5)
+  };
+  const created = createBattle("deathA", "deathB", players, 80000, () => 0, "guild", { deathmatch: true });
+  const battle = created.battle;
+  updateBattleFrame(battle, players, 0, () => 0.5);
+  battle.runners[0].position = 14;
+  battle.runners[1].position = 0;
+  const settled = settleBattle(battle, players, () => 0.99, 81000);
+
+  assert.equal(settled.players.deathB.ownedChicken, null);
+  assert.equal(settled.battle.deathmatchFeast.ownerId, "deathB");
+  assert.match(settled.message, /被烤來吃/);
+  clearBattle(battle.id);
+});
+
 test("賽雞館挑戰會使用館主並在勝利時給稱號獎勵", () => {
   const players = {
     bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
@@ -195,6 +245,40 @@ test("賽雞館獎勵會隨 Rank 成長", () => {
   assert.equal(calculateBossGoldReward(1, () => 0), 500);
   assert.equal(calculateBossGoldReward(1, () => 0.999), 1000);
   assert.equal(calculateBossGoldReward(5, () => 0) > calculateBossGoldReward(1, () => 0.999), true);
+});
+
+test("賽雞館可以重打已通關 Rank 但不掉金幣", () => {
+  const players = {
+    replayBoss: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.replayBoss.chickenArenaRank = 4;
+  players.replayBoss.gold = 1234;
+  const created = createBossBattle("replayBoss", players, 1000, () => 0, "guild", "ironCrown", 2);
+
+  assert.equal(created.ok, true);
+  assert.equal(created.battle.bossRank, 2);
+  assert.equal(created.battle.bossReplayRank, true);
+  const battle = created.battle;
+  updateBattleFrame(battle, players, 0, () => 0.99);
+  battle.runners[0].position = 14;
+  battle.runners[1].position = 0;
+  const settled = settleBattle(battle, players, () => 0, 2000);
+
+  assert.equal(settled.players.replayBoss.gold, 1234);
+  assert.equal(settled.players.replayBoss.chickenArenaRank, 4);
+  assert.match(settled.message, /重打已通關館主，不掉落金幣/);
+  clearBattle(battle.id);
+});
+
+test("賽雞館不能指定尚未通關的未來 Rank", () => {
+  const players = {
+    lockedBoss: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.lockedBoss.chickenArenaRank = 2;
+  const created = createBossBattle("lockedBoss", players, 1000, () => 0, "guild", "ironCrown", 5);
+
+  assert.equal(created.ok, false);
+  assert.match(created.message, /只能重打已通關 Rank/);
 });
 
 test("賽雞館會依玩家雞等級提高館主強度", () => {
