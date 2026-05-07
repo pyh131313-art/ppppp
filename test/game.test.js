@@ -619,6 +619,36 @@ test("遺失的背包可以本次擴大包包容量", () => {
   assert.equal(getBagCapacity(result.player), 14);
 });
 
+test("適合的礦洞事件有機率撿到神奇糖果", () => {
+  const backpack = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_backpack" },
+    "risk",
+    () => 0.7
+  );
+  const remains = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "miner_remains" },
+    "risk",
+    () => 0.55
+  );
+  const cache = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_supply_cache" },
+    "risk",
+    () => 0.75
+  );
+  const chestRolls = [0.5, 0.99, 0.93];
+  const chest = resolveRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "treasure_chest" },
+    "risk",
+    () => chestRolls.shift() ?? 0.99
+  );
+
+  assert.equal(backpack.player.magicCandy, 1);
+  assert.equal(remains.player.magicCandy, 1);
+  assert.equal(cache.player.magicCandy, 1);
+  assert.equal(chest.player.magicCandy, 1);
+  assert.match(`${backpack.message}${remains.message}${cache.message}${chest.message}`, /神奇糖果/);
+});
+
 test("本次包包擴容返回地面後重置", () => {
   const result = returnToSurface({
     ...createPlayer(),

@@ -1657,6 +1657,10 @@ function resolveTreasureChest(player, choice, random = Math.random, now = Date.n
     const reward = addOreReward(player, 3 + getDepthBonus(player.depth), player.depth >= 30 ? "platinumOre" : "goldOre");
     return { player, message: `${chestType} 礦物袋：${reward.gained} 塊${getOreName(reward.target)}。` };
   }
+  if (outcomeRoll < 0.96) {
+    player.magicCandy += 1;
+    return { player, message: `${chestType} 甜味補給：神奇糖果 +1。` };
+  }
   player.healingPotion += 1;
   return { player, message: `${chestType} 稀有補給：治療藥水 +1。` };
 }
@@ -3123,6 +3127,16 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
         };
       }
 
+      if (roll < 0.78) {
+        player.magicCandy += 1;
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: "你翻到一顆被油紙包起來的神奇糖果。"
+        };
+      }
+
       if (getBagFreeSlots(player) < 3) {
         return {
           ok: true,
@@ -3357,10 +3371,15 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       addTempEffect(player, { id: "remains_extreme", remaining: 3, junkWeightMultiplier: 1.6 });
       return { ok: true, player, title: event.title, message: `你背上殘骸包，包包 +2，接下來 3 層破爛 +60%。目前 ${getBagCapacity(player)} 格。` };
     }
-    if (random() < 0.5) {
+    const roll = random();
+    if (roll < 0.5) {
       const gold = 25 + getDepthBonus(player.depth) * 8;
       player.gold += gold;
       return { ok: true, player, title: event.title, message: `你翻到資源，獲得 ${gold} 金幣。` };
+    }
+    if (roll < 0.62) {
+      player.magicCandy += 1;
+      return { ok: true, player, title: event.title, message: "你在礦工口袋裡找到神奇糖果 +1。" };
     }
     if (getBagFreeSlots(player) >= 3) player.junk += 1;
     return { ok: true, player, title: event.title, message: "你翻到一包超級破爛。" };
@@ -3410,6 +3429,10 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     if (roll < 0.67) {
       player.bagBonusSlots += 2;
       return { ok: true, player, title: event.title, message: `你找到備用袋，包包 +2，目前 ${getBagCapacity(player)} 格。` };
+    }
+    if (roll < 0.82) {
+      player.magicCandy += 1;
+      return { ok: true, player, title: event.title, message: "你翻到密封補給：神奇糖果 +1。" };
     }
     if (getBagFreeSlots(player) >= 3) player.junk += 1;
     return { ok: true, player, title: event.title, message: "你撬出一包超級破爛。" };
