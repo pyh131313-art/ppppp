@@ -42,6 +42,7 @@ const {
   setUiMode,
   shimmerCollectible,
   transferHealingPotion,
+  transferConsumable,
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
@@ -1909,6 +1910,27 @@ test("可以交易治療藥水且會檢查數量", () => {
   assert.equal(result.ok, true);
   assert.equal(result.from.healingPotion, 1);
   assert.equal(result.to.healingPotion, 2);
+  assert.equal(fail.ok, false);
+  assert.match(fail.message, /不足/);
+});
+
+test("可以交易神奇糖果且會檢查數量", () => {
+  const result = transferConsumable(
+    { ...createPlayer(), magicCandy: 3 },
+    createPlayer(),
+    "magicCandy",
+    2
+  );
+  const fail = transferConsumable(
+    { ...createPlayer(), magicCandy: 1 },
+    createPlayer(),
+    "magicCandy",
+    2
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.from.magicCandy, 1);
+  assert.equal(result.to.magicCandy, 2);
   assert.equal(fail.ok, false);
   assert.match(fail.message, /不足/);
 });

@@ -32,6 +32,32 @@ const commands = [
       .setRequired(true)
       .setMinValue(1)),
   new SlashCommandBuilder()
+    .setName("給藥水")
+    .setDescription("管理用：給指定玩家治療藥水。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要給藥水的玩家。")
+      .setRequired(true))
+    .addIntegerOption((option) => option
+      .setName("數量")
+      .setDescription("要給的治療藥水數量。")
+      .setRequired(true)
+      .setMinValue(1)
+      .setMaxValue(1000)),
+  new SlashCommandBuilder()
+    .setName("給隨機紀念幣")
+    .setDescription("管理用：給指定玩家隨機紀念幣。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要給紀念幣的玩家。")
+      .setRequired(true))
+    .addIntegerOption((option) => option
+      .setName("數量")
+      .setDescription("要給的隨機紀念幣數量。")
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(100)),
+  new SlashCommandBuilder()
     .setName("修復玩家")
     .setDescription("管理用：修復指定玩家卡住的挖礦狀態。")
     .addUserOption((option) => option
@@ -91,9 +117,12 @@ const commands = [
       .setRequired(true))
     .addStringOption((option) => option
       .setName("物品")
-      .setDescription("支援治療藥水，留空可只交易金幣。")
+      .setDescription("支援治療藥水、神奇糖果，留空可只交易金幣。")
       .setRequired(false)
-      .addChoices({ name: "治療藥水", value: "healingPotion" }))
+      .addChoices(
+        { name: "治療藥水", value: "healingPotion" },
+        { name: "神奇糖果", value: "magicCandy" }
+      ))
     .addIntegerOption((option) => option
       .setName("金幣")
       .setDescription("要交易的金幣數量。")

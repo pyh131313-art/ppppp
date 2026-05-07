@@ -4060,9 +4060,36 @@ function transferCollectible(fromInput, toInput, itemId, amount = 1, gold = 0) {
 }
 
 function transferHealingPotion(fromInput, toInput, amount = 1) {
+  return transferConsumable(fromInput, toInput, "healingPotion", amount);
+}
+
+const TRANSFERABLE_CONSUMABLES = {
+  healingPotion: {
+    key: "healingPotion",
+    label: "治療藥水",
+    unit: "瓶"
+  },
+  magicCandy: {
+    key: "magicCandy",
+    label: "神奇糖果",
+    unit: "顆"
+  }
+};
+
+function transferConsumable(fromInput, toInput, itemId, amount = 1) {
   const from = getPlayer(fromInput);
   const to = getPlayer(toInput);
   const safeAmount = Math.max(0, Math.floor(amount || 0));
+  const item = TRANSFERABLE_CONSUMABLES[itemId];
+
+  if (!item) {
+    return {
+      ok: false,
+      from,
+      to,
+      message: "這個物品不能交易。"
+    };
+  }
 
   if (safeAmount <= 0) {
     return {
@@ -4073,22 +4100,22 @@ function transferHealingPotion(fromInput, toInput, amount = 1) {
     };
   }
 
-  if (from.healingPotion < safeAmount) {
+  if (from[item.key] < safeAmount) {
     return {
       ok: false,
       from,
       to,
-      message: `你的治療藥水不足，目前只有 ${from.healingPotion} 瓶。`
+      message: `你的${item.label}不足，目前只有 ${from[item.key]} ${item.unit}。`
     };
   }
 
-  from.healingPotion -= safeAmount;
-  to.healingPotion += safeAmount;
+  from[item.key] -= safeAmount;
+  to[item.key] += safeAmount;
   return {
     ok: true,
     from,
     to,
-    message: `交易完成：送出治療藥水 x${safeAmount}。`
+    message: `交易完成：送出${item.label} x${safeAmount}。`
   };
 }
 
@@ -4283,6 +4310,7 @@ module.exports = {
   triggerCharge,
   travelToUndergroundCamp,
   rollWeighted,
+  transferConsumable,
   transferCollectible,
   transferHealingPotion,
   withdrawUndergroundStorage,

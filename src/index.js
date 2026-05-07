@@ -49,7 +49,9 @@ const {
   travelToUndergroundCamp,
   transferCollectible,
   withdrawUndergroundStorage,
-  withdrawBank
+  withdrawBank,
+  awardCollectible,
+  transferConsumable
 } = require("./game");
 const {
   getGlobalStateFromPlayers,
@@ -639,8 +641,8 @@ function createPendingTrade(trade) {
 }
 
 function describeTradeRequest(trade, fromMention, toMention) {
-  if (trade.kind === "healingPotion") {
-    return `${fromMention} 想給 ${toMention} 治療藥水 x${trade.amount}`;
+  if (trade.kind === "healingPotion" || trade.kind === "consumable") {
+    return `${fromMention} 想給 ${toMention} ${trade.summary}`;
   }
   const parts = [];
   if (trade.itemId && trade.amount > 0) parts.push(`紀念幣 x${trade.amount}`);
@@ -861,8 +863,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       const result = await updatePlayers((players) => {
-        const transfer = trade.kind === "healingPotion"
-          ? transferHealingPotion(players[trade.fromId], players[trade.toId], trade.amount)
+        const transfer = trade.kind === "healingPotion" || trade.kind === "consumable"
+          ? transferConsumable(players[trade.fromId], players[trade.toId], trade.itemId || "healingPotion", trade.amount)
           : transferCollectible(players[trade.fromId], players[trade.toId], trade.itemId, trade.amount, trade.gold);
         players[trade.fromId] = transfer.from;
         players[trade.toId] = transfer.to;
@@ -980,6 +982,54 @@ client.on(Events.InteractionCreate, async (interaction) => {
       });
       await interaction.reply({
         content: `已給 ${target} ${amount} 金幣。\n身上金幣：${beforeGold} → ${player.gold}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "給藥水") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      const amount = interaction.options.getInteger("數量", true);
+      let before = 0;
+      const player = await updatePlayer(target.id, (current) => {
+        const next = getPlayer(current);
+        before = next.healingPotion || 0;
+        next.healingPotion = before + amount;
+        return next;
+      });
+      await interaction.reply({
+        content: `已給 ${target} 治療藥水 x${amount}。\n持有：${before} → ${player.healingPotion}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "給隨機紀念幣") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      const amount = interaction.options.getInteger("數量") || 1;
+      const awards = [];
+      await updatePlayer(target.id, (current) => {
+        const next = getPlayer(current);
+        for (let index = 0; index < amount; index += 1) {
+          const collectible = awardCollectible(next, Math.random);
+          if (collectible) awards.push(collectible.name);
+        }
+        return next;
+      });
+      const summary = awards.reduce((counts, name) => {
+        counts[name] = (counts[name] || 0) + 1;
+        return counts;
+      }, {});
+      await interaction.reply({
+        content: `已給 ${target} 隨機紀念幣 x${amount}：${Object.entries(summary).map(([coin, count]) => `${coin} x${count}`).join("、") || "無"}`,
         ephemeral: true
       });
       return;
@@ -1278,9 +1328,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      if (itemId === "healingPotion") {
+      if (itemId === "healingPotion" || itemId === "magicCandy") {
         if (gold > 0) {
-          await interaction.reply({ content: "治療藥水交易請勿同時指定金幣。", ephemeral: true });
+          await interaction.reply({ content: "物品交易請勿同時指定金幣。", ephemeral: true });
           return;
         }
         if (amount <= 0) {
@@ -1288,18 +1338,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
           return;
         }
         const sender = getPlayer((await loadPlayers())[interaction.user.id]);
-        if (sender.healingPotion < amount) {
-          await interaction.reply({ content: `你的治療藥水不足，目前只有 ${sender.healingPotion} 瓶。`, ephemeral: true });
+        const itemLabel = itemId === "magicCandy" ? "神奇糖果" : "治療藥水";
+        const itemUnit = itemId === "magicCandy" ? "顆" : "瓶";
+        if (sender[itemId] < amount) {
+          await interaction.reply({ content: `你的${itemLabel}不足，目前只有 ${sender[itemId]} ${itemUnit}。`, ephemeral: true });
           return;
         }
         const pending = createPendingTrade({
-          kind: "healingPotion",
+          kind: "consumable",
           fromId: interaction.user.id,
           toId: target.id,
           amount,
-          itemId: null,
+          itemId,
           gold: 0,
-          summary: `治療藥水 x${amount}`
+          summary: `${itemLabel} x${amount}`
         });
         await interaction.reply({
           content: `**交易請求**\n${describeTradeRequest(pending, interaction.user, target)}\n60 秒內有效。`,
