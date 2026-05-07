@@ -382,27 +382,32 @@ async function startChickenBattleAnimation(battle) {
     return;
   }
   const interval = 1400;
-  for (let frame = 1; frame < PK_FRAME_COUNT; frame += 1) {
-    battle.timers.push(setTimeout(async () => {
-      try {
-        if (settledAlready) return;
-        const currentPlayers = await loadPlayers();
-        updateBattleFrame(battle, currentPlayers, frame, Math.random);
-        await editBattleMessage(battle, currentPlayers);
-        if (hasChickenReachedFinish(battle)) await settleNow();
-      } catch (error) {
-        console.error("賽雞 PK 更新失敗：", error);
-      }
-    }, interval * frame));
-  }
-  battle.timers.push(setTimeout(async () => {
+  const maxFrames = PK_FRAME_COUNT * 3;
+  async function runFrame(frame) {
     try {
-      await settleNow("");
+      if (settledAlready) return;
+      const currentPlayers = await loadPlayers();
+      updateBattleFrame(battle, currentPlayers, frame, Math.random);
+      await editBattleMessage(battle, currentPlayers);
+      if (hasChickenReachedFinish(battle)) {
+        await settleNow();
+        return;
+      }
+      if (frame >= maxFrames) {
+        await settleNow("🏁 最後衝線！");
+        return;
+      }
+      battle.timers.push(setTimeout(() => {
+        runFrame(frame + 1).catch((error) => console.error("賽雞 PK 更新失敗：", error));
+      }, interval));
     } catch (error) {
-      console.error("賽雞 PK 結算失敗：", error);
+      console.error("賽雞 PK 更新失敗：", error);
       clearBattle(battle.id);
     }
-  }, interval * PK_FRAME_COUNT));
+  }
+  battle.timers.push(setTimeout(() => {
+    runFrame(1).catch((error) => console.error("賽雞 PK 更新失敗：", error));
+  }, interval));
 }
 
 function makeReply(title, body) {
