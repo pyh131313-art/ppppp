@@ -530,6 +530,11 @@ const CONFIG = {
         label: "不死圖騰",
         priceGold: 500,
         unlockDeaths: 100
+      },
+      magicCandy: {
+        label: "神奇糖果",
+        assetRate: 0.02,
+        dailyLimit: 2
       }
     }
   },

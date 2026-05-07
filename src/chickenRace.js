@@ -345,14 +345,9 @@ function rollReward(ticket, playerCount, random = Math.random) {
 function calculateResult(race, random = Math.random) {
   const runners = race.runners || race.selectedChickens.map((chicken) => ({ ...chicken, position: 0 }));
   runners.sort((a, b) => b.position - a.position);
-  let winner = runners[0];
+  const winner = runners[0];
   const gap = runners[0] && runners[1] ? runners[0].position - runners[1].position : TRACK_LENGTH;
-  const upsetChance = gap <= 1.5 ? 0.22 : gap <= 3 ? 0.14 : 0.08;
-  const upset = random() < upsetChance;
-  if (upset && runners[1]) {
-    runners[1].position += Math.max(1, gap + 0.2);
-    winner = runners[1];
-  }
+  const upset = false;
   const winnerTickets = Object.values(race.playersInMatch).filter((ticket) => ticket.chickenId === winner.id);
   const ticket = winnerTickets.length ? winnerTickets[Math.floor(random() * winnerTickets.length)] : null;
   return {

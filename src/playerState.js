@@ -46,6 +46,7 @@ function createPlayer() {
     gold: 0,
     bankGold: 0,
     healingPotion: 0,
+    magicCandy: 0,
     undyingTotem: 0,
     rusty: 0,
     collection: {},
@@ -114,6 +115,8 @@ function createPlayer() {
     potionCooldown: 0,
     potionPurchaseDay: "",
     potionPurchasesToday: 0,
+    magicCandyPurchaseDay: "",
+    magicCandyPurchasesToday: 0,
     minerHelmetCount: 0,
     undergroundStorage: {
       ore: 0,
@@ -134,6 +137,7 @@ function createPlayer() {
       platinumJunk: 0,
       minerHelmetCount: 0,
       healingPotion: 0,
+      magicCandy: 0,
       undyingTotem: 0,
       chickenTraitTickets: 0
     },
@@ -143,6 +147,7 @@ function createPlayer() {
     lastMigrationMessage: "",
     expansionHeart: false,
     chickenTraitTickets: 0,
+    chickenArenaRank: 1,
     chickenRoastHpBonus: 0,
     chickenAmuletUsed: false,
     ownedChicken: null,
@@ -254,6 +259,7 @@ function getPlayer(player) {
   next.bestRecordTimestamps = Array.isArray(player && player.bestRecordTimestamps)
     ? player.bestRecordTimestamps.filter((time) => Number.isFinite(time)).slice(-10)
     : [];
+  next.chickenArenaRank = Math.max(1, Math.floor(player && player.chickenArenaRank || 1));
   Object.assign(next, normalizeFunState(player || {}));
   next.traitState = normalizeTraitState(player && player.traitState);
   next.stats = {

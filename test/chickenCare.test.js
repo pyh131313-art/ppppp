@@ -6,6 +6,8 @@ const assert = require("node:assert/strict");
 const {
   buildChickenUpgradeComponents,
   buildChickenPanelComponents,
+  applyPvpLevelBalance,
+  calculateBossGoldReward,
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
@@ -18,6 +20,7 @@ const {
   getChickenStage,
   renameChicken,
   roastOwnedChicken,
+  shareRoastChickenMeal,
   settleBattle,
   updateBattleFrame
 } = require("../src/chickenCare");
@@ -136,9 +139,24 @@ test("賽雞 PK 會鎖定玩家、逐幀更新並結算經驗", () => {
   assert.equal(settled.players.a.ownedChicken.races + settled.players.b.ownedChicken.races, 2);
   clearBattle(battle.id);
   assert.match(createBattle("a", "b", players, 3000, () => 0, "guild").message, /冷卻/);
+  const bossAfterPvp = createBossBattle("a", players, 3000, () => 0, "guild", "ironCrown");
+  assert.equal(bossAfterPvp.ok, true);
+  clearBattle(bossAfterPvp.battle.id);
   const afterCooldown = createBattle("a", "b", players, 33000, () => 0, "guild");
   assert.equal(afterCooldown.ok, true);
   clearBattle(afterCooldown.battle.id);
+});
+
+test("賽雞 PK 高等級雞會依等級差被削弱", () => {
+  const runners = [
+    { chicken: { level: 30 } },
+    { chicken: { level: 5 } }
+  ];
+  applyPvpLevelBalance(runners);
+
+  assert.equal(runners[0].chicken.pvpPowerMultiplier < 1, true);
+  assert.equal(runners[1].chicken.pvpPowerMultiplier, 1);
+  assert.equal(runners[0].chicken.pvpPowerMultiplier >= 0.65, true);
 });
 
 test("賽雞館挑戰會使用館主並在勝利時給稱號獎勵", () => {
@@ -157,17 +175,31 @@ test("賽雞館挑戰會使用館主並在勝利時給稱號獎勵", () => {
   const settled = settleBattle(battle, players, () => 0.99, 2000);
 
   assert.equal(settled.players.bossPlayer.ownedChicken.titles.includes("鐵冠挑戰者"), true);
-  assert.equal(settled.players.bossPlayer.chickenTraitTickets, 1);
+  assert.equal(settled.players.bossPlayer.gold > 0, true);
+  assert.equal(settled.players.bossPlayer.chickenArenaRank, 2);
+  assert.match(settled.message, /賽雞館 Rank 1/);
   clearBattle(battle.id);
+  assert.match(createBossBattle("bossPlayer", players, 3000, () => 0, "guild", "ironCrown").message, /冷卻/);
+  const pvpAfterBoss = createBattle("bossPlayer", "otherPlayer", players, 3000, () => 0, "guild");
+  assert.equal(pvpAfterBoss.ok, true);
+  clearBattle(pvpAfterBoss.battle.id);
+});
+
+test("賽雞館獎勵會隨 Rank 成長", () => {
+  assert.equal(calculateBossGoldReward(1, () => 0), 500);
+  assert.equal(calculateBossGoldReward(1, () => 0.999), 1000);
+  assert.equal(calculateBossGoldReward(5, () => 0) > calculateBossGoldReward(1, () => 0.999), true);
 });
 
 test("烤掉自己的雞會清空 ownedChicken 並給下礦生命加成", () => {
   const player = ensureOwnedChicken(createPlayer(), () => 0);
   player.ownedChicken.wins = 12;
   const result = roastOwnedChicken(player);
+  const shared = shareRoastChickenMeal(createPlayer());
 
   assert.equal(result.ok, true);
   assert.equal(result.player.ownedChicken, null);
   assert.equal(result.player.chickenRoastHpBonus, 1);
+  assert.equal(shared.player.chickenRoastHpBonus, 1);
   assert.match(result.message, /贏過 12 場/);
 });

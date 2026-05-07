@@ -11,6 +11,7 @@ const {
   createPlayer,
   depositBank,
   discardItem,
+  eatMagicCandy,
   ensureRunModeOptions,
   exchange,
   getBagCapacity,
@@ -18,8 +19,10 @@ const {
   getBagUsedSlots,
   getChickenMiningBonus,
   getCommunityProgress,
+  getDiscardableItems,
   getDigPathOptions,
   getElevatorCost,
+  getMagicCandyPrice,
   getMinorBuffEffectiveStacks,
   getMinorBuffOptions,
   getRandomEvents,
@@ -326,19 +329,32 @@ test("進入礦洞有小機率掉進寶石礦洞", () => {
   assert.match(result.message, /寶石礦洞/);
 });
 
-test("可以丟棄生鏽紀念幣和正式紀念幣", () => {
+test("可以丟棄多種可攜帶物品並阻擋破爛", () => {
   const first = discardItem(
-    { ...createPlayer(), rusty: 2, collection: { nina_hot_water: 2 } },
-    "rusty",
-    1
+    { ...createPlayer(), rusty: 2, ore: 5, redGem: 2, junk: 1, collection: { nina_hot_water: 2 } },
+    "ore",
+    3
   );
 
   assert.equal(first.ok, true);
-  assert.equal(first.player.rusty, 1);
+  assert.equal(first.player.ore, 2);
 
-  const second = discardItem(first.player, "nina_hot_water", 2);
+  const second = discardItem(first.player, "redGem", 1);
   assert.equal(second.ok, true);
-  assert.equal(second.player.collection.nina_hot_water, undefined);
+  assert.equal(second.player.redGem, 1);
+
+  const third = discardItem(second.player, "nina_hot_water", 2);
+  assert.equal(third.ok, true);
+  assert.equal(third.player.collection.nina_hot_water, undefined);
+
+  const sticky = discardItem(third.player, "junk", 1);
+  assert.equal(sticky.ok, false);
+  assert.match(sticky.message, /黏在/);
+
+  const list = getDiscardableItems({ ...third.player, rusty: 1, bombItem: 1 });
+  assert.equal(list.some((item) => item.id === "rusty"), true);
+  assert.equal(list.some((item) => item.id === "bombItem"), true);
+  assert.equal(list.some((item) => item.id === "junk"), false);
 });
 
 test("生鏽紀念幣一次只會掉一枚", () => {
@@ -1575,35 +1591,43 @@ test("商店限定紀念幣只能用金幣購買", () => {
   assert.equal(result.player.collection.zhongkui_peace, 1);
 });
 
-test("微光池會消耗金幣和自選紀念幣並轉換成隨機紀念幣", () => {
+test("微光池會消耗兩枚紀念幣並融合成新紀念幣", () => {
   const result = shimmerCollectible(
-    { ...createPlayer(), gold: 500, collection: { nina_hot_water: 1 } },
-    "nina_hot_water",
+    { ...createPlayer(), gold: 500, collection: { nina_hot_water: 1, rose_smirk: 1 } },
+    ["nina_hot_water", "rose_smirk"],
     () => 0
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.player.gold, 100);
   assert.equal(result.player.collection.nina_hot_water, undefined);
+  assert.equal(result.player.collection.rose_smirk, undefined);
   assert.equal(result.award.id, "meijiang_done");
   assert.equal(result.player.collection.meijiang_done, 1);
+  assert.match(result.message, /微光融合/);
 });
 
-test("微光池需要金幣和持有的紀念幣且只能在地表使用", () => {
+test("微光池需要金幣和兩枚持有的紀念幣且只能在地表使用", () => {
   const poor = shimmerCollectible(
-    { ...createPlayer(), gold: 399, collection: { nina_hot_water: 1 } },
-    "nina_hot_water"
+    { ...createPlayer(), gold: 399, collection: { nina_hot_water: 1, rose_smirk: 1 } },
+    ["nina_hot_water", "rose_smirk"]
   );
-  const missing = shimmerCollectible({ ...createPlayer(), gold: 500 }, "nina_hot_water");
+  const missing = shimmerCollectible({ ...createPlayer(), gold: 500 }, ["nina_hot_water", "rose_smirk"]);
+  const duplicate = shimmerCollectible(
+    { ...createPlayer(), gold: 500, collection: { nina_hot_water: 1 } },
+    ["nina_hot_water", "nina_hot_water"]
+  );
   const inMine = shimmerCollectible(
-    { ...createPlayer(), gold: 500, runMode: "safe", collection: { nina_hot_water: 1 } },
-    "nina_hot_water"
+    { ...createPlayer(), gold: 500, runMode: "safe", collection: { nina_hot_water: 1, rose_smirk: 1 } },
+    ["nina_hot_water", "rose_smirk"]
   );
 
   assert.equal(poor.ok, false);
   assert.match(poor.message, /400 金幣/);
   assert.equal(missing.ok, false);
   assert.match(missing.message, /沒有/);
+  assert.equal(duplicate.ok, false);
+  assert.match(duplicate.message, /不能同一枚/);
   assert.equal(inMine.ok, false);
   assert.match(inMine.message, /地表/);
 });
@@ -1642,6 +1666,50 @@ test("治療藥水每天每人限購十瓶", () => {
   assert.match(second.message, /上限/);
   assert.equal(nextDay.ok, true);
   assert.equal(nextDay.player.potionPurchasesToday, 1);
+});
+
+test("神奇糖果花總資產 2% 且每天每人限購兩顆", () => {
+  const now = Date.UTC(2026, 4, 6, 1);
+  const player = { ...createPlayer(), gold: 1000, bankGold: 9000 };
+  assert.equal(getMagicCandyPrice(player), 200);
+  const first = buyShopItem(player, "magicCandy", 2, { now });
+  const blocked = buyShopItem({ ...first.player, gold: 10000 }, "magicCandy", 1, { now });
+  const nextDay = buyShopItem({ ...first.player, gold: 10000 }, "magicCandy", 1, { now: now + 24 * 60 * 60 * 1000 });
+
+  assert.equal(first.ok, true);
+  assert.equal(first.player.magicCandy, 2);
+  assert.equal(first.player.gold, 600);
+  assert.equal(first.player.magicCandyPurchasesToday, 2);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.message, /上限/);
+  assert.equal(nextDay.ok, true);
+  assert.equal(nextDay.player.magicCandyPurchasesToday, 1);
+});
+
+test("神奇糖果可以讓自己的雞升一級", () => {
+  const player = {
+    ...createPlayer(),
+    magicCandy: 1,
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 1,
+      exp: 0,
+      speed: 5,
+      sprint: 5,
+      stability: 5,
+      stamina: 5,
+      wins: 0,
+      races: 0,
+      evolutionPoints: {}
+    }
+  };
+  const result = eatMagicCandy(player, () => 0);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.magicCandy, 0);
+  assert.equal(result.player.ownedChicken.level, 2);
+  assert.match(result.message, /升到 Lv.2/);
 });
 
 test("治療藥水只能下礦後使用並恢復一滴血", () => {

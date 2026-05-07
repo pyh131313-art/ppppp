@@ -115,6 +115,7 @@ test("賽雞結果會選出冠軍雞", () => {
 
   assert.equal(result.winner.id, race.runners[0].id);
   assert.equal(result.ticket.userId, "user1");
+  assert.equal(result.upset, false);
 });
 
 test("賽雞結算後會保留下一場刷新按鈕", () => {

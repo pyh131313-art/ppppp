@@ -52,7 +52,11 @@ const {
   createPlayer,
   getPlayer
 } = require("./playerState");
-const { makeWildMineChicken } = require("./chickenCare");
+const {
+  addChickenExp,
+  getChickenRequiredExp,
+  makeWildMineChicken
+} = require("./chickenCare");
 
 function rollWeighted(weights, random = Math.random) {
   const entries = Object.entries(weights).filter(([, weight]) => weight > 0);
@@ -767,9 +771,32 @@ const STORAGE_ITEMS = [
   ["platinumJunk", "白金破爛"],
   ["minerHelmetCount", "礦工帽"],
   ["healingPotion", "治療藥水"],
+  ["magicCandy", "神奇糖果"],
   ["undyingTotem", "不死圖騰"],
   ["chickenTraitTickets", "賽雞詞條權"]
 ];
+
+const DISCARDABLE_ITEMS = [
+  ["ore", "普通礦石"],
+  ["goldOre", "金礦石"],
+  ["platinumOre", "鉑金礦石"],
+  ["oreIngot", "礦錠"],
+  ["goldOreIngot", "金錠"],
+  ["platinumOreIngot", "鉑金錠"],
+  ["redGem", "紅寶石"],
+  ["blueGem", "藍寶石"],
+  ["greenGem", "綠寶石"],
+  ["invertedOre", "顛倒礦石"],
+  ["invertedGem", "顛倒寶石"],
+  ["orichalcum", "奧利哈鋼"],
+  ["bombItem", "完整炸彈"],
+  ["minerHelmetCount", "礦工帽"],
+  ["healingPotion", "治療藥水"],
+  ["magicCandy", "神奇糖果"],
+  ["rusty", "生鏽紀念幣"]
+];
+
+const STICKY_ITEMS = new Set(["junk", "platinumJunk"]);
 
 function canUseStorage(playerInput) {
   const player = getPlayer(playerInput);
@@ -781,6 +808,17 @@ function getStorageTitle(playerInput) {
   if (player.zone === "undergroundCamp") return "【地底倉庫】";
   if (player.zone === "skyCamp") return "【天域倉庫】";
   return "【地表倉庫】";
+}
+
+function getDiscardableItems(playerInput) {
+  const player = getPlayer(playerInput);
+  const carried = DISCARDABLE_ITEMS
+    .map(([id, label]) => ({ id, label, count: Math.max(0, Math.floor(player[id] || 0)) }))
+    .filter((item) => item.count > 0);
+  const collectibles = CONFIG.collectibles
+    .filter((item) => (player.collection[item.id] || 0) > 0)
+    .map((item) => ({ id: item.id, label: item.name, count: player.collection[item.id], collectible: true }));
+  return [...carried, ...collectibles].slice(0, 25);
 }
 
 function formatUndergroundStorage(playerInput) {
@@ -1201,7 +1239,8 @@ function getShopConsumables(progressInput = {}) {
       : null,
     progress.undyingTotemUnlocked
       ? { id: "undyingTotem", ...CONFIG.shop.consumables.undyingTotem }
-      : null
+      : null,
+    { id: "magicCandy", ...CONFIG.shop.consumables.magicCandy }
   ].filter(Boolean);
 }
 
@@ -1216,6 +1255,20 @@ function normalizePotionDailyLimit(player, now = Date.now()) {
     player.potionPurchasesToday = 0;
   }
   return player;
+}
+
+function normalizeMagicCandyDailyLimit(player, now = Date.now()) {
+  const today = getPotionPurchaseDay(now);
+  if (player.magicCandyPurchaseDay !== today) {
+    player.magicCandyPurchaseDay = today;
+    player.magicCandyPurchasesToday = 0;
+  }
+  return player;
+}
+
+function getMagicCandyPrice(playerInput) {
+  const player = getPlayer(playerInput);
+  return Math.max(1, Math.ceil(getTotalAsset(player) * CONFIG.shop.consumables.magicCandy.assetRate));
 }
 
 function addPendingNextRunTrait(player, traitId) {
@@ -3361,7 +3414,7 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   }
 
   const label = shopItem ? shopItem.collectible.name : consumable.label;
-  const priceGold = shopItem ? shopItem.priceGold : consumable.priceGold;
+  const priceGold = itemId === "magicCandy" ? getMagicCandyPrice(player) : (shopItem ? shopItem.priceGold : consumable.priceGold);
   const cost = priceGold * safeAmount;
   if (itemId === "healingPotion") {
     normalizePotionDailyLimit(player, now);
@@ -3372,6 +3425,18 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
         player,
         globalState,
         message: `你今天的治療藥水購買上限是 ${dailyLimit} 瓶，目前已買 ${player.potionPurchasesToday || 0} 瓶。`
+      };
+    }
+  }
+  if (itemId === "magicCandy") {
+    normalizeMagicCandyDailyLimit(player, now);
+    const dailyLimit = CONFIG.shop.consumables.magicCandy.dailyLimit;
+    if ((player.magicCandyPurchasesToday || 0) + safeAmount > dailyLimit) {
+      return {
+        ok: false,
+        player,
+        globalState,
+        message: `你今天的神奇糖果購買上限是 ${dailyLimit} 顆，目前已買 ${player.magicCandyPurchasesToday || 0} 顆。`
       };
     }
   }
@@ -3389,6 +3454,7 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   else {
     player[itemId] = (player[itemId] || 0) + safeAmount;
     if (itemId === "healingPotion") player.potionPurchasesToday = (player.potionPurchasesToday || 0) + safeAmount;
+    if (itemId === "magicCandy") player.magicCandyPurchasesToday = (player.magicCandyPurchasesToday || 0) + safeAmount;
   }
 
   return {
@@ -3399,10 +3465,17 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   };
 }
 
-function shimmerCollectible(playerInput, itemId, random = Math.random) {
+function shimmerCollectible(playerInput, firstItemId, secondItemId = null, random = Math.random) {
   const player = getPlayer(playerInput);
   const cost = CONFIG.shop.shimmerPool.costGold;
-  const source = getCollectible(itemId);
+  if (typeof secondItemId === "function" && random === Math.random) {
+    random = secondItemId;
+    secondItemId = null;
+  }
+  const itemIds = Array.isArray(firstItemId) ? firstItemId : [firstItemId, secondItemId].filter(Boolean);
+  const [firstId, secondId] = itemIds;
+  const firstSource = getCollectible(firstId);
+  const secondSource = getCollectible(secondId);
 
   if (isInMine(player)) {
     return {
@@ -3413,21 +3486,30 @@ function shimmerCollectible(playerInput, itemId, random = Math.random) {
     };
   }
 
-  if (!source) {
+  if (!firstSource || !secondSource) {
     return {
       ok: false,
       player,
       award: null,
-      message: "找不到這枚紀念幣。"
+      message: "微光池需要選擇兩枚存在的紀念幣。"
     };
   }
 
-  if ((player.collection[itemId] || 0) <= 0) {
+  if (firstId === secondId && (player.collection[firstId] || 0) < 2) {
     return {
       ok: false,
       player,
       award: null,
-      message: `你沒有 ${source.name} 可以投入微光池。`
+      message: `你只有 1 枚 ${firstSource.name}，不能同一枚投入兩次。`
+    };
+  }
+
+  if ((player.collection[firstId] || 0) <= 0 || (player.collection[secondId] || 0) <= 0) {
+    return {
+      ok: false,
+      player,
+      award: null,
+      message: "你沒有足夠的紀念幣可以投入微光池。"
     };
   }
 
@@ -3440,18 +3522,27 @@ function shimmerCollectible(playerInput, itemId, random = Math.random) {
     };
   }
 
-  const pool = CONFIG.collectibles.filter((item) => item.id !== itemId);
-  const award = pool[Math.floor(random() * pool.length)] || source;
+  const pool = CONFIG.collectibles.filter((item) => {
+    if (item.id === firstId || item.id === secondId) return false;
+    if (item.shopOnly) return random() < 0.12;
+    if (item.rustOnly) return random() < 0.28;
+    return true;
+  });
+  const fallbackPool = CONFIG.collectibles.filter((item) => item.id !== firstId && item.id !== secondId);
+  const awardPool = pool.length > 0 ? pool : fallbackPool;
+  const award = awardPool[Math.floor(random() * awardPool.length)] || firstSource;
   player.gold -= cost;
-  player.collection[itemId] -= 1;
-  if (player.collection[itemId] <= 0) delete player.collection[itemId];
+  player.collection[firstId] -= 1;
+  if (player.collection[firstId] <= 0) delete player.collection[firstId];
+  player.collection[secondId] -= 1;
+  if (player.collection[secondId] <= 0) delete player.collection[secondId];
   player.collection[award.id] = (player.collection[award.id] || 0) + 1;
 
   return {
     ok: true,
     player,
     award,
-    message: `微光池吞下 ${source.name} 和 ${cost} 金幣，轉換出 ${award.name}。`
+    message: `【微光池】\n投入：${firstSource.name}、${secondSource.name}\n✨ 微光融合！\n花費 ${cost} 金幣，獲得「${award.name}」。`
   };
 }
 
@@ -3544,6 +3635,33 @@ function removeRust(playerInput, amount = 1, random = Math.random) {
     player,
     awards,
     message: `${option.label}完成：成功 ${success} 枚，損壞 ${broken} 枚，花費 ${cost} 金幣。${awards.length ? `獲得：${summarizeCollectibles(awards)}。` : ""}`
+  };
+}
+
+function eatMagicCandy(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  if (player.magicCandy <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "你沒有神奇糖果。"
+    };
+  }
+  if (!player.ownedChicken) {
+    return {
+      ok: false,
+      player,
+      message: "你目前沒有自己的雞可以吃糖果。"
+    };
+  }
+  player.magicCandy -= 1;
+  const needed = getChickenRequiredExp(player.ownedChicken);
+  const beforeLevel = player.ownedChicken.level || 1;
+  const levelMessage = addChickenExp(player, needed, random);
+  return {
+    ok: true,
+    player,
+    message: `神奇糖果被吃掉了，${player.ownedChicken.name} 從 Lv.${beforeLevel} 升到 Lv.${player.ownedChicken.level}。${levelMessage ? `\n${levelMessage}` : ""}`
   };
 }
 
@@ -3678,6 +3796,14 @@ function discardItem(playerInput, itemId, amount = 1) {
   const player = getPlayer(playerInput);
   const safeAmount = Math.max(1, Math.floor(amount));
 
+  if (STICKY_ITEMS.has(itemId)) {
+    return {
+      ok: false,
+      player,
+      message: "❌ 這東西似乎黏在你包包裡…"
+    };
+  }
+
   if (itemId === "rusty") {
     if (player.rusty <= 0) {
       return {
@@ -3693,6 +3819,25 @@ function discardItem(playerInput, itemId, amount = 1) {
       ok: true,
       player,
       message: `已丟棄 ${discarded} 枚生鏽紀念幣。`
+    };
+  }
+
+  const carriedItem = DISCARDABLE_ITEMS.find(([id]) => id === itemId);
+  if (carriedItem) {
+    const current = Math.max(0, Math.floor(player[itemId] || 0));
+    if (current <= 0) {
+      return {
+        ok: false,
+        player,
+        message: `你沒有${carriedItem[1]}可以丟棄。`
+      };
+    }
+    const discarded = Math.min(safeAmount, current);
+    player[itemId] = current - discarded;
+    return {
+      ok: true,
+      player,
+      message: `已丟棄 ${discarded} 個${carriedItem[1]}。`
     };
   }
 
@@ -3902,7 +4047,7 @@ function formatInventory(playerInput) {
   return [
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
-    `攜帶道具：治療藥水 ${player.healingPotion}｜不死圖騰 ${player.undyingTotem}`,
+    `攜帶道具：治療藥水 ${player.healingPotion}｜神奇糖果 ${player.magicCandy}｜不死圖騰 ${player.undyingTotem}`,
     `礦石：普通 ${player.ore}｜金 ${player.goldOre}｜鉑金 ${player.platinumOre}`,
     `加工物：金塊 ${player.goldBlock}｜礦錠 ${player.oreIngot}｜金錠 ${player.goldOreIngot}｜鉑金錠 ${player.platinumOreIngot}｜完整炸彈 ${player.bombItem}`,
     `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
@@ -3929,7 +4074,7 @@ function formatShop(progressInput = {}) {
     (item) => `${item.collectible.name}｜${item.collectible.rarity}｜${item.priceGold} 金幣｜只能在商店購買`
   );
   const consumableLines = getShopConsumables(progressInput).map(
-    (item) => `${item.label}｜${item.priceGold} 金幣`
+    (item) => item.id === "magicCandy" ? `${item.label}｜總資產 2%｜每日 2 顆` : `${item.label}｜${item.priceGold} 金幣`
   );
   return [
     `金幣鑄造：${CONFIG.exchange.goldPerCommemorative} 金幣 = 1 枚隨機收藏紀念幣，使用 \`/兌換\`。`,
@@ -3965,6 +4110,7 @@ module.exports = {
   depositBank,
   discardItem,
   drinkHealingPotion,
+  eatMagicCandy,
   ensureRunModeOptions,
   exchange,
   formatCollection,
@@ -3984,8 +4130,10 @@ module.exports = {
   getCommunityProgress,
   getDepthLabel,
   getDigPathOptions,
+  getDiscardableItems,
   getCaveLabel,
   getMaxBombs,
+  getMagicCandyPrice,
   getPlayer,
   getRandomEvent,
   getRandomEvents,

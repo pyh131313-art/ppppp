@@ -284,7 +284,8 @@ const BOSS_CHICKENS = [
 
 const activeChickenBattles = new Map();
 const activeBattleByPlayerId = new Map();
-const chickenBattleCooldowns = new Map();
+const chickenPvpCooldowns = new Map();
+const chickenPveCooldowns = new Map();
 
 function getEvolutionPointKeys() {
   return [...new Set(Object.values(EVOLUTION_TYPES).map((type) => type.pointKey).filter(Boolean))];
@@ -801,6 +802,7 @@ function getChickenPower(chicken, frameIndex, event, random = Math.random) {
   if (event === "衝刺" && chicken.activeSkill === "wrongWay" && random() < 0.25) step -= 2.2;
   if (event === "衝刺" && chicken.activeSkill === "crystalPeck" && random() < 0.28) step += 2;
   if (event === "逆轉" && chicken.activeSkill === "abyssCry") step += 1.8;
+  step *= Math.max(0.5, Math.min(1, chicken.pvpPowerMultiplier || 1));
   return Math.max(0, step);
 }
 
@@ -866,9 +868,53 @@ function getBossById(id) {
   return BOSS_CHICKENS.find((boss) => boss.id === id) || BOSS_CHICKENS[0];
 }
 
-function createRunner(userId, players, random = Math.random, bossId = null) {
+function getBossRank(playerInput) {
+  return Math.max(1, Math.floor(playerInput && playerInput.chickenArenaRank || 1));
+}
+
+function scaleBossChicken(bossInput, rank = 1) {
+  const boss = { ...bossInput };
+  const safeRank = Math.max(1, Math.floor(rank || 1));
+  const statBonus = Math.floor((safeRank - 1) * 1.4);
+  const highRankBonus = safeRank >= 8 ? 3 : safeRank >= 5 ? 2 : safeRank >= 3 ? 1 : 0;
+  boss.level = Math.max(boss.level || 1, 8 + safeRank);
+  boss.speed = clampStat((boss.speed || 8) + statBonus + highRankBonus);
+  boss.sprint = clampStat((boss.sprint || 8) + statBonus + (safeRank >= 8 ? 4 : highRankBonus));
+  boss.stability = clampStat((boss.stability || 8) + statBonus + highRankBonus);
+  boss.stamina = clampStat((boss.stamina || 8) + statBonus + highRankBonus);
+  if (safeRank >= 3) {
+    boss.activeSkill = boss.activeSkill || "royalPace";
+    boss.passiveSkill = boss.passiveSkill || "winnerAura";
+  }
+  if (safeRank >= 5) {
+    const evolution = EVOLUTION_TYPES[boss.evolutionType] || EVOLUTION_TYPES.iron;
+    boss.icon = evolution.icon || boss.icon;
+    boss.entryEffect = boss.entryEffect || evolution.entryEffect;
+    boss.frame = boss.frame || evolution.title;
+    boss.titles = [...new Set([...(boss.titles || []), evolution.title])];
+  }
+  if (safeRank >= 8) {
+    boss.entryEffect = boss.id === "tyrant"
+      ? "🔥 暴君雞進入狂暴！"
+      : boss.id === "miracle"
+        ? "🐓 奇蹟雞強行逆轉！"
+        : "👑 館主氣場壓滿整條賽道。";
+  }
+  boss.name = `${boss.name} R${safeRank}`;
+  boss.arenaRank = safeRank;
+  return boss;
+}
+
+function calculateBossGoldReward(rank = 1, random = Math.random) {
+  const safeRank = Math.max(1, Math.floor(rank || 1));
+  const min = safeRank <= 1 ? 500 : Math.floor(500 * Math.pow(1.55, safeRank - 1));
+  const max = safeRank <= 1 ? 1000 : Math.floor(min * (safeRank >= 5 ? 2.4 : 2));
+  return min + Math.floor(random() * Math.max(1, max - min + 1));
+}
+
+function createRunner(userId, players, random = Math.random, bossId = null, bossRank = 1) {
   if (isBossUserId(userId)) {
-    const boss = getBossById(bossId || userId.slice(5));
+    const boss = scaleBossChicken(getBossById(bossId || userId.slice(5)), bossRank);
     return { userId, chicken: normalizeChickenMeta({ ...boss, races: 0, wins: 0, exp: 0, levelUpOptions: [] }), position: 0, battleStats: {} };
   }
   const player = ensureOwnedChicken(players[userId], random);
@@ -876,13 +922,26 @@ function createRunner(userId, players, random = Math.random, bossId = null) {
   return { userId, chicken: { ...player.ownedChicken }, position: 0, battleStats: {} };
 }
 
+function applyPvpLevelBalance(runners) {
+  if (!Array.isArray(runners) || runners.length < 2) return runners;
+  const levels = runners.map((runner) => Math.max(1, Math.floor(runner.chicken && runner.chicken.level || 1)));
+  const minLevel = Math.min(...levels);
+  for (const runner of runners) {
+    const level = Math.max(1, Math.floor(runner.chicken && runner.chicken.level || 1));
+    const gap = Math.max(0, level - minLevel);
+    const reduction = Math.min(0.35, gap * 0.025);
+    runner.chicken.pvpPowerMultiplier = Number((1 - reduction).toFixed(3));
+  }
+  return runners;
+}
+
 function createBattle(challengerId, targetId, players, now = Date.now(), random = Math.random, guildId = "global") {
   if (challengerId === targetId) return { ok: false, message: "不能挑戰自己。" };
   if (activeBattleByPlayerId.has(challengerId) || activeBattleByPlayerId.has(targetId)) {
     return { ok: false, message: "其中一位玩家已經在賽雞 PK 中。" };
   }
-  const challengerCooldown = Math.max(0, (chickenBattleCooldowns.get(challengerId) || 0) - now);
-  const targetCooldown = Math.max(0, (chickenBattleCooldowns.get(targetId) || 0) - now);
+  const challengerCooldown = Math.max(0, (chickenPvpCooldowns.get(challengerId) || 0) - now);
+  const targetCooldown = Math.max(0, (chickenPvpCooldowns.get(targetId) || 0) - now);
   const cooldown = Math.max(challengerCooldown, targetCooldown);
   if (cooldown > 0) {
     return { ok: false, message: `賽雞 PK 冷卻中，還要 ${Math.ceil(cooldown / 1000)} 秒。` };
@@ -913,10 +972,12 @@ function createBattle(challengerId, targetId, players, now = Date.now(), random 
 
 function createBossBattle(challengerId, players, now = Date.now(), random = Math.random, guildId = "global", bossId = null) {
   if (activeBattleByPlayerId.has(challengerId)) return { ok: false, message: "你已經在賽雞 PK 中。" };
-  const cooldown = Math.max(0, (chickenBattleCooldowns.get(challengerId) || 0) - now);
+  const cooldown = Math.max(0, (chickenPveCooldowns.get(challengerId) || 0) - now);
   if (cooldown > 0) return { ok: false, message: `賽雞挑戰冷卻中，還要 ${Math.ceil(cooldown / 1000)} 秒。` };
   const boss = getBossById(bossId || BOSS_CHICKENS[Math.floor(random() * BOSS_CHICKENS.length)].id);
   const challenger = ensureOwnedChicken(players[challengerId], random);
+  const bossRank = getBossRank(challenger);
+  const scaledBoss = scaleBossChicken(boss, bossRank);
   players[challengerId] = challenger;
   const battle = {
     id: `${now}-${challengerId}-boss-${boss.id}`,
@@ -925,6 +986,7 @@ function createBossBattle(challengerId, players, now = Date.now(), random = Math
     challengerId,
     targetId: `boss:${boss.id}`,
     bossId: boss.id,
+    bossRank,
     isBoss: true,
     createdAt: now,
     expiresAt: now + PK_TIMEOUT_MS,
@@ -936,7 +998,7 @@ function createBossBattle(challengerId, players, now = Date.now(), random = Math
   };
   activeChickenBattles.set(battle.id, battle);
   activeBattleByPlayerId.set(challengerId, battle.id);
-  return { ok: true, battle, players, boss };
+  return { ok: true, battle, players, boss: scaledBoss };
 }
 
 function clearBattle(battleId) {
@@ -975,7 +1037,7 @@ function buildBattleComponents(battle) {
 
 function buildBattleEmbed(battle, players, message = "") {
   const challenger = ensureOwnedChicken(players[battle.challengerId]);
-  const boss = battle.isBoss ? getBossById(battle.bossId) : null;
+  const boss = battle.isBoss ? scaleBossChicken(getBossById(battle.bossId), battle.bossRank || 1) : null;
   const target = boss ? { ownedChicken: boss } : ensureOwnedChicken(players[battle.targetId]);
   const frame = battle.frames[battle.frames.length - 1] || [
     `${challenger.ownedChicken.icon || "🐔"}${"—".repeat(PK_TRACK_LENGTH)}🏁`,
@@ -998,8 +1060,9 @@ function updateBattleFrame(battle, players, frameIndex, random = Math.random) {
   if (!battle.runners) {
     battle.runners = [
       createRunner(battle.challengerId, players, random),
-      createRunner(battle.targetId, players, random, battle.bossId)
+      createRunner(battle.targetId, players, random, battle.bossId, battle.bossRank)
     ];
+    if (!battle.isBoss) applyPvpLevelBalance(battle.runners);
   }
   const events = ["衝刺", "跌倒", "干擾", "逆轉", "體力耗盡", "終點爆衝"];
   const event = events[Math.floor(random() * events.length)] || "衝刺";
@@ -1032,16 +1095,9 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
   if (!battle.runners) updateBattleFrame(battle, players, 0, random);
   battle.status = "settled";
   const sorted = [...battle.runners].sort((a, b) => b.position - a.position);
-  const winner = sorted[0];
-  const loser = sorted[1];
-  const close = winner.position - loser.position < 1.5;
-  if (close && random() < 0.18) {
-    winner.position -= 0.6;
-    loser.position += 1;
-    sorted.reverse();
-  }
   const finalWinner = sorted[0];
   const finalLoser = sorted[1];
+  const close = finalWinner.position - finalLoser.position < 1.5;
   for (const runner of battle.runners) {
     if (isBossUserId(runner.userId)) continue;
     const player = ensureOwnedChicken(players[runner.userId], random);
@@ -1077,8 +1133,25 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
       chicken.bossWins += 1;
       if (!chicken.titles.includes(boss.rewardTitle)) chicken.titles.push(boss.rewardTitle);
       chicken.frame = chicken.frame || boss.rewardTitle;
-      player.chickenTraitTickets = (player.chickenTraitTickets || 0) + 1;
-      runner.rewardMessage = `🏅 獲得稱號：${boss.rewardTitle}\n🎟️ 獲得稀有一次性詞條權 x1`;
+      const rewardGold = calculateBossGoldReward(battle.bossRank || 1, random);
+      player.gold = (player.gold || 0) + rewardGold;
+      player.chickenArenaRank = Math.max(getBossRank(player), (battle.bossRank || 1) + 1);
+      const rareMessages = [];
+      if (random() < 0.08) {
+        const rareTitle = `${boss.rewardTitle}・高階`;
+        if (!chicken.titles.includes(rareTitle)) chicken.titles.push(rareTitle);
+        rareMessages.push(`🏅 稀有稱號：${rareTitle}`);
+      }
+      if (random() < 0.05) {
+        chicken.frame = "賽雞館金框";
+        rareMessages.push("✨ 雞外觀：賽雞館金框");
+      }
+      runner.rewardMessage = [
+        `🏟️ 賽雞館 Rank ${battle.bossRank || 1} 通關`,
+        `💰 獲得 ${rewardGold} 金幣`,
+        `下一館：Rank ${player.chickenArenaRank}`,
+        ...rareMessages
+      ].join("\n");
     }
     players[runner.userId] = player;
     runner.levelMessage = [progressEvolutionMessage, levelMessage].filter(Boolean).join("\n");
@@ -1101,8 +1174,12 @@ function settleBattle(battle, players, random = Math.random, now = Date.now()) {
   battle.result = { winnerId: finalWinner.userId, loserId: finalLoser.userId };
   activeBattleByPlayerId.delete(battle.challengerId);
   activeBattleByPlayerId.delete(battle.targetId);
-  chickenBattleCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
-  if (!isBossUserId(battle.targetId)) chickenBattleCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
+  if (battle.isBoss) {
+    chickenPveCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
+  } else {
+    chickenPvpCooldowns.set(battle.challengerId, now + PK_COOLDOWN_MS);
+    if (!isBossUserId(battle.targetId)) chickenPvpCooldowns.set(battle.targetId, now + PK_COOLDOWN_MS);
+  }
   return { battle, players, message: finalFrame };
 }
 
@@ -1131,6 +1208,16 @@ function roastOwnedChicken(playerInput) {
   };
 }
 
+function shareRoastChickenMeal(playerInput) {
+  const player = getPlayer(playerInput);
+  player.chickenRoastHpBonus = (player.chickenRoastHpBonus || 0) + 1;
+  return {
+    ok: true,
+    player,
+    message: "你一起吃了烤雞。下一場下礦最大生命 +1。"
+  };
+}
+
 module.exports = {
   CHICKEN_PK_PREFIX,
   CHICKEN_PANEL_PREFIX,
@@ -1146,15 +1233,19 @@ module.exports = {
   buildChickenEmbed,
   buildChickenPanelComponents,
   buildChickenUpgradeComponents,
+  addChickenExp,
+  applyPvpLevelBalance,
   chooseChickenUpgrade,
   clearBattle,
   createBattle,
   createBossBattle,
+  calculateBossGoldReward,
   determineEvolutionType,
   getEvolutionMissingRequirements,
   ensureOwnedChicken,
   formatOwnedChicken,
   getBattle,
+  getBossRank,
   getChickenRequiredExp,
   getChickenStage,
   isChickenPkComponent,
@@ -1165,5 +1256,6 @@ module.exports = {
   renameChicken,
   roastOwnedChicken,
   settleBattle,
+  shareRoastChickenMeal,
   updateBattleFrame
 };

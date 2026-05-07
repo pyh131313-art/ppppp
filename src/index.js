@@ -22,6 +22,7 @@ const {
   depositBank,
   discardItem,
   drinkHealingPotion,
+  eatMagicCandy,
   exchange,
   formatShop,
   formatInventory,
@@ -89,6 +90,7 @@ const {
   renameChicken,
   roastOwnedChicken,
   settleBattle,
+  shareRoastChickenMeal,
   updateBattleFrame
 } = require("./chickenCare");
 const {
@@ -132,6 +134,8 @@ const STORAGE_MODAL_PREFIX = "mine_ui:storage_modal";
 const SHOP_BUY_MODAL_PREFIX = "mine_ui:shop_buy_modal";
 const CHICKEN_RENAME_MODAL_PREFIX = "chicken_rename_modal";
 const OWNED_CHICKEN_ROAST_PREFIX = "owned_chicken_roast";
+const CHICKEN_ROAST_FEAST_PREFIX = "chicken_roast_feast";
+const activeChickenRoastFeasts = new Map();
 
 function parseAmountInput(input) {
   const value = Number(input);
@@ -784,6 +788,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith(`${CHICKEN_ROAST_FEAST_PREFIX}:`)) {
+      await handleChickenRoastFeastInteraction(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith(`${OWNED_CHICKEN_ROAST_PREFIX}:`)) {
       await handleOwnedChickenRoastInteraction(interaction);
       return;
@@ -1314,6 +1323,70 @@ async function handleChickenUpgradeInteraction(interaction) {
   });
 }
 
+function createChickenRoastFeast(ownerId, chickenName) {
+  const feastId = `${Date.now()}-${ownerId}`;
+  const feast = {
+    id: feastId,
+    ownerId,
+    chickenName,
+    eaten: new Set([ownerId]),
+    expiresAt: Date.now() + 10 * 60 * 1000
+  };
+  activeChickenRoastFeasts.set(feastId, feast);
+  return feast;
+}
+
+function buildChickenRoastFeastComponents(feast) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_ROAST_FEAST_PREFIX}:eat:${feast.id}`)
+        .setLabel("一起吃")
+        .setEmoji("🍗")
+        .setStyle(ButtonStyle.Success)
+    )
+  ];
+}
+
+async function publishChickenRoastFeast(interaction, ownerId, chickenName) {
+  const feast = createChickenRoastFeast(ownerId, chickenName);
+  const content = [
+    `🍗 <@${ownerId}> 烤掉了「${chickenName}」。`,
+    "香味飄滿整個頻道，大家可以一起吃。",
+    "每人限吃一次：下一場下礦最大生命 +1。"
+  ].join("\n");
+  return interaction.followUp({
+    content,
+    components: buildChickenRoastFeastComponents(feast),
+    ephemeral: false
+  });
+}
+
+async function handleChickenRoastFeastInteraction(interaction) {
+  const [, action, feastId] = interaction.customId.split(":");
+  const feast = activeChickenRoastFeasts.get(feastId);
+  if (action !== "eat" || !feast || Date.now() > feast.expiresAt) {
+    activeChickenRoastFeasts.delete(feastId);
+    await interaction.reply({ content: "這盤烤雞已經冷掉了。", ephemeral: true });
+    return;
+  }
+  if (interaction.user.id === feast.ownerId) {
+    await interaction.reply({ content: "你是主廚，自己的加成已經拿到了。", ephemeral: true });
+    return;
+  }
+  if (feast.eaten.has(interaction.user.id)) {
+    await interaction.reply({ content: "你已經吃過這盤烤雞了。", ephemeral: true });
+    return;
+  }
+  let result = null;
+  await updatePlayer(interaction.user.id, (player) => {
+    result = shareRoastChickenMeal(player);
+    return result.player;
+  });
+  feast.eaten.add(interaction.user.id);
+  await interaction.reply({ content: result.message, ephemeral: true });
+}
+
 async function handleChickenPanelInteraction(interaction) {
   const [, action, ownerId] = interaction.customId.split(":");
   if (interaction.user.id !== ownerId) {
@@ -1379,11 +1452,14 @@ async function handleOwnedChickenRoastInteraction(interaction) {
     return;
   }
   let result = null;
+  let chickenName = "";
   await updatePlayer(interaction.user.id, (player) => {
+    chickenName = player.ownedChicken ? player.ownedChicken.name : "自己的雞";
     result = roastOwnedChicken(player);
     return result.player;
   });
   await interaction.update({ content: result.message, embeds: [], components: [] });
+  if (result.ok) await publishChickenRoastFeast(interaction, interaction.user.id, chickenName);
 }
 
 async function handleMiningButton(interaction) {
@@ -1699,9 +1775,9 @@ async function handleMiningButton(interaction) {
 
   if (interaction.customId === CUSTOM_IDS.shopShimmer) {
     const progress = getProgressWithGlobal(await loadPlayers());
-    const itemId = interaction.values && interaction.values[0];
+    const itemIds = (interaction.values || []).map((value) => String(value).split("#")[0]);
     await updatePlayer(panelTargetUserId, (player) => {
-      const result = shimmerCollectible(player, itemId, Math.random);
+      const result = shimmerCollectible(player, itemIds, Math.random);
       componentPlayer = result.player;
       embed = buildShopEmbed(result.player, result.message, progress);
       files = buildHudFiles(result.player);
@@ -1716,11 +1792,32 @@ async function handleMiningButton(interaction) {
     return;
   }
 
+  if (interaction.customId === CUSTOM_IDS.discardItem) {
+    const itemId = interaction.values && interaction.values[0];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = discardItem(player, itemId, 1);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "丟棄", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
   if (interaction.customId === CUSTOM_IDS.drinkPotion) {
     await updatePlayer(panelTargetUserId, (player) => {
       const result = drinkHealingPotion(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "治療藥水", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.eatCandy) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = eatMagicCandy(player, Math.random);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "神奇糖果", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });

@@ -23,8 +23,10 @@ const {
   getChickenCompanionText,
   getDepthLabel,
   getDigPathOptions,
+  getDiscardableItems,
   getElevatorCost,
   getMaxBombs,
+  getMagicCandyPrice,
   getMinorBuffEffectiveStacks,
   getMinorBuffOptions,
   getPlayer,
@@ -69,8 +71,10 @@ const CUSTOM_IDS = {
   shopShimmer: "mine_ui:shop_shimmer",
   shopExit: "mine_ui:shop_exit",
   drinkPotion: "mine_ui:drink_potion",
+  eatCandy: "mine_ui:eat_candy",
   rustOne: "mine_ui:rust_one",
   discardRustOne: "mine_ui:discard_rust_one",
+  discardItem: "mine_ui:discard_item",
   returnSurface: "mine_ui:return_surface",
   undergroundCamp: "mine_ui:underground_camp",
   undergroundInn: "mine_ui:underground_inn",
@@ -720,6 +724,11 @@ function buildShopEmbed(playerInput, message = "商店限定紀念幣只能用�
       const bought = player.potionPurchaseDay === today ? player.potionPurchasesToday || 0 : 0;
       return `${item.label}：${item.priceGold} 金幣\n今日限購：${bought} / ${item.dailyLimit}｜持有 ${owned}`;
     }
+    if (item.id === "magicCandy") {
+      const today = new Date().toISOString().slice(0, 10);
+      const bought = player.magicCandyPurchaseDay === today ? player.magicCandyPurchasesToday || 0 : 0;
+      return `${item.label}：總資產 2%（目前 ${getMagicCandyPrice(player)} 金幣）\n今日限購：${bought} / ${item.dailyLimit}｜持有 ${owned}`;
+    }
     return `${item.label}｜${item.priceGold} 金幣｜持有 ${owned}`;
   });
 
@@ -889,7 +898,8 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       addRow(
         makeButton(CUSTOM_IDS.mine, player.zone === "lavaPool" ? "穿越岩漿" : "往上挖", ButtonStyle.Primary, player.zone === "lavaPool" ? "🌋" : "⬆️"),
         makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-        player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
+        player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null,
+        player.magicCandy > 0 ? makeButton(CUSTOM_IDS.eatCandy, "吃糖果", ButtonStyle.Success, "🍬") : null
       );
     } else {
     const digPaths = getDigPathOptions(player);
@@ -913,13 +923,26 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
         )
       )),
       makeButton(CUSTOM_IDS.returnSurface, "返回地面", ButtonStyle.Success, "🏠"),
-      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null
+      player.healingPotion > 0 ? makeButton(CUSTOM_IDS.drinkPotion, "喝治療藥水", ButtonStyle.Success, "🧪") : null,
+      player.magicCandy > 0 ? makeButton(CUSTOM_IDS.eatCandy, "吃糖果", ButtonStyle.Success, "🍬") : null
     );
     }
     addRow(
-      makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽"),
-      makeButton(CUSTOM_IDS.discardRustOne, "丟棄生鏽", ButtonStyle.Danger, "🗑️")
+      makeButton(CUSTOM_IDS.rustOne, "除鏽", ButtonStyle.Secondary, "🧽")
     );
+    const discardableItems = getDiscardableItems(player);
+    if (discardableItems.length > 0) {
+      rows.push(new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(CUSTOM_IDS.discardItem)
+          .setPlaceholder("丟棄物品")
+          .addOptions(discardableItems.map((item) => ({
+            label: `${item.label} x${item.count}`.slice(0, 100),
+            description: "選擇後丟棄 1 個".slice(0, 100),
+            value: item.id
+          })))
+      ));
+    }
     if (!player.pendingEvent && (player.chargeValue || 0) >= 100) {
       addRow(
         makeButton(`${CUSTOM_IDS.chargePrefix}:reward`, "收益爆發", ButtonStyle.Success, "⚡").setDisabled(player.lastChargeSkillUsed === "reward"),
@@ -978,7 +1001,13 @@ function buildShopComponents(progressInput = {}, playerInput = null, targetUserI
       makeButton(`${CUSTOM_IDS.shopBuyPrefix}:undyingTotem:5`, "圖騰 x5", ButtonStyle.Success, "🗿")
     );
   }
-  if (consumableRow.length > 0) rows.push(new ActionRowBuilder().addComponents(...consumableRow.slice(0, 5)));
+  consumableRow.push(
+    makeButton(`${CUSTOM_IDS.shopBuyPrefix}:magicCandy:1`, "糖果 x1", ButtonStyle.Success, "🍬"),
+    makeButton(`${CUSTOM_IDS.shopBuyPrefix}:magicCandy:2`, "糖果 x2", ButtonStyle.Success, "🍬")
+  );
+  for (let i = 0; i < consumableRow.length; i += 5) {
+    rows.push(new ActionRowBuilder().addComponents(...consumableRow.slice(i, i + 5)));
+  }
   const customAmountRow = [];
   if (shopItem) {
     customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:${shopItem.id}`, "指定買紀念幣", ButtonStyle.Primary, "🔢"));
@@ -992,18 +1021,36 @@ function buildShopComponents(progressInput = {}, playerInput = null, targetUserI
   if (customAmountRow.length > 0) rows.push(new ActionRowBuilder().addComponents(...customAmountRow));
   const ownedCollectibles = getCollectibles()
     .filter((item) => (player.collection[item.id] || 0) > 0)
-    .slice(0, 25);
+    .slice(0, 20);
   if (ownedCollectibles.length > 0) {
-    rows.push(new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(CUSTOM_IDS.shopShimmer)
-        .setPlaceholder("微光池：選 1 枚紀念幣轉換")
-        .addOptions(ownedCollectibles.map((item) => ({
-          label: item.name.slice(0, 100),
-          description: `${item.rarity}｜持有 ${player.collection[item.id] || 0}`.slice(0, 100),
-          value: item.id
-        })))
-    ));
+    const shimmerOptions = ownedCollectibles.flatMap((item) => {
+      const count = player.collection[item.id] || 0;
+      const base = {
+        label: item.name.slice(0, 100),
+        description: `${item.rarity}｜持有 ${count}`.slice(0, 100),
+        value: item.id
+      };
+      if (count < 2) return [base];
+      return [base, {
+        label: `${item.name}（第2枚）`.slice(0, 100),
+        description: `${item.rarity}｜同款融合用`.slice(0, 100),
+        value: `${item.id}#2`
+      }];
+    }).slice(0, 25);
+    if (shimmerOptions.length >= 2) {
+      rows.push(new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(CUSTOM_IDS.shopShimmer)
+          .setPlaceholder("微光池：選 2 枚紀念幣融合")
+          .setMinValues(2)
+          .setMaxValues(2)
+          .addOptions(shimmerOptions)
+      ));
+    } else {
+      rows.push(new ActionRowBuilder().addComponents(
+        makeButton(`${CUSTOM_IDS.shopShimmer}:none`, "微光池需要 2 枚紀念幣", ButtonStyle.Secondary, "✨").setDisabled(true)
+      ));
+    }
   } else {
     rows.push(new ActionRowBuilder().addComponents(
       makeButton(`${CUSTOM_IDS.shopShimmer}:none`, "微光池需要紀念幣", ButtonStyle.Secondary, "✨").setDisabled(true)
