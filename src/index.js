@@ -1233,13 +1233,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await interaction.reply({ content: "只有機器人擁有者可以使用這個指令。", ephemeral: true });
         return;
       }
+      await interaction.deferReply({ ephemeral: true });
       const players = await loadPlayers();
       const exportedAt = new Date().toISOString().replace(/[:.]/g, "-");
       const body = Buffer.from(`${JSON.stringify(players, null, 2)}\n`, "utf8");
-      await interaction.reply({
+      await interaction.editReply({
         content: `已匯出玩家資料，共 ${Object.keys(players).length} 筆。請先保留這個檔案，確認新服務匯入成功前不要刪掉。`,
         files: [{ attachment: body, name: `players-export-${exportedAt}.json` }],
-        ephemeral: true
       });
       return;
     }
