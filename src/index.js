@@ -172,6 +172,31 @@ const client = new Client({
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function checkDiscordGateway(timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch("https://discord.com/api/v10/gateway/bot", {
+      headers: {
+        Authorization: `Bot ${token}`
+      },
+      signal: controller.signal
+    });
+    if (response.ok) {
+      return { ok: true, status: response.status };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, fatal: true, status: response.status, message: "DISCORD_TOKEN 無效或權限被拒絕" };
+    }
+    return { ok: false, status: response.status, message: `Discord gateway 回應異常：${response.status}` };
+  } catch (error) {
+    const reason = error && error.name === "AbortError" ? "Discord gateway 預檢逾時" : "Discord gateway 預檢失敗";
+    return { ok: false, message: reason };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const ADMIN_RESET_PREFIX = "admin_reset";
@@ -2803,15 +2828,26 @@ if (process.env.DISABLE_WEB_SERVER !== "true") {
 async function loginWithRetry(attempt = 1) {
   try {
     console.log(`Discord 登入中... 第 ${attempt} 次`);
+    const gatewayCheck = await checkDiscordGateway();
+    if (!gatewayCheck.ok) {
+      const error = new Error(gatewayCheck.message || "Discord gateway 無法連線");
+      error.fatal = Boolean(gatewayCheck.fatal);
+      error.status = gatewayCheck.status;
+      throw error;
+    }
     await Promise.race([
       client.login(token),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Discord 登入逾時")), 120_000);
+        setTimeout(() => reject(new Error("Discord 登入逾時")), 240_000);
       })
     ]);
   } catch (error) {
     if (!client.isReady()) {
       client.destroy();
+    }
+    if (error && error.fatal) {
+      console.error(`Discord 登入停止：${error.message}${error.status ? `（${error.status}）` : ""}`);
+      process.exit(1);
     }
     const retryMs = Math.min(120_000, 10_000 * attempt);
     console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
