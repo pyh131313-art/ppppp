@@ -185,6 +185,21 @@ async function checkDiscordGateway(timeoutMs = 15_000) {
     if (response.ok) {
       return { ok: true, status: response.status };
     }
+    if (response.status === 429) {
+      let retryAfterMs = 300_000;
+      try {
+        const body = await response.json();
+        if (Number.isFinite(body.retry_after)) {
+          retryAfterMs = Math.max(60_000, Math.ceil(body.retry_after * 1000));
+        }
+      } catch (error) {
+        const headerRetryAfter = Number(response.headers.get("retry-after"));
+        if (Number.isFinite(headerRetryAfter) && headerRetryAfter > 0) {
+          retryAfterMs = Math.max(60_000, Math.ceil(headerRetryAfter * 1000));
+        }
+      }
+      return { ok: false, status: response.status, retryAfterMs, message: "Discord gateway 被限流（429）" };
+    }
     if (response.status === 401 || response.status === 403) {
       return { ok: false, fatal: true, status: response.status, message: "DISCORD_TOKEN 無效或權限被拒絕" };
     }
@@ -2833,6 +2848,7 @@ async function loginWithRetry(attempt = 1) {
       const error = new Error(gatewayCheck.message || "Discord gateway 無法連線");
       error.fatal = Boolean(gatewayCheck.fatal);
       error.status = gatewayCheck.status;
+      error.retryAfterMs = gatewayCheck.retryAfterMs;
       throw error;
     }
     await Promise.race([
@@ -2849,7 +2865,9 @@ async function loginWithRetry(attempt = 1) {
       console.error(`Discord 登入停止：${error.message}${error.status ? `（${error.status}）` : ""}`);
       process.exit(1);
     }
-    const retryMs = Math.min(120_000, 10_000 * attempt);
+    const retryMs = error && Number.isFinite(error.retryAfterMs)
+      ? Math.min(900_000, Math.max(60_000, error.retryAfterMs))
+      : Math.min(300_000, 30_000 * attempt);
     console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
     console.error(error);
     setTimeout(() => {
