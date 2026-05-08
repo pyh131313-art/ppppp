@@ -191,6 +191,7 @@ function buildPlayerCheckReport(target, rawPlayer) {
   if (player.memoryChallenge) blocking.push("記憶事件");
   if (!player.runMode && !player.dead && player.runModeOptions.length > 0) blocking.push("等待選詞條");
   if (player.minorBuffOptions.length > 0) blocking.push("等待小詞條");
+  if (player.zone === "surface" && player.runMode && (player.depth > 0 || player.runDepthProgress > 0 || player.caveType)) blocking.push("區域狀態矛盾");
   if (player.dead) blocking.push("死亡中");
   const resourceTotal = [
     "ore",

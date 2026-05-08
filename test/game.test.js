@@ -461,6 +461,20 @@ test("管理員修復會清除卡住的小詞條選擇", () => {
   assert.match(adminRepair.message, /清除卡住的小詞條選擇/);
 });
 
+test("玩家修復會把地表但仍在挖礦的狀態修回礦坑", () => {
+  const result = repairPlayerState({
+    ...createPlayer(),
+    zone: "surface",
+    caveType: "normal",
+    runMode: "eventBody",
+    depth: 20,
+    runDepthProgress: 20
+  }, () => 0);
+
+  assert.equal(result.player.zone, "mine");
+  assert.match(result.message, /修正礦坑區域狀態/);
+});
+
 test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
   const player = {
     ...createPlayer(),
@@ -485,6 +499,26 @@ test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
   }, "safe");
   assert.equal(resolved.player.pendingEvent, null);
   assert.equal(canChooseMinorBuff(resolved.player), true);
+});
+
+test("等待小詞條時礦場面板只顯示小詞條避免按鈕列爆量", () => {
+  const player = {
+    ...createPlayer(),
+    zone: "mine",
+    caveType: "normal",
+    runMode: "eventBody",
+    depth: 20,
+    nextBuffDepth: 20,
+    ore: 8,
+    chargeValue: 100
+  };
+  const rows = buildPanelComponents("user-1", player, {}, "main").map((row) => row.toJSON());
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.custom_id));
+
+  assert.equal(rows.length <= 3, true);
+  assert.equal(customIds.some((id) => id && id.startsWith(CUSTOM_IDS.buffPrefix)), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.discardItem), false);
+  assert.equal(customIds.some((id) => id && id.startsWith(CUSTOM_IDS.chargePrefix)), false);
 });
 
 test("玩家修復會封頂天文數字避免下礦計算壞掉", () => {

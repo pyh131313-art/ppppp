@@ -879,6 +879,22 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     return rows;
   }
 
+  if (inMine && canChooseMinorBuff(player)) {
+    const buffs = getMinorBuffOptions(player);
+    if (buffs.some((buff) => buff.breakthrough)) {
+      addRow(makeButton("mine_ui:breakthrough_notice", "✨ 突破詞條出現", ButtonStyle.Secondary, "✨").setDisabled(true));
+    }
+    addRow(...buffs.map((buff) => (
+      makeButton(
+        `${CUSTOM_IDS.buffPrefix}:${buff.id}`,
+        `${buff.breakthrough ? "✨ " : ""}${buff.label}${buff.breakthrough ? " 突破" : ""}`,
+        ButtonStyle.Secondary,
+        "🧲"
+      )
+    )));
+    return rows;
+  }
+
   if (onSurface) {
     addRow(
       ...getRunModeOptions(player).map((mode, index) => (
@@ -953,20 +969,6 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
         makeButton(`${CUSTOM_IDS.chargePrefix}:safe`, "穩定爆發", ButtonStyle.Success, "🛡️").setDisabled(player.lastChargeSkillUsed === "safe"),
         makeButton(`${CUSTOM_IDS.chargePrefix}:resource`, "資源爆發", ButtonStyle.Success, "💎").setDisabled(player.lastChargeSkillUsed === "resource")
       );
-    }
-    if (canChooseMinorBuff(player)) {
-      const buffs = getMinorBuffOptions(player);
-      if (buffs.some((buff) => buff.breakthrough)) {
-        addRow(makeButton("mine_ui:breakthrough_notice", "✨ 突破詞條出現", ButtonStyle.Secondary, "✨").setDisabled(true));
-      }
-      addRow(...buffs.map((buff) => (
-        makeButton(
-          `${CUSTOM_IDS.buffPrefix}:${buff.id}`,
-          `${buff.breakthrough ? "✨ " : ""}${buff.label}${buff.breakthrough ? " 突破" : ""}`,
-          ButtonStyle.Secondary,
-          "🧲"
-        )
-      )));
     }
   }
 

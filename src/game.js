@@ -632,7 +632,7 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
   const player = getPlayer(playerInput);
   const fixed = [];
   const clearBlockingState = Boolean(options.clearBlockingState);
-  const validZones = new Set(["surface", "lavaPool", "undergroundCamp", "upward", "skyCamp", "skyDown"]);
+  const validZones = new Set(["surface", "mine", "lavaPool", "undergroundCamp", "upward", "skyCamp", "skyDown"]);
   const basePlayer = createPlayer();
   const addFixed = (message) => {
     if (!fixed.includes(message)) fixed.push(message);
@@ -690,6 +690,10 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
   if (!validZones.has(player.zone)) {
     addFixed(`修正未知區域：${player.zone || "空值"}`);
     player.zone = "surface";
+  }
+  if (player.zone === "surface" && player.runMode && (player.depth > 0 || player.runDepthProgress > 0 || player.caveType)) {
+    player.zone = "mine";
+    addFixed("修正礦坑區域狀態");
   }
 
   const numericFields = [
