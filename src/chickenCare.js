@@ -1852,14 +1852,6 @@ function formatBattleChickenStats(label, chicken) {
   return `${label}數值：Lv.${chicken.level || 1}｜速${chicken.speed || 0} 衝${chicken.sprint || 0} 穩${chicken.stability || 0} 耐${chicken.stamina || 0}`;
 }
 
-function formatHiddenBattleChickenStats(label, chicken) {
-  const power = (chicken.speed || 0) + (chicken.sprint || 0) + (chicken.stability || 0) + (chicken.stamina || 0);
-  const speedHint = chicken.speed + chicken.sprint >= 26 ? "危險" : chicken.speed + chicken.sprint >= 18 ? "偏高" : "未知";
-  const stableHint = chicken.stability >= 14 ? "偏高" : chicken.stability <= 6 ? "偏低" : "未知";
-  const type = COUNTER_TYPES[getCounterTypeForChicken(chicken)] || COUNTER_TYPES.balanced;
-  return `${label}概略：Lv.${chicken.level || 1}｜爆發${speedHint}｜穩定${stableHint}｜${power >= 50 ? "危險" : power >= 32 ? "偏高" : "未知"}｜${type.label}`;
-}
-
 function formatBattleStatusLine(label, runner) {
   if (!runner) return "";
   return `${label}狀態：${getStatusSummary(runner)}`;
@@ -1896,14 +1888,14 @@ function buildBattleEmbed(battle, players, message = "") {
   const targetRunner = Array.isArray(battle.runners) ? battle.runners.find((runner) => runner.userId === battle.targetId) : null;
   const targetStats = boss
     ? formatBattleChickenStats("館主", targetRunner ? targetRunner.chicken : boss)
-    : formatHiddenBattleChickenStats("對手", targetRunner ? targetRunner.chicken : target.ownedChicken);
+    : formatBattleChickenStats("對手", targetRunner ? targetRunner.chicken : target.ownedChicken);
   const challengerStats = battle.isBoss
     ? formatBattleChickenStats("挑戰者", challengerRunner ? challengerRunner.chicken : challenger.ownedChicken)
-    : formatHiddenBattleChickenStats("挑戰者", challengerRunner ? challengerRunner.chicken : challenger.ownedChicken);
+    : formatBattleChickenStats("挑戰者", challengerRunner ? challengerRunner.chicken : challenger.ownedChicken);
   const track = getTrackModifier(battle.raceTrackModifier && (battle.raceTrackModifier.id || battle.raceTrackModifier));
   const trackLines = [
     `🏁 ${track.label}｜${track.text}`,
-    boss ? `👑 ${getBossRuleText((targetRunner ? targetRunner.chicken : boss).bossRule)}` : "🕶️ PVP：只顯示概略資訊"
+    boss ? `👑 ${getBossRuleText((targetRunner ? targetRunner.chicken : boss).bossRule)}` : "⚔️ PVP：顯示雙方能力值"
   ].join("\n");
   const participants = [
     formatBattleParticipantBlock(

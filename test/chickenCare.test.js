@@ -289,7 +289,7 @@ test("賽雞 PK 高等級雞會依等級差被削弱", () => {
   assert.equal(runners[0].chicken.pvpPowerMultiplier >= 0.65, true);
 });
 
-test("賽雞 PVP 會使用互剋、賽道、狀態與隱藏資訊", () => {
+test("賽雞 PVP 會使用互剋、賽道、狀態與能力值資訊", () => {
   const players = {
     counterA: ensureOwnedChicken(createPlayer(), () => 0),
     counterB: ensureOwnedChicken(createPlayer(), () => 0.5)
@@ -311,8 +311,8 @@ test("賽雞 PVP 會使用互剋、賽道、狀態與隱藏資訊", () => {
   assert.match(frame, /🥇/);
   assert.match(frame, /對位有利/);
   assert.match(embedText, /【賽道】/);
-  assert.match(embedText, /概略：/);
-  assert.doesNotMatch(embedText, /對手數值：/);
+  assert.match(embedText, /挑戰者數值：/);
+  assert.match(embedText, /對手數值：/);
   clearBattle(created.battle.id);
 });
 
@@ -567,19 +567,24 @@ test("賽雞 PK 也會在有雞到終點時可提早結算", () => {
   clearBattle(battle.id);
 });
 
-test("賽雞館面板會顯示館主數值", () => {
+test("賽雞館面板會顯示挑戰者與館主完整能力值", () => {
   const players = {
     bossPlayer: ensureOwnedChicken(createPlayer(), () => 0)
   };
+  players.bossPlayer.ownedChicken.level = 8;
+  players.bossPlayer.ownedChicken.speed = 12;
+  players.bossPlayer.ownedChicken.sprint = 9;
   const created = createBossBattle("bossPlayer", players, 1000, () => 0, "guild", "ironCrown");
   assert.equal(created.ok, true);
   const json = buildBattleEmbed(created.battle, players).toJSON();
 
+  assert.match(json.description, /挑戰者數值：Lv\.8/);
+  assert.match(json.description, /速12 衝9/);
   assert.match(json.description, /館主數值：Lv\./);
   clearBattle(created.battle.id);
 });
 
-test("賽雞 PK 面板會隱藏完整數值改顯示概略資訊", () => {
+test("賽雞 PK 面板會顯示雙方完整能力值", () => {
   const players = {
     statPvpA: ensureOwnedChicken(createPlayer(), () => 0),
     statPvpB: ensureOwnedChicken(createPlayer(), () => 0.5)
@@ -591,10 +596,10 @@ test("賽雞 PK 面板會隱藏完整數值改顯示概略資訊", () => {
   const created = createBattle("statPvpA", "statPvpB", players, 200000, () => 0, "guild");
   const json = buildBattleEmbed(created.battle, players).toJSON();
 
-  assert.match(json.description, /挑戰者概略：Lv\.7/);
-  assert.match(json.description, /對手概略：Lv\.4/);
-  assert.match(json.description, /PVP：只顯示概略資訊/);
-  assert.doesNotMatch(json.description, /穩9/);
+  assert.match(json.description, /挑戰者數值：Lv\.7/);
+  assert.match(json.description, /對手數值：Lv\.4/);
+  assert.match(json.description, /PVP：顯示雙方能力值/);
+  assert.match(json.description, /穩9/);
   clearBattle(created.battle.id);
 });
 
