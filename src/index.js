@@ -2800,4 +2800,17 @@ if (process.env.DISABLE_WEB_SERVER !== "true") {
   startWebServer();
 }
 
-client.login(token);
+async function loginWithRetry(attempt = 1) {
+  try {
+    await client.login(token);
+  } catch (error) {
+    const retryMs = Math.min(60_000, 5_000 * attempt);
+    console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
+    console.error(error);
+    setTimeout(() => {
+      loginWithRetry(attempt + 1);
+    }, retryMs);
+  }
+}
+
+loginWithRetry();
