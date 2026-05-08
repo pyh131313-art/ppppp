@@ -978,20 +978,20 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.shopOpen, "商店", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.bankOpen, "銀行", ButtonStyle.Success, "🏦")
     );
+    const travelButtons = [];
     if ((player.guaranteedRaptorCaveTicket || 0) > 0 || (player.activeRaptorCaveTicket || 0) > 0) {
-      addRow(
-        makeButton(
-          CUSTOM_IDS.useRaptorTicket,
-          (player.activeRaptorCaveTicket || 0) > 0 ? "猛禽券已啟用" : "使用猛禽券",
-          ButtonStyle.Primary,
-          "🎫"
-        ).setDisabled((player.activeRaptorCaveTicket || 0) > 0)
-      );
+      travelButtons.push(makeButton(
+        CUSTOM_IDS.useRaptorTicket,
+        (player.activeRaptorCaveTicket || 0) > 0 ? "猛禽券已啟用" : "使用猛禽券",
+        ButtonStyle.Primary,
+        "🎫"
+      ).setDisabled((player.activeRaptorCaveTicket || 0) > 0));
     }
     if (player.undergroundCampUnlocked) {
-      addRow(makeButton(CUSTOM_IDS.undergroundCamp, `搭乘電梯前往地底營地 (${getElevatorCost(player)})`, ButtonStyle.Primary, "🛗"));
+      travelButtons.push(makeButton(CUSTOM_IDS.undergroundCamp, `前往地底 (${getElevatorCost(player)})`, ButtonStyle.Primary, "🛗"));
     }
-    addRow(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
+    travelButtons.push(makeButton(CUSTOM_IDS.leaderboard, "排行榜", ButtonStyle.Secondary, "🏆"));
+    addRow(...travelButtons);
     return rows;
   }
 

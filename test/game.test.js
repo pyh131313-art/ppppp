@@ -199,6 +199,22 @@ test("事件等待選擇時礦場面板不會塞入過多操作列", () => {
   assert.equal(customIds.includes(CUSTOM_IDS.discardItem), false);
 });
 
+test("地表同時有猛禽券與地底電梯時按鈕不超過 Discord 限制", () => {
+  const player = {
+    ...createPlayer(),
+    guaranteedRaptorCaveTicket: 1,
+    undergroundCampUnlocked: true
+  };
+  const rows = buildPanelComponents("user-1", player, {}, "main").map((row) => row.toJSON());
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.custom_id));
+
+  assert.equal(rows.length <= 5, true);
+  assert.equal(rows.every((row) => row.components.length <= 5), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.useRaptorTicket), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.undergroundCamp), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.leaderboard), true);
+});
+
 test("精簡模式按鈕整合在分頁列", () => {
   const rows = buildPanelComponents("user-1", setUiMode(createPlayer(), "compact").player, {}, "main").map((row) => row.toJSON());
   const pageRow = rows[0];
