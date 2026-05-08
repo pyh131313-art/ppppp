@@ -598,7 +598,7 @@ const RANDOM_EVENTS = {
   wild_mine_chicken: {
     title: "野生賽雞",
     description: "🐓 你聽見礦道深處傳來奇怪的雞叫聲…",
-    weight: 0.9,
+    weight: 0.45,
     buttons: { safe: "放過", risk: "短跑挑戰", extreme: "餵食互動" }
   },
   mine_collapse_evacuation: {

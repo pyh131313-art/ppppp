@@ -937,6 +937,10 @@ test("野生賽雞短跑挑戰成功會給掉落並影響進化", () => {
   assert.equal(result.player.gold > 0, true);
   assert.equal(result.player.wildChickenInfluence.shallow, 2);
   assert.match(result.message, /短距離對決/);
+  assert.match(result.message, /EXP \+120/);
+  assert.equal(Array.isArray(result.animationFrames), true);
+  assert.equal(result.animationFrames.length > 1, true);
+  assert.match(result.animationFrames[0], /礦坑臨時賽道/);
 });
 
 test("野生賽雞餵食可能留下雞蛋與稀有公告", () => {

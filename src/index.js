@@ -167,6 +167,8 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const ADMIN_RESET_PREFIX = "admin_reset";
@@ -2091,6 +2093,7 @@ async function handleMiningButton(interaction) {
     return;
   }
   let embed = null;
+  let animationFrames = [];
   let files = [];
   let componentTargetId = panelTargetUserId;
   let componentPlayer = null;
@@ -2319,6 +2322,7 @@ async function handleMiningButton(interaction) {
         : result.announcement
           ? `${result.message}\n\n${result.announcement.replace("<@PLAYER>", `<@${panelTargetUserId}>`)}`
           : result.message;
+      const resultFrames = Array.isArray(result.animationFrames) ? result.animationFrames : [];
       players[panelTargetUserId] = result.player;
       if (!player.dead && result.player.dead) {
         recordAnalyticsOnPlayers(players, panelTargetUserId, "death", { cause: "事件" });
@@ -2326,7 +2330,15 @@ async function handleMiningButton(interaction) {
       const earnedGold = Math.max(0, (result.player.gold || 0) - (player.gold || 0));
       if (earnedGold > 0) recordAnalyticsOnPlayers(players, panelTargetUserId, "goldEarned", { amount: earnedGold });
       componentPlayer = result.player;
-      embed = buildPanelEmbed(result.player, result.title, message, interaction.user, hudPage);
+      if (resultFrames.length > 0) {
+        animationFrames = resultFrames.map((frame, index) => {
+          const frameMessage = index === resultFrames.length - 1 ? message : frame;
+          return buildPanelEmbed(result.player, result.title, frameMessage, interaction.user, hudPage);
+        });
+        embed = animationFrames[0];
+      } else {
+        embed = buildPanelEmbed(result.player, result.title, message, interaction.user, hudPage);
+      }
       files = buildHudFiles(result.player);
       return result;
     });
@@ -2628,11 +2640,24 @@ async function handleMiningButton(interaction) {
   }
 
   const progress = getProgressWithGlobal(await loadPlayers());
+  const components = buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage);
+  if (animationFrames.length > 0) {
+    for (let index = 0; index < animationFrames.length; index += 1) {
+      if (index > 0) await sleep(850);
+      await interaction.editReply({
+        embeds: [animationFrames[index]],
+        files: index === 0 ? files : [],
+        attachments: [],
+        components: index === animationFrames.length - 1 ? components : []
+      });
+    }
+    return;
+  }
   await interaction.editReply({
     embeds: [embed || buildPanelEmbed(null)],
     files,
     attachments: [],
-    components: buildPanelComponents(componentTargetId, componentPlayer, progress, hudPage)
+    components
   });
 }
 
