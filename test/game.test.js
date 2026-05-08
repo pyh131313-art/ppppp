@@ -1246,6 +1246,34 @@ test("詞條交換事件可以重組目前 build", () => {
   assert.equal(mutated.player.minorBuffs.gold, 1);
 });
 
+test("天域詞條交換沒有目前詞條時也能交換或變異", () => {
+  const player = {
+    ...createPlayer(),
+    zone: "skyDown",
+    pendingEvent: "trait_swap_sky_messenger",
+    traitSwapEvent: {
+      eventId: "trait_swap_sky_messenger",
+      offeredTrait: "oreFocus",
+      mutation: "astral"
+    }
+  };
+  const swapped = resolveRandomEvent(player, "risk", () => 0.99);
+  const stale = {
+    ...createPlayer(),
+    zone: "skyDown",
+    pendingEvent: "trait_swap_sky_messenger",
+    traitSwapEvent: null
+  };
+  const mutated = resolveRandomEvent(stale, "extreme", () => 0);
+
+  assert.equal(swapped.player.runMode, "oreFocus");
+  assert.match(swapped.message, /無詞條/);
+  assert.match(swapped.message, /換成 礦脈專注/);
+  assert.notEqual(mutated.player.runMode, null);
+  assert.equal(mutated.player.traitMutation.id, "astral");
+  assert.match(mutated.message, /星光/);
+});
+
 test("地下與天空事件池會抽各自專屬事件", () => {
   const reverse = pickRandomEvent(
     { ...chooseRunMode(createPlayer(), "safe").player, zone: "upward", depth: -20 },

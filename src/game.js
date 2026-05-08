@@ -2807,7 +2807,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
 
 function setupTraitSwapEvent(player, event, eventId, random = Math.random) {
   player.traitSwapEvent = null;
-  if (!event || !event.traitSwapEvent || !player.runMode) return "";
+  if (!event || !event.traitSwapEvent) return "";
   const pool = getRunModeIds(false).filter((id) => id !== player.runMode && CONFIG.runModes[id]);
   if (pool.length === 0) return "";
   const offeredTrait = pool[Math.floor(random() * pool.length)] || pool[0];
@@ -2820,7 +2820,7 @@ function setupTraitSwapEvent(player, event, eventId, random = Math.random) {
   const offered = CONFIG.runModes[offeredTrait] || {};
   return [
     "",
-    `目前：${current.label || current.name || player.runMode}`,
+    `目前：${current.label || current.name || player.runMode || "無詞條"}`,
     `候選：${offered.label || offered.name || offeredTrait}`,
     offered.shortDescription ? `效果：${offered.shortDescription}` : ""
   ].filter(Boolean).join("\n");
@@ -4416,8 +4416,12 @@ function applyRunModeSwap(player, nextMode) {
 function resolveTraitSwapEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
   const swap = player.traitSwapEvent;
   const currentMode = player.runMode;
-  const offeredMode = swap && CONFIG.runModes[swap.offeredTrait] ? swap.offeredTrait : null;
-  const currentLabel = currentMode && CONFIG.runModes[currentMode] ? CONFIG.runModes[currentMode].label : "目前詞條";
+  let offeredMode = swap && CONFIG.runModes[swap.offeredTrait] ? swap.offeredTrait : null;
+  if (!offeredMode) {
+    const pool = getRunModeIds(false).filter((id) => id !== currentMode && CONFIG.runModes[id]);
+    offeredMode = pool[Math.floor(random() * pool.length)] || pool[0] || null;
+  }
+  const currentLabel = currentMode && CONFIG.runModes[currentMode] ? CONFIG.runModes[currentMode].label : "無詞條";
   const offeredLabel = offeredMode && CONFIG.runModes[offeredMode] ? CONFIG.runModes[offeredMode].label : "未知詞條";
   player.traitSwapEvent = null;
 
@@ -4440,7 +4444,7 @@ function resolveTraitSwapEvent(player, eventId, event, choice, random = Math.ran
   }
 
   applyRunModeSwap(player, offeredMode);
-  const mutation = swap.mutation || event.mutation || "";
+  const mutation = (swap && swap.mutation) || event.mutation || "";
   if (choice === "extreme") {
     if (mutation === "polluted") {
       player.traitMutation = { id: "polluted", label: "污染詞條", remaining: 6 };
