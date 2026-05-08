@@ -13,6 +13,7 @@ const {
   Events,
   GatewayIntentBits
 } = require("discord.js");
+const zlib = require("node:zlib");
 const { cleanEnvValue } = require("./env");
 const { registerApplicationCommands } = require("./register-app-commands");
 const {
@@ -1236,10 +1237,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await interaction.deferReply({ ephemeral: true });
       const players = await loadPlayers();
       const exportedAt = new Date().toISOString().replace(/[:.]/g, "-");
-      const body = Buffer.from(`${JSON.stringify(players, null, 2)}\n`, "utf8");
+      const json = `${JSON.stringify(players)}\n`;
+      const body = zlib.gzipSync(Buffer.from(json, "utf8"));
       await interaction.editReply({
-        content: `已匯出玩家資料，共 ${Object.keys(players).length} 筆。請先保留這個檔案，確認新服務匯入成功前不要刪掉。`,
-        files: [{ attachment: body, name: `players-export-${exportedAt}.json` }],
+        content: `已匯出玩家資料，共 ${Object.keys(players).length} 筆。壓縮後 ${(body.length / 1024 / 1024).toFixed(2)} MB。請先保留這個檔案，確認新服務匯入成功前不要刪掉。`,
+        files: [{ attachment: body, name: `players-export-${exportedAt}.json.gz` }],
       });
       return;
     }
@@ -1255,8 +1257,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       const attachment = interaction.options.getAttachment("檔案", true);
-      if (!attachment.name.endsWith(".json")) {
-        await interaction.reply({ content: "請上傳 JSON 檔。", ephemeral: true });
+      if (!attachment.name.endsWith(".json") && !attachment.name.endsWith(".json.gz")) {
+        await interaction.reply({ content: "請上傳 JSON 或 JSON.GZ 檔。", ephemeral: true });
         return;
       }
       if (attachment.size > 20 * 1024 * 1024) {
@@ -1271,7 +1273,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       let importedPlayers = null;
       try {
-        importedPlayers = JSON.parse(await response.text());
+        const rawBuffer = Buffer.from(await response.arrayBuffer());
+        const text = attachment.name.endsWith(".gz")
+          ? zlib.gunzipSync(rawBuffer).toString("utf8")
+          : rawBuffer.toString("utf8");
+        importedPlayers = JSON.parse(text);
       } catch {
         await interaction.editReply("JSON 解析失敗，請確認檔案是 /匯出玩家資料 產生的原始檔。");
         return;
