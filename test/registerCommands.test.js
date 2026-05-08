@@ -25,3 +25,11 @@ test("管理員可以註冊開啟指定玩家礦場面板指令", () => {
   assert.equal(command.options[0].name, "玩家");
   assert.equal(command.options[0].required, true);
 });
+
+test("管理員可以註冊檢查玩家指令", () => {
+  const command = commandJson.find((item) => item.name === "檢查玩家");
+
+  assert.ok(command);
+  assert.equal(command.options[0].name, "玩家");
+  assert.equal(command.options[0].required, true);
+});

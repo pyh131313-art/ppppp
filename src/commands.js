@@ -58,6 +58,13 @@ const commands = [
       .setMinValue(1)
       .setMaxValue(100)),
   new SlashCommandBuilder()
+    .setName("檢查玩家")
+    .setDescription("管理用：檢查指定玩家的挖礦狀態。")
+    .addUserOption((option) => option
+      .setName("玩家")
+      .setDescription("要檢查的玩家。")
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName("修復玩家")
     .setDescription("管理用：修復指定玩家卡住的挖礦狀態。")
     .addUserOption((option) => option

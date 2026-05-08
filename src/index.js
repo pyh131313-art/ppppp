@@ -182,6 +182,48 @@ function canUseAdminCommand(userId) {
   return ADMIN_USER_IDS.has(String(userId || ""));
 }
 
+function buildPlayerCheckReport(target, rawPlayer) {
+  if (!rawPlayer) return `${target}：找不到玩家資料。`;
+  const player = getPlayer(rawPlayer);
+  const repairPreview = repairPlayerState(rawPlayer, Math.random, { clearBlockingState: false });
+  const blocking = [];
+  if (player.pendingEvent) blocking.push(`事件：${player.pendingEvent}`);
+  if (player.memoryChallenge) blocking.push("記憶事件");
+  if (!player.runMode && !player.dead && player.runModeOptions.length > 0) blocking.push("等待選詞條");
+  if (player.minorBuffOptions.length > 0) blocking.push("等待小詞條");
+  if (player.dead) blocking.push("死亡中");
+  const resourceTotal = [
+    "ore",
+    "goldOre",
+    "platinumOre",
+    "oreIngot",
+    "goldOreIngot",
+    "platinumOreIngot",
+    "redGem",
+    "blueGem",
+    "greenGem",
+    "invertedOre",
+    "invertedGem",
+    "orichalcum",
+    "bombItem",
+    "junk",
+    "platinumJunk",
+    "rusty"
+  ].reduce((sum, key) => sum + (Number(player[key]) || 0), 0);
+  const lines = [
+    `${target} 玩家檢查`,
+    `區域：${player.zone}｜洞窟：${player.caveType || "無"}｜死亡：${player.dead ? "是" : "否"}`,
+    `深度：${player.depth}｜本趟：${player.runDepthProgress}｜最深：${player.stats.bestDepth || 0}`,
+    `生命損傷：${player.bombs}｜金幣：${player.gold}｜銀行：${player.bankGold}`,
+    `詞條：${player.runMode || "未選"}｜候選：${player.runModeOptions.join(", ") || "無"}`,
+    `路線：${Object.keys(player.digPathOptions || {}).length}｜資源總數：${resourceTotal}`,
+    `面板：${player.activeMinePanelMessageId ? "有" : "無"}｜頻道：${player.activeMinePanelChannelId || "無"}`,
+    `卡住點：${blocking.join("、") || "未偵測到"}`,
+    `修復預覽：${repairPreview.fixed.length ? repairPreview.fixed.join("、") : "無"}`
+  ];
+  return lines.join("\n");
+}
+
 function makeAdminResetComponents(targetId, issuerId) {
   return [
     new ActionRowBuilder().addComponents(
@@ -1061,6 +1103,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }, {});
       await interaction.reply({
         content: `已給 ${target} 隨機紀念幣 x${amount}：${Object.entries(summary).map(([coin, count]) => `${coin} x${count}`).join("、") || "無"}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "檢查玩家") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      const players = await loadPlayers();
+      await interaction.reply({
+        content: buildPlayerCheckReport(target, players[target.id]),
         ephemeral: true
       });
       return;
