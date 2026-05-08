@@ -771,6 +771,12 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     addFixed("清除卡住的小詞條選擇");
   }
 
+  if (clearBlockingState && (player.activeMinePanelMessageId || player.activeMinePanelChannelId)) {
+    player.activeMinePanelMessageId = "";
+    player.activeMinePanelChannelId = "";
+    addFixed("重置礦場面板綁定");
+  }
+
   if (clearBlockingState && !player.runMode && !player.dead && player.runModeOptions.length > 0) {
     if (player.zone === "surface" && player.depth === 0 && player.runDepthProgress === 0 && !player.caveType) {
       player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;

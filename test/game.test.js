@@ -559,6 +559,19 @@ test("管理員修復會重建地表卡住的初始詞條選項", () => {
   assert.match(result.message, /重建卡住的初始詞條選項/);
 });
 
+test("管理員修復會重置礦場面板綁定避免舊面板卡住", () => {
+  const stuck = {
+    ...createPlayer(),
+    activeMinePanelMessageId: "old-message",
+    activeMinePanelChannelId: "old-channel"
+  };
+  const result = repairPlayerState(stuck, () => 0, { clearBlockingState: true });
+
+  assert.equal(result.player.activeMinePanelMessageId, "");
+  assert.equal(result.player.activeMinePanelChannelId, "");
+  assert.match(result.message, /重置礦場面板綁定/);
+});
+
 test("管理員修復會清除礦坑內殘留的初始詞條候選", () => {
   const stuck = {
     ...createPlayer(),

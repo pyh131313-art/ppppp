@@ -209,9 +209,15 @@ function buildPlayerCheckReport(target, rawPlayer) {
   const player = getPlayer(rawPlayer);
   const repairPreview = repairPlayerState(rawPlayer, Math.random, { clearBlockingState: false });
   const blocking = [];
+  const waitingRunMode = !player.runMode && !player.dead && player.runModeOptions.length > 0;
+  const normalRunModeWait = waitingRunMode
+    && (player.zone === "surface" || player.zone === "undergroundCamp")
+    && player.depth === 0
+    && player.runDepthProgress === 0
+    && !player.caveType;
   if (player.pendingEvent) blocking.push(`事件：${player.pendingEvent}`);
   if (player.memoryChallenge) blocking.push("記憶事件");
-  if (!player.runMode && !player.dead && player.runModeOptions.length > 0) blocking.push("等待選詞條");
+  if (waitingRunMode && !normalRunModeWait) blocking.push("異常等待選詞條");
   if (player.minorBuffOptions.length > 0) blocking.push("等待小詞條");
   if (player.zone === "surface" && player.runMode && (player.depth > 0 || player.runDepthProgress > 0 || player.caveType)) blocking.push("區域狀態矛盾");
   if (player.dead) blocking.push("死亡中");
@@ -239,6 +245,7 @@ function buildPlayerCheckReport(target, rawPlayer) {
     `深度：${player.depth}｜本趟：${player.runDepthProgress}｜最深：${player.stats.bestDepth || 0}`,
     `生命損傷：${player.bombs}｜金幣：${player.gold}｜銀行：${player.bankGold}`,
     `詞條：${player.runMode || "未選"}｜候選：${player.runModeOptions.join(", ") || "無"}`,
+    `選詞條狀態：${normalRunModeWait ? "正常等待玩家選擇" : waitingRunMode ? "異常等待" : "無"}`,
     `路線：${Object.keys(player.digPathOptions || {}).length}｜資源總數：${resourceTotal}`,
     `面板：${player.activeMinePanelMessageId ? "有" : "無"}｜頻道：${player.activeMinePanelChannelId || "無"}`,
     `卡住點：${blocking.join("、") || "未偵測到"}`,
