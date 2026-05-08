@@ -2415,7 +2415,49 @@ function getLockpickHint(challenge) {
   return "鎖芯幾乎沒有反應。";
 }
 
+function isForceEvacuationEventId(eventId) {
+  return eventId === "mine_collapse_evacuation"
+    || eventId === "spatial_turbulence_evacuation"
+    || eventId === "sky_rift_evacuation"
+    || eventId === "deep_pollution_evacuation";
+}
+
+function getForceEvacuationTarget(player, eventId) {
+  if (eventId === "spatial_turbulence_evacuation" && player.undergroundCampUnlocked) return "undergroundCamp";
+  if (eventId === "sky_rift_evacuation" && player.skyCampUnlocked) return "skyCamp";
+  return "surface";
+}
+
+function resolveForceEvacuation(player, eventId, event, choice = "safe", random = Math.random, now = Date.now()) {
+  const bonus = choice === "risk" || choice === "extreme" ? 80 + getDepthBonus(player.depth) * 15 : 0;
+  if (bonus > 0) player.gold += bonus;
+  const damage = choice === "extreme" && random() < 0.55 ? `\n${addBombDamage(player, now).message}` : "";
+  const target = getForceEvacuationTarget(player, eventId);
+  if (target === "surface") {
+    const result = returnToSurface(player, random, null, now);
+    result.title = event.title;
+    result.message = `${event.title === "礦坑大崩塌" ? "🌋 礦坑徹底崩塌！" : "⚠️ 危險爆發！"}\n你被迫撤離回營地！\n${bonus ? `撤離前搶到 ${bonus} 金幣。\n` : ""}${result.message}${damage}`;
+    return result;
+  }
+  player.zone = target;
+  player.pendingEvent = null;
+  player.eventChallenge = null;
+  player.depth = target === "skyCamp" ? -100 : 100;
+  player.runDepthProgress = 0;
+  player.caveType = null;
+  return {
+    ok: true,
+    player,
+    title: event.title,
+    message: `${event.title === "空間亂流" ? "🌀 空間亂流把你吸走！" : "⚡ 天域裂縫強行拉走你！"}\n${bonus ? `混亂中搶到 ${bonus} 金幣。\n` : ""}你被迫回到${target === "skyCamp" ? "天域營地" : "地底營地"}。${damage}`
+  };
+}
+
 function applyChallengeSuccess(player, eventId, random = Math.random) {
+  if (isForceEvacuationEventId(eventId)) {
+    addTempEffect(player, { id: "evacuation_escape_focus", remaining: 2, bombWeightMultiplier: 0.9 });
+    return "✨ 抓準空隙！你穩住身體，危機擦身而過。\n接下來 2 層炸彈 -10%，不用撤回營地。";
+  }
   if (eventId === "qte_bomb_defuse") {
     player.bombItem += 1;
     const gold = 50 + getDepthBonus(player.depth) * 12;
@@ -2460,6 +2502,9 @@ function applyChallengeSuccess(player, eventId, random = Math.random) {
 }
 
 function applyChallengeFailure(player, eventId, now = Date.now()) {
+  if (isForceEvacuationEventId(eventId)) {
+    return "💥 反應慢了一拍。";
+  }
   if (eventId === "qte_cave_escape") {
     const damage = addBombDamage(player, now);
     player.depth = Math.max(0, player.depth - 1);
@@ -2486,6 +2531,10 @@ function resolveEventChallenge(playerInput, action, random = Math.random, now = 
   }
 
   if (now > challenge.expiresAt) {
+    if (isForceEvacuationEventId(challenge.eventId)) {
+      const result = resolveForceEvacuation(player, challenge.eventId, event, "safe", random, now);
+      return { ...result, message: `⏱️ 超時。\n${result.message}` };
+    }
     const message = applyChallengeFailure(player, challenge.eventId, now);
     player.pendingEvent = null;
     player.eventChallenge = null;
@@ -2528,6 +2577,11 @@ function resolveEventChallenge(playerInput, action, random = Math.random, now = 
   }
 
   const success = action === challenge.correctChoice;
+  if (isForceEvacuationEventId(challenge.eventId) && !success) {
+    const failed = applyChallengeFailure(player, challenge.eventId, now);
+    const result = resolveForceEvacuation(player, challenge.eventId, event, "safe", random, now);
+    return { ...result, message: `${failed}\n${result.message}` };
+  }
   const message = success
     ? applyChallengeSuccess(player, challenge.eventId, random)
     : applyChallengeFailure(player, challenge.eventId, now);
@@ -4003,34 +4057,7 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     };
   }
 
-  if (eventId === "mine_collapse_evacuation" || eventId === "spatial_turbulence_evacuation" || eventId === "sky_rift_evacuation" || eventId === "deep_pollution_evacuation") {
-    const bonus = choice === "risk" || choice === "extreme" ? 80 + getDepthBonus(player.depth) * 15 : 0;
-    if (bonus > 0) player.gold += bonus;
-    const damage = choice === "extreme" && random() < 0.55 ? `\n${addBombDamage(player, now).message}` : "";
-    const target = eventId === "spatial_turbulence_evacuation" && player.undergroundCampUnlocked
-      ? "undergroundCamp"
-      : eventId === "sky_rift_evacuation" && player.skyCampUnlocked
-        ? "skyCamp"
-        : "surface";
-    if (target === "surface") {
-      const result = returnToSurface(player, random, null, now);
-      result.title = event.title;
-      result.message = `${event.title === "礦坑大崩塌" ? "🌋 礦坑徹底崩塌！" : "⚠️ 危險爆發！"}\n你被迫撤離回營地！\n${bonus ? `撤離前搶到 ${bonus} 金幣。\n` : ""}${result.message}${damage}`;
-      return result;
-    }
-    player.zone = target;
-    player.pendingEvent = null;
-    player.eventChallenge = null;
-    player.depth = target === "skyCamp" ? -100 : 100;
-    player.runDepthProgress = 0;
-    player.caveType = null;
-    return {
-      ok: true,
-      player,
-      title: event.title,
-      message: `${event.title === "空間亂流" ? "🌀 空間亂流把你吸走！" : "⚡ 天域裂縫強行拉走你！"}\n${bonus ? `混亂中搶到 ${bonus} 金幣。\n` : ""}你被迫回到${target === "skyCamp" ? "天域營地" : "地底營地"}。${damage}`
-    };
-  }
+  if (isForceEvacuationEventId(eventId)) return resolveForceEvacuation(player, eventId, event, choice, random, now);
 
   if (eventId === "unstable_powder") {
     if (choice === "safe") {

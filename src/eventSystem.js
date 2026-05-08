@@ -324,6 +324,16 @@ const RANDOM_EVENTS = {
     weight: 0.12,
     minDepth: 45,
     forceEvacuation: true,
+    qte: {
+      type: "evacuation",
+      seconds: 6,
+      choices: [
+        { id: "brace", label: "抓岩釘" },
+        { id: "dash", label: "衝過去" },
+        { id: "crawl", label: "貼地爬" }
+      ],
+      hints: ["碎石先從右側落下。", "岩釘還沒完全鬆。", "低處有一小段空隙。"]
+    },
     buttons: { safe: "抓緊撤離", risk: "搶救資源", extreme: "硬撐到底" }
   },
   spatial_turbulence_evacuation: {
@@ -332,6 +342,16 @@ const RANDOM_EVENTS = {
     weight: 0.08,
     minDepth: 70,
     forceEvacuation: true,
+    qte: {
+      type: "evacuation",
+      seconds: 5,
+      choices: [
+        { id: "anchor", label: "抓住礦車" },
+        { id: "step", label: "踩穩石階" },
+        { id: "jump", label: "跳過裂口" }
+      ],
+      hints: ["亂流正在往低處捲。", "礦車軌道還連著地面。", "裂口邊緣忽明忽暗。"]
+    },
     buttons: { safe: "順流撤退", risk: "抓住礦袋", extreme: "逆流衝刺" }
   },
   sky_rift_evacuation: {
@@ -340,6 +360,16 @@ const RANDOM_EVENTS = {
     weight: 0.06,
     minDepth: 90,
     forceEvacuation: true,
+    qte: {
+      type: "evacuation",
+      seconds: 5,
+      choices: [
+        { id: "chain", label: "抓住鎖鏈" },
+        { id: "shadow", label: "躲進陰影" },
+        { id: "stone", label: "抱緊石柱" }
+      ],
+      hints: ["白光避開陰影。", "石柱表面正在剝落。", "鎖鏈發出很細的聲音。"]
+    },
     buttons: { safe: "穩住身體", risk: "伸手撈光", extreme: "跳進裂縫" }
   },
   deep_pollution_evacuation: {
@@ -348,6 +378,16 @@ const RANDOM_EVENTS = {
     weight: 0.08,
     minDepth: 80,
     forceEvacuation: true,
+    qte: {
+      type: "evacuation",
+      seconds: 7,
+      choices: [
+        { id: "mask", label: "摀住口鼻" },
+        { id: "vent", label: "衝向風口" },
+        { id: "seal", label: "封住裂縫" }
+      ],
+      hints: ["風口有乾淨空氣。", "黑粉從裂縫噴出。", "先別深呼吸。"]
+    },
     buttons: { safe: "立刻脫離", risk: "封住礦脈", extreme: "硬吸一口" }
   }
 };

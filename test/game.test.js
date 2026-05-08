@@ -602,6 +602,68 @@ test("QTE 事件面板會顯示專用互動按鈕", () => {
   assert.equal(customIds.includes(CUSTOM_IDS.eventRisk), false);
 });
 
+test("強制撤離 QTE 成功可避免回營地", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "mine",
+    depth: 60,
+    runDepthProgress: 60,
+    pendingEvent: "mine_collapse_evacuation",
+    eventChallenge: {
+      eventId: "mine_collapse_evacuation",
+      type: "evacuation",
+      correctChoice: "brace",
+      choices: [
+        { id: "brace", label: "抓岩釘" },
+        { id: "dash", label: "衝過去" },
+        { id: "crawl", label: "貼地爬" }
+      ],
+      startedAt: 1000,
+      expiresAt: 7000
+    }
+  };
+
+  const result = resolveEventChallenge(player, "brace", () => 0, 2000);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.zone, "mine");
+  assert.equal(result.player.depth, 60);
+  assert.equal(result.player.pendingEvent, null);
+  assert.equal(result.player.eventChallenge, null);
+  assert.match(result.message, /不用撤回營地/);
+});
+
+test("強制撤離 QTE 失敗才會送回營地", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "mine",
+    depth: 60,
+    runDepthProgress: 60,
+    ore: 2,
+    pendingEvent: "mine_collapse_evacuation",
+    eventChallenge: {
+      eventId: "mine_collapse_evacuation",
+      type: "evacuation",
+      correctChoice: "brace",
+      choices: [
+        { id: "brace", label: "抓岩釘" },
+        { id: "dash", label: "衝過去" },
+        { id: "crawl", label: "貼地爬" }
+      ],
+      startedAt: 1000,
+      expiresAt: 7000
+    }
+  };
+
+  const result = resolveEventChallenge(player, "dash", () => 0, 2000);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.zone, "surface");
+  assert.equal(result.player.depth, 0);
+  assert.match(result.message, /反應慢了一拍/);
+  assert.match(result.message, /撤離/);
+});
+
 test("開鎖事件會依角度與耐久判定", () => {
   const player = {
     ...createPlayer(),
