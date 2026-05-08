@@ -1683,7 +1683,8 @@ function calculateBattleExp(battle, runner, won, close) {
   if (!battle || !battle.isBoss) return base;
   const rank = Math.max(1, Math.floor(battle.bossRank || 1));
   const rankMultiplier = Math.max(0.45, Math.min(3, 0.65 + rank * 0.08));
-  return Math.max(1, Math.floor(base * rankMultiplier));
+  const firstClearMultiplier = won && !battle.bossReplayRank ? 2.5 : 1;
+  return Math.max(1, Math.floor(base * rankMultiplier * firstClearMultiplier));
 }
 
 function createRunner(userId, players, random = Math.random, bossId = null, bossRank = 1, bossChallengerLevel = 1) {

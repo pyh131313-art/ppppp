@@ -526,10 +526,13 @@ test("賽雞館經驗會依 Rank 變多或變少", () => {
   const runner = { position: 12 };
   const low = calculateBattleExp({ isBoss: true, bossRank: 1 }, runner, true, false);
   const high = calculateBattleExp({ isBoss: true, bossRank: 10 }, runner, true, false);
+  const replay = calculateBattleExp({ isBoss: true, bossRank: 10, bossReplayRank: true }, runner, true, false);
   const pvp = calculateBattleExp({ isBoss: false }, runner, true, false);
 
-  assert.equal(low < pvp, true);
+  assert.equal(low > pvp, true);
   assert.equal(high > pvp, true);
+  assert.equal(high > replay, true);
+  assert.equal(replay > pvp, true);
 });
 
 test("賽雞館 PVE 有雞到終點即可提早結算", () => {
