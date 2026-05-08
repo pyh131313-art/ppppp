@@ -1475,6 +1475,11 @@ function applyBossRulePower(runner, opponent, frameIndex, event) {
   return 0;
 }
 
+function getBattleStatTotal(chickenInput) {
+  const chicken = normalizeChickenMeta(chickenInput || {});
+  return (chicken.speed || 0) + (chicken.sprint || 0) + (chicken.stability || 0) + (chicken.stamina || 0);
+}
+
 function getChickenPower(runnerOrChicken, frameIndex, event, random = Math.random, context = {}) {
   const runner = runnerOrChicken && runnerOrChicken.chicken ? runnerOrChicken : { chicken: runnerOrChicken, position: 0, statusEffects: [] };
   const chicken = runner.chicken;
@@ -1487,11 +1492,11 @@ function getChickenPower(runnerOrChicken, frameIndex, event, random = Math.rando
   const skillChanceBonus = statusBonus.skillChanceBonus + timingBonus * 0.14 + (opponent && hasCounterAdvantage(chicken, opponent.chicken) ? 0.08 : 0);
   const progress = (frameIndex + 1) / PK_FRAME_COUNT;
   let step = 0.55
-    + chicken.speed * 0.13 * (track ? (track.speedMultiplier || 1) : 1)
-    + chicken.sprint * 0.05 * statusBonus.sprintMultiplier * (track ? (track.sprintMultiplier || 1) : 1)
-    + chicken.stamina * progress * 0.07 * statusBonus.staminaMultiplier
-    + chicken.stability * (track ? (track.stabilityWeight || 0) : 0)
-    + (random() - 0.5) * 0.8;
+    + chicken.speed * 0.2 * (track ? (track.speedMultiplier || 1) : 1)
+    + chicken.sprint * 0.08 * statusBonus.sprintMultiplier * (track ? (track.sprintMultiplier || 1) : 1)
+    + chicken.stamina * progress * 0.1 * statusBonus.staminaMultiplier
+    + chicken.stability * (track ? Math.max(track.stabilityWeight || 0, 0.035) : 0.025)
+    + (random() - 0.5) * 0.55;
   if (personality.openBurst && progress < 0.35 && random() < personality.openBurst + skillChanceBonus) step += 2.2;
   if (personality.late && progress > 0.55) step += personality.late * 2;
   if (personality.comeback && progress > 0.65) step += personality.comeback * 2;
@@ -1526,6 +1531,10 @@ function getChickenPower(runnerOrChicken, frameIndex, event, random = Math.rando
   if (event === "衝刺" && chicken.activeSkill === "crystalPeck" && random() < 0.28 + skillChanceBonus) step += 2;
   if (event === "逆轉" && chicken.activeSkill === "abyssCry") step += 1.8;
   if (opponent && hasCounterAdvantage(chicken, opponent.chicken)) step *= 1.08;
+  if (runner.userId && isBossUserId(runner.userId) && opponent) {
+    const statGap = getBattleStatTotal(chicken) - getBattleStatTotal(opponent.chicken);
+    if (statGap > 0) step += Math.min(1.4, statGap * 0.045);
+  }
   step += applyBossRulePower(runner, opponent, frameIndex, event);
   if (track && track.staminaDrain) step -= Math.max(0, progress * track.staminaDrain * (12 - Math.min(12, chicken.stamina)));
   step *= Math.max(0.5, Math.min(1, chicken.pvpPowerMultiplier || 1));
@@ -1548,7 +1557,7 @@ function applyPkEvent(left, right, event, random = Math.random, battle = null) {
     const skillResist = target.chicken.activeSkill === "guardStep" ? 0.25 : 0;
     const passiveResist = target.chicken.passiveSkill === "stableSteps" ? 0.18 : 0;
     const bossResist = target.chicken.bossRule === "ironWall" ? 0.35 : 0;
-    const resist = target.chicken.stability * 0.04 * targetStatus.stabilityMultiplier
+    const resist = target.chicken.stability * 0.065 * targetStatus.stabilityMultiplier
       + (personality.resist || 0)
       + skillResist
       + passiveResist
@@ -1556,7 +1565,7 @@ function applyPkEvent(left, right, event, random = Math.random, battle = null) {
       + counterBonus
       - (track && track.fallRiskBonus ? track.fallRiskBonus : 0);
     if (random() > resist) {
-      target.position -= 2.4 * (track && track.eventPower ? track.eventPower : 1);
+      target.position -= Math.max(1.2, 3.1 - target.chicken.stability * 0.08) * (track && track.eventPower ? track.eventPower : 1);
       addBattlePoint(target, "miracle", 1);
       addBattlePoint(target, "clumsy", 2);
       addRunnerStatus(target, "tired", 2);
@@ -1571,7 +1580,10 @@ function applyPkEvent(left, right, event, random = Math.random, battle = null) {
     const sneakyBonus = (getPersonality(target.chicken.personalityId).interfere || 0)
       + (target.chicken.activeSkill === "disruptCrow" ? 0.24 : 0)
       + (target.chicken.passiveSkill === "sneakyPeck" ? 0.12 : 0);
-    const otherResist = other.chicken.bossRule === "ironWall" ? 0.22 : 0;
+    const otherStatus = getStatusBonus(other);
+    const otherResist = (other.chicken.bossRule === "ironWall" ? 0.22 : 0)
+      + other.chicken.stability * 0.025 * otherStatus.stabilityMultiplier
+      + (other.chicken.passiveSkill === "stableSteps" ? 0.1 : 0);
     if (random() < 0.45 + sneakyBonus + targetStatus.interfereBonus + counterBonus + (track && track.interfereBonus || 0) - otherResist) {
       other.position -= (target.chicken.activeSkill === "disruptCrow" ? 2.4 : 1.6) * (track && track.eventPower ? track.eventPower : 1);
       if (target.chicken.activeSkill === "rustScratch") other.position -= 0.8;
@@ -1587,7 +1599,8 @@ function applyPkEvent(left, right, event, random = Math.random, battle = null) {
   if (event === "逆轉") {
     const behind = left.position <= right.position ? left : right;
     behind.position += 2.8
-      + behind.chicken.stamina * 0.08
+      + behind.chicken.stamina * 0.11
+      + behind.chicken.sprint * 0.035
       + (behind.chicken.activeSkill === "miracleComeback" ? 1.4 : 0)
       + (behind.chicken.bossRule === "forcedMiracle" ? 1.8 : 0);
     addBattlePoint(behind, "miracle", 2);

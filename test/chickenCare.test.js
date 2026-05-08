@@ -584,6 +584,29 @@ test("賽雞館面板會顯示挑戰者與館主完整能力值", () => {
   clearBattle(created.battle.id);
 });
 
+test("賽雞館數值全面領先時會形成穩定壓制", () => {
+  const players = {
+    weakBossChallenger: ensureOwnedChicken(createPlayer(), () => 0)
+  };
+  players.weakBossChallenger.chickenArenaRank = 8;
+  Object.assign(players.weakBossChallenger.ownedChicken, {
+    level: 3,
+    speed: 3,
+    sprint: 3,
+    stability: 3,
+    stamina: 3
+  });
+  const created = createBossBattle("weakBossChallenger", players, 91000, () => 0.01, "guild-boss-pressure", "tyrant", 8);
+
+  assert.equal(created.ok, true);
+  updateBattleFrame(created.battle, players, 0, () => 0.01);
+  const challenger = created.battle.runners.find((runner) => runner.userId === "weakBossChallenger");
+  const boss = created.battle.runners.find((runner) => runner.userId.startsWith("boss:"));
+
+  assert.equal(boss.position > challenger.position, true);
+  clearBattle(created.battle.id);
+});
+
 test("賽雞 PK 面板會顯示雙方完整能力值", () => {
   const players = {
     statPvpA: ensureOwnedChicken(createPlayer(), () => 0),
