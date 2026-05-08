@@ -15,6 +15,7 @@
           <p class="sub">用 Discord 登入後查看自己的礦場、包包、集幣冊與雞舍。</p>
         </div>
         <div class="hero-actions">
+          <button class="button ghost hidden" id="refreshButton">刷新資料</button>
           <a class="button primary" href="/login" id="loginButton">Discord 登入</a>
           <button class="button ghost hidden" id="logoutButton">登出</button>
         </div>
@@ -23,6 +24,15 @@
       <section class="notice hidden" id="notice"></section>
 
       <section class="dashboard hidden" id="dashboard">
+        <nav class="tabs" aria-label="面板分頁">
+          <button class="tab active" data-tab="overview">總覽</button>
+          <button class="tab" data-tab="bag">包包</button>
+          <button class="tab" data-tab="chicken">雞舍</button>
+          <button class="tab" data-tab="collection">集幣冊</button>
+          <button class="tab" data-tab="leaderboard">排行榜</button>
+          <span class="last-updated" id="lastUpdated">-</span>
+        </nav>
+
         <aside class="profile panel">
           <div class="user-row">
             <img class="avatar" id="avatar" alt="">
@@ -39,7 +49,7 @@
           </div>
         </aside>
 
-        <section class="panel status-panel">
+        <section class="panel status-panel tab-page" data-page="overview">
           <div class="section-title">
             <span>⛏️</span>
             <h2>礦場狀態</h2>
@@ -54,7 +64,7 @@
           </div>
         </section>
 
-        <section class="panel bag-panel">
+        <section class="panel bag-panel tab-page" data-page="bag">
           <div class="section-title">
             <span>🎒</span>
             <h2>包包</h2>
@@ -63,7 +73,7 @@
           <div class="inventory-grid" id="inventoryGrid"></div>
         </section>
 
-        <section class="panel chicken-panel">
+        <section class="panel chicken-panel tab-page" data-page="chicken">
           <div class="section-title">
             <span>🐔</span>
             <h2>雞舍</h2>
@@ -71,13 +81,43 @@
           <div id="chickenCard" class="chicken-card"></div>
         </section>
 
-        <section class="panel collection-panel">
+        <section class="panel collection-panel tab-page" data-page="collection">
           <div class="section-title">
             <span>🪙</span>
             <h2>集幣冊</h2>
             <small id="collectionCount">0</small>
           </div>
+          <div class="toolbar">
+            <button class="chip active" data-collection-filter="all">全部</button>
+            <button class="chip" data-collection-filter="owned">已擁有</button>
+            <button class="chip" data-collection-filter="missing">未取得</button>
+          </div>
           <div class="coin-grid" id="coinGrid"></div>
+        </section>
+
+        <section class="panel leaderboard-panel tab-page" data-page="leaderboard">
+          <div class="section-title">
+            <span>🏆</span>
+            <h2>排行榜</h2>
+          </div>
+          <div class="leaderboard-grid">
+            <article>
+              <h3>最深礦坑</h3>
+              <ol id="depthBoard"></ol>
+            </article>
+            <article>
+              <h3>挑戰模式</h3>
+              <ol id="challengeBoard"></ol>
+            </article>
+            <article>
+              <h3>總資產</h3>
+              <ol id="assetBoard"></ol>
+            </article>
+            <article>
+              <h3>賽雞勝場</h3>
+              <ol id="chickenBoard"></ol>
+            </article>
+          </div>
         </section>
       </section>
     </main>

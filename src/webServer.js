@@ -257,6 +257,38 @@ function buildPlayerPayload(user, playerInput) {
   };
 }
 
+function getMaskedPlayerName(userId, currentUserId) {
+  if (String(userId) === String(currentUserId)) return "你";
+  const id = String(userId || "");
+  return `玩家 ${id.slice(-4) || "????"}`;
+}
+
+function buildLeaderboardPayload(playersInput, currentUserId) {
+  const entries = Object.entries(playersInput || {}).map(([userId, playerInput]) => {
+    const player = getPlayer(playerInput);
+    const chicken = player.ownedChicken ? normalizeOwnedChicken(player.ownedChicken) : null;
+    return {
+      userId,
+      name: getMaskedPlayerName(userId, currentUserId),
+      bestDepth: Math.max(0, Math.floor(player.stats.bestDepth || 0)),
+      totalAsset: getTotalAsset(player),
+      challengeBestDepth: Math.max(0, Math.floor(player.challengeBestDepth || 0)),
+      chickenWins: chicken ? Math.max(0, Math.floor(chicken.wins || 0)) : 0,
+      chickenName: chicken ? chicken.name : ""
+    };
+  });
+  const sortBy = (key) => entries
+    .slice()
+    .sort((a, b) => (b[key] || 0) - (a[key] || 0))
+    .slice(0, 10);
+  return {
+    bestDepth: sortBy("bestDepth"),
+    totalAsset: sortBy("totalAsset"),
+    challengeBestDepth: sortBy("challengeBestDepth"),
+    chickenWins: sortBy("chickenWins")
+  };
+}
+
 async function handleApiMe(request, response) {
   const sessionUser = getSessionUser(request);
   if (!sessionUser) {
@@ -267,6 +299,19 @@ async function handleApiMe(request, response) {
   sendJson(response, 200, {
     ok: true,
     data: buildPlayerPayload(sessionUser, players[sessionUser.id])
+  });
+}
+
+async function handleApiLeaderboard(request, response) {
+  const sessionUser = getSessionUser(request);
+  if (!sessionUser) {
+    sendJson(response, 401, { ok: false, message: "not_logged_in" });
+    return;
+  }
+  const players = await loadPlayers();
+  sendJson(response, 200, {
+    ok: true,
+    data: buildLeaderboardPayload(players, sessionUser.id)
   });
 }
 
@@ -397,6 +442,10 @@ async function handleRequest(request, response) {
     }
     if (url.pathname === "/api/me") {
       await handleApiMe(request, response);
+      return;
+    }
+    if (url.pathname === "/api/leaderboard") {
+      await handleApiLeaderboard(request, response);
       return;
     }
     if (await handleStatic(url, response)) return;

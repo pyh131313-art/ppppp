@@ -1,7 +1,10 @@
 "use strict";
 
 const state = {
-  data: null
+  data: null,
+  leaderboard: null,
+  tab: "overview",
+  collectionFilter: "all"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -16,8 +19,26 @@ function showNotice(message) {
   notice.classList.remove("hidden");
 }
 
+function hideNotice() {
+  $("notice").classList.add("hidden");
+}
+
 function setText(id, value) {
   $(id).textContent = value;
+}
+
+function setActiveTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll(".tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tab);
+  });
+  document.querySelectorAll(".tab-page").forEach((page) => {
+    page.classList.toggle("hidden-page", page.dataset.page !== tab && tab !== "overview");
+  });
+  document.querySelector(".profile").classList.toggle("hidden-page", tab !== "overview");
+  if (tab === "overview") {
+    document.querySelectorAll(".tab-page").forEach((page) => page.classList.remove("hidden-page"));
+  }
 }
 
 function renderInventory(items, used, capacity) {
@@ -31,9 +52,38 @@ function renderInventory(items, used, capacity) {
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "item-card";
-    card.innerHTML = `<strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
+    card.innerHTML = `<span class="item-icon">${getItemIcon(item.key)}</span><strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
     grid.appendChild(card);
   }
+}
+
+function getItemIcon(key) {
+  const icons = {
+    ore: "🪨",
+    goldOre: "🟨",
+    platinumOre: "⬜",
+    oreIngot: "🔩",
+    goldOreIngot: "🟧",
+    platinumOreIngot: "◻️",
+    redGem: "🔴",
+    blueGem: "🔵",
+    greenGem: "🟢",
+    invertedOre: "🌀",
+    invertedGem: "💠",
+    orichalcum: "✨",
+    bombItem: "💣",
+    minerHelmetCount: "⛑️",
+    healingPotion: "🧪",
+    magicCandy: "🍬",
+    quickChickenBall: "🥎",
+    thickSoleShoes: "👞",
+    guaranteedGemCaveTicket: "🎟️",
+    guaranteedRaptorCaveTicket: "🦅",
+    undyingTotem: "🗿",
+    junk: "🧱",
+    platinumJunk: "⬛"
+  };
+  return icons[key] || "📦";
 }
 
 function renderChicken(chicken) {
@@ -69,7 +119,16 @@ function renderCollection(collection, summary) {
   setText("collectionCount", `${summary.collectionUnique} / ${collection.length}｜總數 ${summary.collectionTotal}`);
   const grid = $("coinGrid");
   grid.innerHTML = "";
-  for (const coin of collection) {
+  const filtered = collection.filter((coin) => {
+    if (state.collectionFilter === "owned") return coin.count > 0;
+    if (state.collectionFilter === "missing") return coin.count <= 0;
+    return true;
+  });
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty">沒有符合條件的紀念幣</div>`;
+    return;
+  }
+  for (const coin of filtered) {
     const card = document.createElement("article");
     card.className = `coin${coin.count > 0 ? "" : " missing"}`;
     const image = coin.image
@@ -84,11 +143,35 @@ function renderCollection(collection, summary) {
   }
 }
 
+function renderBoard(id, entries, valueKey, suffix = "") {
+  const list = $(id);
+  list.innerHTML = "";
+  if (!entries || !entries.length) {
+    list.innerHTML = `<li class="empty-row">暫無資料</li>`;
+    return;
+  }
+  for (const entry of entries) {
+    const item = document.createElement("li");
+    const sub = valueKey === "chickenWins" && entry.chickenName ? `｜${entry.chickenName}` : "";
+    item.innerHTML = `<span>${entry.name}${sub}</span><strong>${formatNumber(entry[valueKey])}${suffix}</strong>`;
+    list.appendChild(item);
+  }
+}
+
+function renderLeaderboard(leaderboard) {
+  if (!leaderboard) return;
+  renderBoard("depthBoard", leaderboard.bestDepth, "bestDepth", " 層");
+  renderBoard("challengeBoard", leaderboard.challengeBestDepth, "challengeBestDepth", " 層");
+  renderBoard("assetBoard", leaderboard.totalAsset, "totalAsset");
+  renderBoard("chickenBoard", leaderboard.chickenWins, "chickenWins", " 勝");
+}
+
 function renderDashboard(payload) {
   const { user, summary, inventory, collection, chicken } = payload;
   $("dashboard").classList.remove("hidden");
   $("loginButton").classList.add("hidden");
   $("logoutButton").classList.remove("hidden");
+  $("refreshButton").classList.remove("hidden");
 
   $("avatar").src = user.avatarUrl || "";
   $("avatar").alt = user.globalName || user.username || "Discord 玩家";
@@ -107,12 +190,17 @@ function renderDashboard(payload) {
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderChicken(chicken);
   renderCollection(collection, summary);
+  setText("lastUpdated", `更新：${new Date().toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit" })}`);
+  renderLeaderboard(state.leaderboard);
+  setActiveTab(state.tab);
 }
 
 async function loadMe() {
   const params = new URLSearchParams(location.search);
   if (params.get("login")) {
     showNotice("Discord 登入尚未完成，請確認 OAuth Redirect URI 和環境變數。");
+  } else {
+    hideNotice();
   }
   const response = await fetch("/api/me", { credentials: "include" });
   if (response.status === 401) return;
@@ -122,8 +210,34 @@ async function loadMe() {
     return;
   }
   state.data = body.data;
+  await loadLeaderboard();
   renderDashboard(body.data);
 }
+
+async function loadLeaderboard() {
+  const response = await fetch("/api/leaderboard", { credentials: "include" });
+  if (response.status === 401) return;
+  const body = await response.json();
+  if (body.ok) state.leaderboard = body.data;
+}
+
+document.querySelectorAll(".tab").forEach((button) => {
+  button.addEventListener("click", () => setActiveTab(button.dataset.tab));
+});
+
+document.querySelectorAll("[data-collection-filter]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.collectionFilter = button.dataset.collectionFilter;
+    document.querySelectorAll("[data-collection-filter]").forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+    if (state.data) renderCollection(state.data.collection, state.data.summary);
+  });
+});
+
+$("refreshButton").addEventListener("click", () => {
+  loadMe().catch(() => showNotice("刷新失敗，稍後再試。"));
+});
 
 $("logoutButton").addEventListener("click", () => {
   location.href = "/logout";
