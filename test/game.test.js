@@ -943,6 +943,32 @@ test("野生賽雞短跑挑戰成功會給掉落並影響進化", () => {
   assert.match(result.animationFrames[0], /礦坑臨時賽道/);
 });
 
+test("野生賽雞掉落小機率獎勵是神奇糖果不是飼料", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 25,
+    pendingEvent: "wild_mine_chicken",
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 3,
+      exp: 0,
+      speed: 20,
+      sprint: 20,
+      stability: 20,
+      stamina: 20,
+      wins: 0,
+      races: 0,
+      evolutionPoints: {}
+    }
+  };
+  const result = resolveRandomEvent(player, "risk", () => 0.1);
+
+  assert.equal(result.player.magicCandy, 1);
+  assert.equal(result.player.gourmetFeed, 0);
+  assert.match(result.message, /神奇糖果 \+1/);
+});
+
 test("野生賽雞餵食可能留下雞蛋與稀有公告", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
@@ -996,9 +1022,129 @@ test("礦坑抓雞烤掉自己的雞需要二次確認", () => {
   assert.equal(warning.player.wildChickenEncounter.captureConfirm, true);
   assert.match(warning.message, /再按一次/);
   assert.equal(captured.player.ownedChicken.name, "深層黑羽雞");
+  assert.equal(captured.player.ownedChicken.level >= 5, true);
   assert.equal(captured.player.chickenRoastHpBonus, 1);
   assert.equal(captured.player.pendingEvent, null);
   assert.match(captured.message, /捕捉成功/);
+});
+
+test("野生賽雞有飼料時餵食不會直接烤掉並換雞", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "wild_mine_chicken",
+    gourmetFeed: 1,
+    wildChickenEncounter: {
+      id: "wild-feed-1",
+      name: "深層黑羽雞",
+      icon: "🐓",
+      region: "underground",
+      trait: "thief",
+      rare: false,
+      power: 23
+    },
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 4,
+      exp: 0,
+      speed: 8,
+      sprint: 8,
+      stability: 8,
+      stamina: 8,
+      wins: 3,
+      races: 5
+    }
+  };
+
+  const rolls = [0.1, 0.5, 0.5, 0.5, 0.5];
+  const result = resolveRandomEvent(player, "extreme", () => rolls.shift() ?? 0.5);
+
+  assert.equal(result.player.ownedChicken.name, "阿咕霸王");
+  assert.equal(result.player.gourmetFeed, 0);
+  assert.equal(result.player.chickenRoastHpBonus, 0);
+  assert.match(result.message, /吃下飼料/);
+});
+
+test("先跑贏野生雞後捕捉率提高並保留捕捉機會", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "wild_mine_chicken",
+    wildChickenEncounter: {
+      id: "wild-race-1",
+      name: "深層黑羽雞",
+      icon: "🐓",
+      region: "underground",
+      trait: "thief",
+      rare: false,
+      power: 32
+    },
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 2,
+      exp: 0,
+      speed: 20,
+      sprint: 20,
+      stability: 20,
+      stamina: 20,
+      wins: 3,
+      races: 5
+    }
+  };
+
+  const race = resolveRandomEvent(player, "risk", () => 0.99);
+  const warning = resolveRandomEvent(race.player, "extreme", () => 0.99);
+  const captured = resolveRandomEvent(warning.player, "extreme", () => 0.2);
+
+  assert.equal(race.player.pendingEvent, "wild_mine_chicken");
+  assert.equal(race.player.wildChickenEncounter.raceWeakened, true);
+  assert.match(race.message, /現在捕捉率/);
+  assert.match(warning.message, /短跑後/);
+  assert.equal(captured.player.ownedChicken.name, "深層黑羽雞");
+});
+
+test("地下客棧先機球可無視等級差靠賽捕捉野生雞", () => {
+  const now = Date.parse("2026-05-08T04:00:00.000Z");
+  const bought = buyUndergroundInnItem({
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    invertedGem: 999
+  }, "quickChickenBall", createGlobalState(now), now);
+  const player = {
+    ...bought.player,
+    zone: "mine",
+    pendingEvent: "wild_mine_chicken",
+    wildChickenEncounter: {
+      id: "wild-ball-1",
+      name: "雷鳴雞",
+      icon: "⚡",
+      region: "inverted",
+      trait: "thunder",
+      rare: true,
+      power: 44,
+      captureConfirm: true
+    },
+    ownedChicken: {
+      name: "低等咕",
+      icon: "🐔",
+      level: 1,
+      exp: 0,
+      speed: 5,
+      sprint: 5,
+      stability: 5,
+      stamina: 5,
+      wins: 0,
+      races: 1
+    }
+  };
+
+  const result = resolveRandomEvent(player, "extreme", () => 0.3);
+
+  assert.equal(bought.ok, true);
+  assert.equal(bought.player.quickChickenBall, 1);
+  assert.equal(result.player.quickChickenBall, 0);
+  assert.equal(result.player.ownedChicken.name, "雷鳴雞");
+  assert.match(result.message, /先機球/);
 });
 
 test("強制撤離事件只在普通挖礦流程中把玩家送回營地", () => {
@@ -1950,7 +2096,29 @@ test("新增事件池包含普通寶石上位與反轉事件", () => {
   assert.equal(gemCount, 20);
   assert.equal(highCount, 20);
   assert.equal(reverseCount >= 24, true);
-  assert.equal(skyCount >= 14, true);
+  assert.equal(skyCount >= 39, true);
+  assert.equal(["sky_sun_mirror", "sky_cloud_whale", "sky_void_sunflower"].every((id) => events[id] && events[id].skyOnly), true);
+  assert.equal(["sky_silver_chest", "sky_thunder_chest", "sky_mirage_chest", "sky_star_chest", "sky_feather_chest"].every((id) => events[id] && events[id].skyOnly), true);
+});
+
+test("天域新增普通事件與寶箱事件有各自獎勵", () => {
+  const skyEvent = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "skyDown",
+    depth: -80,
+    pendingEvent: "sky_silent_choir"
+  }, "extreme", () => 0.5, 1000);
+  const chest = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "skyDown",
+    depth: -80,
+    pendingEvent: "sky_star_chest"
+  }, "safe", () => 0.5, 1000);
+
+  assert.equal(skyEvent.player.chargeValue >= 60, true);
+  assert.match(skyEvent.message, /能量 \+60/);
+  assert.equal(chest.player.chargeValue >= 25, true);
+  assert.match(chest.message, /星光/);
 });
 
 test("反轉事件極端選項會顯示各自事件文案", () => {

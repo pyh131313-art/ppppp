@@ -81,6 +81,7 @@ function createPlayer() {
     orichalcum: 0,
     guaranteedGemCaveTicket: 0,
     thickSoleShoes: 0,
+    quickChickenBall: 0,
     activeMarketBlessings: {},
     platinumJunk: 0,
     uiMode: "full",
@@ -157,6 +158,7 @@ function createPlayer() {
       minerHelmetCount: 0,
       healingPotion: 0,
       magicCandy: 0,
+      quickChickenBall: 0,
       undyingTotem: 0,
       chickenTraitTickets: 0
     },
@@ -407,6 +409,7 @@ function getPlayer(player) {
   next.rareEvolutionMaterial = Math.max(0, Math.floor(player && player.rareEvolutionMaterial || 0));
   next.guaranteedGemCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedGemCaveTicket || 0)));
   next.thickSoleShoes = Math.max(0, Math.floor(player && player.thickSoleShoes || 0));
+  next.quickChickenBall = Math.max(0, Math.floor(player && player.quickChickenBall || 0));
   next.activeMarketBlessings = player && player.activeMarketBlessings && typeof player.activeMarketBlessings === "object"
     ? Object.fromEntries(Object.entries(player.activeMarketBlessings)
       .filter(([key, value]) => typeof key === "string" && Number.isFinite(Number(value)))
@@ -426,7 +429,8 @@ function getPlayer(player) {
       trait: typeof player.wildChickenEncounter.trait === "string" ? player.wildChickenEncounter.trait : "normal",
       rare: Boolean(player.wildChickenEncounter.rare),
       power: Math.max(1, Math.floor(player.wildChickenEncounter.power || 1)),
-      captureConfirm: Boolean(player.wildChickenEncounter.captureConfirm)
+      captureConfirm: Boolean(player.wildChickenEncounter.captureConfirm),
+      raceWeakened: Boolean(player.wildChickenEncounter.raceWeakened)
     }
     : null;
   next.chickenBoosterUseLog = Array.isArray(player && player.chickenBoosterUseLog)

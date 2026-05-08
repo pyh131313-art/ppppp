@@ -846,6 +846,156 @@ const SKY_EVENTS = {
     description: "牠落後時身上星光反而更亮。",
     skyOnly: true,
     buttons: { safe: "觀察星光", risk: "短跑挑戰", extreme: "餵食互動" }
+  },
+  sky_sun_mirror: {
+    title: "☀️ 日輪鏡面",
+    description: "太陽鏡浮在雲層間，照出背包裡真正發光的東西。",
+    skyOnly: true,
+    buttons: { safe: "遮光觀察", risk: "折射光線", extreme: "直視核心" }
+  },
+  sky_cloud_fisher: {
+    title: "🎣 雲海釣客",
+    description: "有人坐在雲邊釣魚，魚線垂進看不見的天空深處。",
+    skyOnly: true,
+    buttons: { safe: "借看魚簍", risk: "幫忙拉線", extreme: "跳上雲竿" }
+  },
+  sky_star_anvil: {
+    title: "⭐ 星屑鐵砧",
+    description: "鐵砧敲一下就會濺出星屑，但雲橋也會跟著發裂。",
+    skyOnly: true,
+    buttons: { safe: "撿星屑", risk: "敲一次", extreme: "連敲三下" }
+  },
+  sky_wind_hole: {
+    title: "🌬️ 風眼空洞",
+    description: "雲洞中央沒有風，邊緣卻像刀一樣旋轉。",
+    skyOnly: true,
+    buttons: { safe: "貼邊繞過", risk: "穿過風眼", extreme: "借風俯衝" }
+  },
+  sky_moon_moth: {
+    title: "🦋 月光蛾群",
+    description: "月光蛾圍著礦燈飛，翅粉落在礦袋上。",
+    skyOnly: true,
+    buttons: { safe: "熄燈等待", risk: "收集翅粉", extreme: "追進蛾群" }
+  },
+  sky_rainbow_bridge: {
+    title: "🌈 彩虹斷橋",
+    description: "彩虹橋缺了幾段，橋下是倒著流的天空。",
+    skyOnly: true,
+    buttons: { safe: "試探橋面", risk: "跨過裂口", extreme: "衝刺過橋" }
+  },
+  sky_oracle_bird: {
+    title: "🪽 預言鳥",
+    description: "白鳥啄出三顆雲石，像是在替下一鏟占卜。",
+    skyOnly: true,
+    buttons: { safe: "聽牠叫聲", risk: "拿走雲石", extreme: "改寫預言" }
+  },
+  sky_falling_market: {
+    title: "🛒 墜落市集",
+    description: "幾個攤位正在往下掉，商品和招牌一起旋轉。",
+    skyOnly: true,
+    buttons: { safe: "撿掉落物", risk: "搶購商品", extreme: "接住攤車" }
+  },
+  sky_bell_tower: {
+    title: "🔔 空鐘塔",
+    description: "鐘聲從沒有鐘的塔裡傳出，每響一次雲層就換位。",
+    skyOnly: true,
+    buttons: { safe: "數鐘聲", risk: "敲回去", extreme: "爬上鐘塔" }
+  },
+  sky_light_vine: {
+    title: "🌿 光藤",
+    description: "發光藤蔓從雲底垂下，纏著幾塊亮晶晶的碎片。",
+    skyOnly: true,
+    buttons: { safe: "剪小段", risk: "拉下藤蔓", extreme: "順藤滑下" }
+  },
+  sky_meteor_splinter: {
+    title: "☄️ 流星裂片",
+    description: "剛冷卻的流星裂片卡在雲岩裡，還在冒白煙。",
+    skyOnly: true,
+    buttons: { safe: "撿外殼", risk: "撬裂片", extreme: "抱住核心" }
+  },
+  sky_silent_choir: {
+    title: "🎼 無聲合唱",
+    description: "看不見的合唱團張口唱歌，你的能量條跟著震動。",
+    skyOnly: true,
+    buttons: { safe: "閉眼聽", risk: "跟著哼", extreme: "搶主旋律" }
+  },
+  sky_gravity_knot: {
+    title: "🪢 重力結",
+    description: "一團重力打成死結，靠近時背包忽重忽輕。",
+    skyOnly: true,
+    buttons: { safe: "慢慢解", risk: "拉緊結", extreme: "切斷重力" }
+  },
+  sky_blue_spring: {
+    title: "💧 藍天泉",
+    description: "泉水從雲上往上流，喝下去會讓傷口發光。",
+    skyOnly: true,
+    buttons: { safe: "洗傷口", risk: "裝一瓶", extreme: "喝下泉心" }
+  },
+  sky_glass_mine: {
+    title: "🔷 玻璃礦脈",
+    description: "透明礦脈裡映出好幾條未來路線。",
+    skyOnly: true,
+    buttons: { safe: "敲邊角", risk: "切開礦脈", extreme: "鑽進倒影" }
+  },
+  sky_feather_courier: {
+    title: "✉️ 羽信使",
+    description: "羽信使把一封沒有收件人的信塞進你手裡。",
+    skyOnly: true,
+    buttons: { safe: "讀信", risk: "送回去", extreme: "拆開封印" }
+  },
+  sky_aurora_mine: {
+    title: "🌌 極光礦帶",
+    description: "極光像礦脈一樣流過雲層，顏色一直改變。",
+    skyOnly: true,
+    buttons: { safe: "採藍光", risk: "追紫光", extreme: "抓住極光核" }
+  },
+  sky_cloud_whale: {
+    title: "🐋 雲鯨掠過",
+    description: "巨大的雲鯨從遠方游來，背上掛著古老礦網。",
+    skyOnly: true,
+    buttons: { safe: "等牠游過", risk: "撈礦網", extreme: "跳上鯨背" }
+  },
+  sky_angel_ladder: {
+    title: "🪜 天梯殘段",
+    description: "斷掉的天梯懸在半空，每一階都寫著不同價格。",
+    skyOnly: true,
+    buttons: { safe: "爬一階", risk: "買一段路", extreme: "踢斷天梯" }
+  },
+  sky_void_sunflower: {
+    title: "🌻 虛空向日葵",
+    description: "向日葵面向沒有太陽的地方，花心裡有黑色種子。",
+    skyOnly: true,
+    buttons: { safe: "採花粉", risk: "挖種子", extreme: "讓它開花" }
+  },
+  sky_silver_chest: {
+    title: "☁️ 雲銀寶箱",
+    description: "銀白寶箱卡在雲橋下方，鎖孔冒著薄霧。",
+    skyOnly: true,
+    buttons: { safe: "敲箱角", risk: "打開寶箱", extreme: "撬開底板" }
+  },
+  sky_thunder_chest: {
+    title: "⚡ 雷鳴寶箱",
+    description: "寶箱每隔幾秒放一次電，裡面傳來金屬碰撞聲。",
+    skyOnly: true,
+    buttons: { safe: "等電停", risk: "快速開箱", extreme: "引雷破箱" }
+  },
+  sky_mirage_chest: {
+    title: "🌫️ 蜃景寶箱",
+    description: "寶箱有三個影子，只有一個是真的。",
+    skyOnly: true,
+    buttons: { safe: "摸影子", risk: "開真箱", extreme: "三個都砸" }
+  },
+  sky_star_chest: {
+    title: "⭐ 星核寶箱",
+    description: "箱縫裡有星光滲出，靠近時能量條微微發熱。",
+    skyOnly: true,
+    buttons: { safe: "吸星光", risk: "打開星核", extreme: "吞下星光" }
+  },
+  sky_feather_chest: {
+    title: "🪶 羽封寶箱",
+    description: "箱蓋被羽毛封住，越用力越輕，越輕越難開。",
+    skyOnly: true,
+    buttons: { safe: "拔羽毛", risk: "順羽開箱", extreme: "逆羽撕開" }
   }
 };
 

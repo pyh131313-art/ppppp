@@ -834,7 +834,16 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   const inMine = !player.dead && Boolean(player.runMode);
 
   if (player.pendingEvent) {
-    const labels = getEventButtonLabels(player.pendingEvent);
+    const labels = { ...getEventButtonLabels(player.pendingEvent) };
+    if (player.wildChickenEncounter && player.pendingEvent && player.pendingEvent.includes("chicken")) {
+      if (player.wildChickenEncounter.captureConfirm) {
+        labels.extreme = "確認烤雞捕捉";
+        labels.safe = "取消";
+      } else if (player.wildChickenEncounter.raceWeakened) {
+        labels.extreme = "趁機捕捉";
+        labels.safe = "放過";
+      }
+    }
     if (player.eventChallenge && Array.isArray(player.eventChallenge.choices) && player.eventChallenge.choices.length > 0) {
       addRow(...player.eventChallenge.choices.map((choice) => (
         makeButton(

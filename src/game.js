@@ -163,6 +163,13 @@ const UNDERGROUND_INN_ITEMS = {
     basePrice: 8,
     priceSpread: 9,
     description: "抵擋一次坑洞墜落傷害，不能與藥水共存。"
+  },
+  quickChickenBall: {
+    label: "🥎 先機球",
+    resource: "invertedGem",
+    basePrice: 22,
+    priceSpread: 18,
+    description: "抓野生雞時無視等級差靠賽判定，單次消耗。"
   }
 };
 
@@ -1281,6 +1288,7 @@ function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now
   snapshot.globalState.undergroundInnInventory.purchases[itemId] = (snapshot.globalState.undergroundInnInventory.purchases[itemId] || 0) + 1;
   if (itemId === "gemTicket") player.guaranteedGemCaveTicket = 1;
   else if (itemId === "thickSoleShoes") player.thickSoleShoes = (player.thickSoleShoes || 0) + 1;
+  else if (itemId === "quickChickenBall") player.quickChickenBall = (player.quickChickenBall || 0) + 1;
   else if (item.blessing) player.activeMarketBlessings[item.blessing] = now + 30 * 60 * 1000;
 
   return {
@@ -1355,6 +1363,7 @@ const STORAGE_ITEMS = [
   ["minerHelmetCount", "礦工帽"],
   ["healingPotion", "治療藥水"],
   ["magicCandy", "神奇糖果"],
+  ["quickChickenBall", "先機球"],
   ["undyingTotem", "不死圖騰"],
   ["chickenTraitTickets", "賽雞詞條權"]
 ];
@@ -1376,6 +1385,7 @@ const DISCARDABLE_ITEMS = [
   ["minerHelmetCount", "礦工帽"],
   ["healingPotion", "治療藥水"],
   ["magicCandy", "神奇糖果"],
+  ["quickChickenBall", "先機球"],
   ["rusty", "生鏽紀念幣"]
 ];
 
@@ -2422,6 +2432,49 @@ function addWildChickenInfluence(player, encounter, amount = 1) {
   }
 }
 
+function clampChance(value, min = 0.05, max = 0.9) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getWildChickenCaptureLevel(player, encounter) {
+  const depthLevel = 1 + Math.floor(Math.abs(player.depth || 1) / 25);
+  const powerLevel = Math.floor((encounter.power || 16) / 4);
+  return Math.max(encounter.rare ? 8 : 4, powerLevel, depthLevel);
+}
+
+function getWildChickenCaptureChance(player, encounter, options = {}) {
+  const oldChicken = player.ownedChicken ? normalizeOwnedChicken(player.ownedChicken) : null;
+  const wildLevel = getWildChickenCaptureLevel(player, encounter);
+  const ownLevel = oldChicken ? Math.max(1, Math.floor(oldChicken.level || 1)) : wildLevel;
+  const raceWeakened = Boolean(options.raceWeakened || encounter.raceWeakened);
+  if (options.useQuickBall) {
+    return {
+      chance: encounter.rare ? 0.32 : 0.44,
+      wildLevel,
+      ownLevel,
+      levelGap: wildLevel - ownLevel,
+      usesQuickBall: true
+    };
+  }
+  const base = encounter.rare ? 0.28 : 0.36;
+  const raceBonus = raceWeakened ? 0.24 : 0;
+  const levelGap = wildLevel - ownLevel;
+  const levelAdjustment = levelGap > 0
+    ? -Math.min(0.36, levelGap * 0.055)
+    : Math.min(0.14, Math.abs(levelGap) * 0.02);
+  return {
+    chance: clampChance(base + raceBonus + levelAdjustment, encounter.rare ? 0.08 : 0.1, encounter.rare ? 0.62 : 0.76),
+    wildLevel,
+    ownLevel,
+    levelGap,
+    usesQuickBall: false
+  };
+}
+
+function formatPercent(value) {
+  return `${Math.round(value * 100)}%`;
+}
+
 function awardWildChickenDrop(player, encounter, random = Math.random) {
   const lines = [];
   const depthBonus = getDepthBonus(Math.abs(player.depth || 0));
@@ -2441,8 +2494,8 @@ function awardWildChickenDrop(player, encounter, random = Math.random) {
     lines.push(`${getOreName(reward.target)} +${reward.gained}`);
   }
   if (random() < (encounter.rare ? 0.35 : 0.12)) {
-    player.gourmetFeed = (player.gourmetFeed || 0) + 1;
-    lines.push("超好吃飼料 +1");
+    player.magicCandy = (player.magicCandy || 0) + 1;
+    lines.push("神奇糖果 +1");
   }
   if (random() < (encounter.rare ? 0.28 : 0.08)) {
     player.chickenEggs = (player.chickenEggs || 0) + 1;
@@ -2463,7 +2516,8 @@ function awardWildChickenDrop(player, encounter, random = Math.random) {
 
 function attemptCaptureWildChicken(player, encounter, random = Math.random, eventId = "wild_mine_chicken") {
   const oldChicken = player.ownedChicken ? normalizeOwnedChicken(player.ownedChicken) : null;
-  const captureChance = encounter.rare ? 0.45 : encounter.region === "sky" || encounter.region === "underground" ? 0.38 : 0.3;
+  const usesQuickBall = (player.quickChickenBall || 0) > 0;
+  const captureInfo = getWildChickenCaptureChance(player, encounter, { useQuickBall: usesQuickBall });
   if (oldChicken && !encounter.captureConfirm) {
     encounter.captureConfirm = true;
     player.wildChickenEncounter = encounter;
@@ -2475,8 +2529,10 @@ function attemptCaptureWildChicken(player, encounter, random = Math.random, even
       message: [
         `⚠️ 你準備烤掉「${oldChicken.name}」，空出位置捕捉 ${encounter.icon} ${encounter.name}。`,
         "這個動作會失去目前的雞，而且捕捉仍有機率失敗。",
+        `捕捉率：${formatPercent(captureInfo.chance)}｜野生 Lv.${captureInfo.wildLevel} / 你的雞 Lv.${captureInfo.ownLevel}`,
+        usesQuickBall ? "會消耗 1 顆先機球，無視等級差判定。" : (encounter.raceWeakened ? "短跑後牠已經喘了，捕捉率提高。" : "先短跑挑戰成功後再抓，捕捉率會更高。"),
         "",
-        "再按一次「餵食互動」才會確認。"
+        "再按一次「確認烤雞捕捉」才會確認。"
       ].join("\n")
     };
   }
@@ -2486,7 +2542,8 @@ function attemptCaptureWildChicken(player, encounter, random = Math.random, even
     player.ownedChicken = null;
   }
 
-  const success = random() < captureChance;
+  if (usesQuickBall) player.quickChickenBall = Math.max(0, (player.quickChickenBall || 0) - 1);
+  const success = random() < captureInfo.chance;
   if (!success) {
     addWildChickenInfluence(player, encounter, 1);
     player.wildChickenEncounter = null;
@@ -2496,14 +2553,19 @@ function attemptCaptureWildChicken(player, encounter, random = Math.random, even
       title: "野生賽雞",
       message: [
         oldChicken ? `🍗 你烤掉了「${oldChicken.name}」，下一場下礦最大生命 +1。` : "",
-        `${encounter.icon} ${encounter.name} 受驚逃走，捕捉失敗。`
+        usesQuickBall ? "🥎 先機球晃了幾下，最後裂開了。" : "",
+        `${encounter.icon} ${encounter.name} 受驚逃走，捕捉失敗。`,
+        `捕捉率：${formatPercent(captureInfo.chance)}`
       ].filter(Boolean).join("\n")
     };
   }
 
   const caught = makeWildMineChicken(Math.abs(player.depth || 1), random);
+  const caughtLevel = captureInfo.wildLevel;
   caught.name = encounter.name || caught.name;
   caught.icon = encounter.icon || caught.icon;
+  caught.level = caughtLevel;
+  caught.exp = 0;
   caught.origin = "mine";
   caught.entryEffect = encounter.rare
     ? "🌌 牠是在礦坑裡捕捉到的稀有野生賽雞。"
@@ -2519,7 +2581,9 @@ function attemptCaptureWildChicken(player, encounter, random = Math.random, even
     announcement: encounter.rare ? `🌌 <@PLAYER> 捕捉到了稀有野生賽雞「${encounter.name}」！` : "",
     message: [
       oldChicken ? `🍗 你烤掉了「${oldChicken.name}」，下一場下礦最大生命 +1。` : "",
+      usesQuickBall ? "🥎 先機球咔一聲扣住了牠！" : "",
       `🎉 捕捉成功！${encounter.icon} ${encounter.name} 成為你的新雞。`,
+      `捕捉率：${formatPercent(captureInfo.chance)}｜Lv.${caughtLevel}`,
       "礦坑雞可能擁有特殊進化方向。"
     ].filter(Boolean).join("\n")
   };
@@ -2620,7 +2684,7 @@ function buildWildChickenAnimationFrames(chicken, encounter, race, finalLines) {
   ].filter(Boolean).join("\n"));
 }
 
-function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now()) {
+function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now(), eventId = "wild_mine_chicken") {
   if (!player.ownedChicken) {
     player.wildChickenEncounter = null;
     return {
@@ -2639,13 +2703,19 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
   const gainedExp = won ? 120 : 55;
   const expMessage = addChickenExp(player, gainedExp, random);
   addWildChickenInfluence(player, encounter, won ? 2 : 1);
-  player.wildChickenEncounter = null;
   if (won) {
+    encounter.raceWeakened = true;
+    encounter.captureConfirm = false;
+    player.wildChickenEncounter = encounter;
+    player.pendingEvent = eventId;
     const drops = awardWildChickenDrop(player, encounter, random);
+    const captureInfo = getWildChickenCaptureChance(player, encounter);
     const finalLines = [
       `🏆 ${chicken.name} 擊敗了 ${encounter.name}！`,
       `EXP +${gainedExp}`,
       `掉落：${drops.join("｜")}`,
+      `牠喘得很厲害，現在捕捉率：${formatPercent(captureInfo.chance)}。`,
+      "可以放過，或嘗試捕捉。",
       expMessage
     ].filter(Boolean);
     const animationFrames = buildWildChickenAnimationFrames(chicken, encounter, race, finalLines);
@@ -2658,6 +2728,7 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
       animationFrames
     };
   }
+  player.wildChickenEncounter = null;
   let penalty = "牠甩開你，消失在礦道深處。";
   if (encounter.trait === "thief" && player.gold > 0) {
     const stolen = Math.min(player.gold, 30 + getDepthBonus(player.depth) * 5);
@@ -4106,6 +4177,168 @@ function resolveReverseEvent(player, eventId, event, choice, random = Math.rando
   return { ok: true, player, title, message: `你處理反轉事件，獲得 ${gained} 塊顛倒礦石。` };
 }
 
+function resolveSkyEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
+  const title = event.title;
+  const gain = (key, amount) => addItemReward(player, key, amount);
+  const hurt = (amount = 1) => addBombDamage(player, now, amount).message;
+  const addGold = (amount) => {
+    const gained = Math.max(0, Math.floor(amount));
+    player.gold += gained;
+    if (gained > 0) onGoldGained(player);
+    return gained;
+  };
+  const addCharge = (amount) => {
+    player.chargeValue = Math.min(100, (player.chargeValue || 0) + amount);
+    return amount;
+  };
+  const drift = (amount) => {
+    player.depth = Math.min(-1, Math.max(CONFIG.mining.skyDepth, (player.depth || CONFIG.mining.skyDepth) + amount));
+    return `高度變為 ${player.depth}`;
+  };
+  const isChest = eventId.includes("chest");
+
+  if (isChest) {
+    if (choice === "safe") {
+      if (eventId === "sky_star_chest") {
+        addCharge(25);
+        return { ok: true, player, title, message: "你只吸走箱縫星光，能量 +25。" };
+      }
+      const gained = eventId === "sky_thunder_chest" ? addGold(90 + getDepthBonus(Math.abs(player.depth || 0)) * 8) : gain("invertedGem", 1);
+      return { ok: true, player, title, message: eventId === "sky_thunder_chest" ? `你等電停後撿到 ${gained} 金幣。` : `你保守開箱，獲得 ${gained} 顆顛倒寶石。` };
+    }
+    if (choice === "extreme") {
+      if (eventId === "sky_thunder_chest") {
+        const gained = gain("orichalcum", 2);
+        const damage = random() < 0.55 ? `\n${hurt(1)}` : "";
+        return { ok: true, player, title, message: `你引雷劈開寶箱，獲得 ${gained} 塊奧利哈鋼。${damage}` };
+      }
+      if (eventId === "sky_mirage_chest") {
+        if (random() < 0.5) {
+          player.magicCandy += 1;
+          return { ok: true, player, title, message: "三個影子同時碎開，掉出神奇糖果 x1。" };
+        }
+        return { ok: true, player, title, message: `你砸中假箱，蜃景反咬。\n${hurt(1)}` };
+      }
+      if (eventId === "sky_feather_chest") {
+        player.bagBonusSlots += 3;
+        return { ok: true, player, title, message: `你逆羽撕開封印，本輪包包 +3。目前 ${getBagCapacity(player)} 格。` };
+      }
+      const gained = gain("orichalcum", eventId === "sky_star_chest" ? 2 : 1);
+      const damage = random() < 0.35 ? `\n${hurt(1)}` : "";
+      return { ok: true, player, title, message: `你強行破箱，獲得 ${gained} 塊奧利哈鋼。${damage}` };
+    }
+    const roll = random();
+    if (roll < 0.45) return { ok: true, player, title, message: `寶箱開出 ${gain("invertedGem", 2)} 顆顛倒寶石。` };
+    if (roll < 0.7) return { ok: true, player, title, message: `寶箱開出 ${gain("orichalcum", 1)} 塊奧利哈鋼。` };
+    if (roll < 0.85) {
+      player.quickChickenBall = (player.quickChickenBall || 0) + 1;
+      return { ok: true, player, title, message: "寶箱裡躺著一顆先機球。" };
+    }
+    return { ok: true, player, title, message: `寶箱陷阱啟動。\n${hurt(1)}` };
+  }
+
+  if (choice === "safe") {
+    if (eventId === "sky_blue_spring") {
+      const healed = healBombDamage(player, 1);
+      return { ok: true, player, title, message: healed > 0 ? "你用藍天泉洗傷口，回復 1 點生命。" : "泉水很清，但你沒有傷勢。" };
+    }
+    if (eventId === "sky_oracle_bird") {
+      addTempEffect(player, { id: "oracle_bird", remaining: 3, bombWeightMultiplier: 0.9 });
+      return { ok: true, player, title, message: "你聽懂預言鳥的叫聲，接下來 3 層炸彈略降。" };
+    }
+    if (eventId === "sky_bell_tower") return { ok: true, player, title, message: `你數清鐘聲，${drift(5)}。` };
+    if (eventId === "sky_gravity_knot") {
+      player.bagBonusSlots += 1;
+      return { ok: true, player, title, message: `你解開一小段重力結，本輪包包 +1。目前 ${getBagCapacity(player)} 格。` };
+    }
+    if (eventId === "sky_feather_courier") {
+      player.chickenResearchNotes = player.chickenResearchNotes || {};
+      player.chickenResearchNotes.gale = (player.chickenResearchNotes.gale || 0) + 1;
+      return { ok: true, player, title, message: "信裡是一張風系養雞小紙條。" };
+    }
+    const gained = eventId === "sky_star_anvil" || eventId === "sky_meteor_splinter" ? gain("orichalcum", 1) : gain("invertedGem", 1);
+    return { ok: true, player, title, message: `你保守採集，獲得 ${gained} 個天域資源。` };
+  }
+
+  if (choice === "extreme") {
+    if (eventId === "sky_sun_mirror") {
+      const gained = gain("orichalcum", 2);
+      addTempEffect(player, { id: "sun_mirror_glare", remaining: 3, rewardMultiplier: 1.25, hurtChance: 0.12 });
+      return { ok: true, player, title, message: `你直視日輪核心，獲得 ${gained} 塊奧利哈鋼。3 層內收益 +25%，但光灼會反咬。` };
+    }
+    if (eventId === "sky_cloud_fisher") {
+      if (random() < 0.35) {
+        player.magicCandy += 1;
+        return { ok: true, player, title, message: "你跳上雲竿拉出一顆神奇糖果。" };
+      }
+      return { ok: true, player, title, message: `魚線斷裂，你被甩回雲道。\n${hurt(1)}` };
+    }
+    if (eventId === "sky_wind_hole" || eventId === "sky_rainbow_bridge" || eventId === "sky_cloud_whale") {
+      const gained = gain("invertedGem", 3);
+      return { ok: true, player, title, message: `你冒險穿越天域亂流，獲得 ${gained} 顆顛倒寶石，${drift(10)}。` };
+    }
+    if (eventId === "sky_meteor_splinter" || eventId === "sky_aurora_mine") {
+      const gained = gain("orichalcum", 3);
+      return { ok: true, player, title, message: `你抓住天域核心，獲得 ${gained} 塊奧利哈鋼。\n${hurt(1)}` };
+    }
+    if (eventId === "sky_silent_choir") {
+      addCharge(60);
+      addTempEffect(player, { id: "choir_overdrive", remaining: 2, rewardMultiplier: 1.35 });
+      return { ok: true, player, title, message: "你搶下主旋律，能量 +60，接下來 2 層收益 +35%。" };
+    }
+    if (eventId === "sky_angel_ladder") {
+      const lost = Math.min(player.gold, Math.ceil(player.gold * 0.15));
+      player.gold -= lost;
+      return { ok: true, player, title, message: `你踢斷天梯換到捷徑，${drift(15)}，掉了 ${lost} 金幣。` };
+    }
+    if (eventId === "sky_void_sunflower") {
+      player.quickChickenBall = (player.quickChickenBall || 0) + 1;
+      addTempEffect(player, { id: "void_seed", remaining: 4, emptyWeightMultiplier: 1.2 });
+      return { ok: true, player, title, message: "黑色種子開花，吐出先機球 x1，但 4 層內空挖變多。" };
+    }
+    const gained = gain("invertedGem", 3);
+    const damage = random() < 0.35 ? `\n${hurt(1)}` : "";
+    return { ok: true, player, title, message: `你押上風險，獲得 ${gained} 顆顛倒寶石。${damage}` };
+  }
+
+  if (eventId === "sky_falling_market") {
+    const cost = Math.min(player.gold, 120);
+    player.gold -= cost;
+    player.healingPotion += 1;
+    return { ok: true, player, title, message: `你花 ${cost} 金幣搶到治療藥水 x1。` };
+  }
+  if (eventId === "sky_blue_spring") {
+    player.healingPotion += 1;
+    return { ok: true, player, title, message: "你裝下一瓶藍天泉，治療藥水 +1。" };
+  }
+  if (eventId === "sky_glass_mine") {
+    addTempEffect(player, { id: "glass_route", remaining: 3, rewardMultiplier: 1.18 });
+    return { ok: true, player, title, message: "你切開玻璃礦脈，看見未來路線。3 層收益 +18%。" };
+  }
+  if (eventId === "sky_moon_moth") {
+    player.minorBuffs = player.minorBuffs || {};
+    player.minorBuffs.luck = Math.min(8, (player.minorBuffs.luck || 0) + 1);
+    return { ok: true, player, title, message: "月光翅粉黏上工具，小型幸運 +1。" };
+  }
+  if (eventId === "sky_light_vine") {
+    const gained = gain("blueGem", 2);
+    return { ok: true, player, title, message: `你拉下光藤，獲得 ${gained} 顆藍寶石。` };
+  }
+  if (eventId === "sky_gravity_knot") {
+    player.bagBonusSlots += 3;
+    player.junk += 1;
+    return { ok: true, player, title, message: `你拉緊重力結，本輪包包 +3，但多了一個超級破爛。` };
+  }
+  if (eventId === "sky_bell_tower") {
+    player.nextEventDepth = Math.max(player.nextEventDepth || 4, (player.depth || 0) + 8);
+    return { ok: true, player, title, message: "你敲回鐘聲，下一次事件檢查延後。" };
+  }
+  const gained = eventId === "sky_star_anvil" || eventId === "sky_meteor_splinter" || eventId === "sky_aurora_mine"
+    ? gain("orichalcum", 1 + Math.floor(random() * 2))
+    : gain("invertedGem", 2);
+  return { ok: true, player, title, message: `你冒險取得 ${gained} 個天域資源。` };
+}
+
 function resolveMemoryEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
   const challenge = player.memoryChallenge && player.memoryChallenge.eventId === eventId
     ? player.memoryChallenge
@@ -4583,14 +4816,29 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       };
     }
 
-    if (choice === "risk") return resolveWildChickenRace(player, encounter, random, now);
+    if (choice === "risk") {
+      if (encounter.raceWeakened) {
+        player.pendingEvent = eventId;
+        player.wildChickenEncounter = encounter;
+        return {
+          ok: true,
+          player,
+          title: event.title,
+          message: `${encounter.icon} ${encounter.name} 已經被你跑到喘了。\n現在只能放過，或趁機嘗試捕捉。`
+        };
+      }
+      return resolveWildChickenRace(player, encounter, random, now, eventId);
+    }
 
-    if (choice === "extreme" && (player.ownedChicken || encounter.captureConfirm)) {
+    if (choice === "extreme" && encounter.captureConfirm) {
       return attemptCaptureWildChicken(player, encounter, random, eventId);
     }
 
     const feedKey = player.gourmetFeed > 0 ? "gourmetFeed" : player.normalFeed > 0 ? "normalFeed" : "";
     if (!feedKey) {
+      if (choice === "extreme" && player.ownedChicken) {
+        return attemptCaptureWildChicken(player, encounter, random, eventId);
+      }
       addWildChickenInfluence(player, encounter, 1);
       player.wildChickenEncounter = null;
       return {
@@ -4629,6 +4877,8 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       message: `${encounter.icon} ${encounter.name} 嗅了嗅飼料，突然受驚逃跑。${damageText}`
     };
   }
+
+  if (event.skyOnly && !event.forceEvacuation) return resolveSkyEvent(player, eventId, event, choice, random, now);
 
   if (isForceEvacuationEventId(eventId)) return resolveForceEvacuation(player, eventId, event, choice, random, now);
 
@@ -5741,7 +5991,7 @@ function formatInventory(playerInput) {
   return [
     `身上金幣：${player.gold}`,
     `銀行金幣：${player.bankGold}`,
-    `攜帶道具：治療藥水 ${player.healingPotion}｜神奇糖果 ${player.magicCandy}｜不死圖騰 ${player.undyingTotem}`,
+    `攜帶道具：治療藥水 ${player.healingPotion}｜神奇糖果 ${player.magicCandy}｜先機球 ${player.quickChickenBall}｜不死圖騰 ${player.undyingTotem}`,
     `礦石：普通 ${player.ore}｜金 ${player.goldOre}｜鉑金 ${player.platinumOre}`,
     `加工物：金塊 ${player.goldBlock}｜礦錠 ${player.oreIngot}｜金錠 ${player.goldOreIngot}｜鉑金錠 ${player.platinumOreIngot}｜完整炸彈 ${player.bombItem}`,
     `寶石：紅 ${player.redGem}｜藍 ${player.blueGem}｜綠 ${player.greenGem}`,
