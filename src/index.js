@@ -1100,7 +1100,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     const name = interaction.commandName;
-    await updatePlayers((players) => recordAnalyticsOnPlayers(players, interaction.user.id, "active"));
+    updatePlayers((players) => recordAnalyticsOnPlayers(players, interaction.user.id, "active"))
+      .catch((error) => console.error("記錄玩家活躍失敗：", error));
 
     if (name === "開發者面板" || name === "devpanel") {
       if (!canUseAdminCommand(interaction.user.id)) {
@@ -1118,14 +1119,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (name === "礦場") {
       await interaction.deferReply();
-      const previousPanelPlayer = getPlayer((await loadPlayers())[interaction.user.id]);
-      await deletePreviousMinePanel(previousPanelPlayer, interaction.channel);
-      const player = await updatePlayer(interaction.user.id, (current) => ensureRunModeOptions(current, Math.random));
-      const progress = getProgressWithGlobal(await loadPlayers());
+      const setup = await updatePlayers((players) => {
+        const previousPanelPlayer = getPlayer(players[interaction.user.id]);
+        const player = ensureRunModeOptions(previousPanelPlayer, Math.random);
+        players[interaction.user.id] = player;
+        return {
+          previousPanelPlayer,
+          player,
+          progress: getProgressWithGlobal(players)
+        };
+      });
+      deletePreviousMinePanel(setup.previousPanelPlayer, interaction.channel)
+        .catch((error) => console.error("背景刪除舊礦場面板失敗：", error));
       await interaction.editReply({
-        embeds: [buildPanelEmbed(player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
-        files: buildHudFiles(player),
-        components: buildPanelComponents(interaction.user.id, player, progress)
+        embeds: [buildPanelEmbed(setup.player, "礦場面板", "公開礦場已開啟，大家都能看到挖礦狀況。", interaction.user)],
+        files: buildHudFiles(setup.player),
+        components: buildPanelComponents(interaction.user.id, setup.player, setup.progress)
       });
       const reply = await interaction.fetchReply();
       await updatePlayer(interaction.user.id, (current) => {
@@ -1376,15 +1385,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       const target = interaction.options.getUser("玩家", true);
       await interaction.deferReply({ ephemeral: true });
-      const previousPanelPlayer = getPlayer((await loadPlayers())[target.id]);
-      await deletePreviousMinePanel(previousPanelPlayer, interaction.channel);
-      const player = await updatePlayer(target.id, (current) => ensureRunModeOptions(current, Math.random));
-      const progress = getProgressWithGlobal(await loadPlayers());
+      const setup = await updatePlayers((players) => {
+        const previousPanelPlayer = getPlayer(players[target.id]);
+        const player = ensureRunModeOptions(previousPanelPlayer, Math.random);
+        players[target.id] = player;
+        return {
+          previousPanelPlayer,
+          player,
+          progress: getProgressWithGlobal(players)
+        };
+      });
+      deletePreviousMinePanel(setup.previousPanelPlayer, interaction.channel)
+        .catch((error) => console.error("背景刪除舊礦場面板失敗：", error));
       await interaction.editReply({
         content: `管理面板：${target}`,
-        embeds: [buildPanelEmbed(player, "管理面板", "已開啟指定玩家的礦場面板。", target)],
-        files: buildHudFiles(player),
-        components: buildPanelComponents(target.id, player, progress)
+        embeds: [buildPanelEmbed(setup.player, "管理面板", "已開啟指定玩家的礦場面板。", target)],
+        files: buildHudFiles(setup.player),
+        components: buildPanelComponents(target.id, setup.player, setup.progress)
       });
       const reply = await interaction.fetchReply();
       await updatePlayer(target.id, (current) => {
