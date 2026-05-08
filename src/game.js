@@ -676,6 +676,11 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.memoryChallenge = null;
     addFixed("清除卡住的記憶事件");
   }
+  if (clearBlockingState && (player.minorBuffOptions.length > 0 || player.minorBuffSelections.length > 0)) {
+    player.minorBuffOptions = [];
+    player.minorBuffSelections = [];
+    addFixed("清除卡住的小詞條選擇");
+  }
 
   if (player.runMode && !CONFIG.runModes[player.runMode]) {
     addFixed(`清除不存在的詞條：${player.runMode}`);
@@ -1328,7 +1333,11 @@ function chooseRunMode(playerInput, mode, random = null) {
 
 function canChooseMinorBuff(playerInput) {
   const player = getPlayer(playerInput);
-  return !player.dead && Boolean(player.runMode) && Math.abs(player.depth) >= player.nextBuffDepth && Math.abs(player.depth) % 5 === 0;
+  return !player.dead
+    && !player.pendingEvent
+    && Boolean(player.runMode)
+    && Math.abs(player.depth) >= player.nextBuffDepth
+    && Math.abs(player.depth) % 5 === 0;
 }
 
 function getMinorBuffMaxStacks(buff) {
@@ -1884,7 +1893,13 @@ function moveNormalMineDepth(player, amount) {
 }
 
 function maybeTriggerRandomEvent(player, random = Math.random) {
-  if (player.dead || player.pendingEvent || !shouldCheckEvent(Math.abs(player.depth), player)) return "";
+  if (
+    player.dead
+    || player.pendingEvent
+    || player.minorBuffOptions.length > 0
+    || player.minorBuffSelections.length > 0
+    || !shouldCheckEvent(Math.abs(player.depth), player)
+  ) return "";
   const mode = getMode(player);
   player.eventChanceBonus = (mode && mode.eventChanceBonus ? mode.eventChanceBonus : 0)
     + getMinorBuffEffectiveStacks(player, "event") * CONFIG.minorBuffs.event.eventChanceBonus

@@ -443,6 +443,50 @@ test("管理員修復會清除合法但卡住的事件狀態", () => {
   assert.match(adminRepair.message, /清除卡住的事件/);
 });
 
+test("管理員修復會清除卡住的小詞條選擇", () => {
+  const stuck = {
+    ...createPlayer(),
+    runMode: "eventBody",
+    depth: 20,
+    runDepthProgress: 20,
+    minorBuffOptions: ["gold", "bomb", "bag"],
+    minorBuffSelections: ["gold"]
+  };
+  const normalRepair = repairPlayerState(stuck, () => 0);
+  const adminRepair = repairPlayerState(stuck, () => 0, { clearBlockingState: true });
+
+  assert.equal(normalRepair.player.minorBuffOptions.length, 3);
+  assert.deepEqual(adminRepair.player.minorBuffOptions, []);
+  assert.deepEqual(adminRepair.player.minorBuffSelections, []);
+  assert.match(adminRepair.message, /清除卡住的小詞條選擇/);
+});
+
+test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
+  const player = {
+    ...createPlayer(),
+    runMode: "eventBody",
+    depth: 19,
+    nextEventDepth: 20,
+    eventMissCount: 3,
+    nextBuffDepth: 20,
+    forcedNextResult: "ore"
+  };
+  const result = mine(player, () => 0);
+
+  assert.ok(result.player.pendingEvent);
+  assert.deepEqual(result.player.minorBuffOptions, []);
+  assert.equal(canChooseMinorBuff(result.player), false);
+
+  const resolved = resolveRandomEvent({
+    ...result.player,
+    pendingEvent: "lost_backpack",
+    depth: 20,
+    nextBuffDepth: 20
+  }, "safe");
+  assert.equal(resolved.player.pendingEvent, null);
+  assert.equal(canChooseMinorBuff(resolved.player), true);
+});
+
 test("玩家修復會封頂天文數字避免下礦計算壞掉", () => {
   const result = repairPlayerState({
     ...createPlayer(),
