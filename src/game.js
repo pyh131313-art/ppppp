@@ -628,9 +628,10 @@ function ensureRunModeOptions(playerInput, random = Math.random) {
   return refreshRunModeOptions(player, random);
 }
 
-function repairPlayerState(playerInput, random = Math.random) {
+function repairPlayerState(playerInput, random = Math.random, options = {}) {
   const player = getPlayer(playerInput);
   const fixed = [];
+  const clearBlockingState = Boolean(options.clearBlockingState);
   const validZones = new Set(["surface", "lavaPool", "undergroundCamp", "upward", "skyCamp", "skyDown"]);
   const basePlayer = createPlayer();
   const addFixed = (message) => {
@@ -664,6 +665,16 @@ function repairPlayerState(playerInput, random = Math.random) {
     addFixed(`清除不存在的事件：${player.pendingEvent}`);
     player.pendingEvent = null;
     player.memoryChallenge = null;
+  }
+  if (clearBlockingState && player.pendingEvent) {
+    const event = getRandomEvent(player.pendingEvent);
+    addFixed(`清除卡住的事件：${event ? event.title : player.pendingEvent}`);
+    player.pendingEvent = null;
+    player.memoryChallenge = null;
+  }
+  if (clearBlockingState && player.memoryChallenge) {
+    player.memoryChallenge = null;
+    addFixed("清除卡住的記憶事件");
   }
 
   if (player.runMode && !CONFIG.runModes[player.runMode]) {

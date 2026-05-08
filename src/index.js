@@ -1074,7 +1074,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const target = interaction.options.getUser("玩家", true);
       let result = null;
       await updatePlayer(target.id, (current) => {
-        result = repairPlayerState(current, Math.random);
+        result = repairPlayerState(current, Math.random, { clearBlockingState: true });
         return result.player;
       });
       if (clearBattlesForPlayer(target.id)) {

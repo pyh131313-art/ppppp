@@ -408,6 +408,21 @@ test("玩家修復會清除不存在的事件並重建詞條選項", () => {
   assert.match(result.message, /已修復/);
 });
 
+test("管理員修復會清除合法但卡住的事件狀態", () => {
+  const stuck = {
+    ...createPlayer(),
+    pendingEvent: "cracked_wall",
+    memoryChallenge: { options: { a: "x" }, correctChoice: "a" }
+  };
+  const normalRepair = repairPlayerState(stuck, () => 0);
+  const adminRepair = repairPlayerState(stuck, () => 0, { clearBlockingState: true });
+
+  assert.equal(normalRepair.player.pendingEvent, "cracked_wall");
+  assert.equal(adminRepair.player.pendingEvent, null);
+  assert.equal(adminRepair.player.memoryChallenge, null);
+  assert.match(adminRepair.message, /清除卡住的事件/);
+});
+
 test("玩家修復會封頂天文數字避免下礦計算壞掉", () => {
   const result = repairPlayerState({
     ...createPlayer(),
