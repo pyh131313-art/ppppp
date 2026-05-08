@@ -1103,6 +1103,43 @@ test("先跑贏野生雞後捕捉率提高並保留捕捉機會", () => {
   assert.equal(captured.player.ownedChicken.name, "深層黑羽雞");
 });
 
+test("先跑贏野生雞後有飼料也會走捕捉流程", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "wild_mine_chicken",
+    gourmetFeed: 1,
+    wildChickenEncounter: {
+      id: "wild-race-feed-1",
+      name: "深層黑羽雞",
+      icon: "🐓",
+      region: "underground",
+      trait: "thief",
+      rare: false,
+      power: 32,
+      raceWeakened: true
+    },
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 2,
+      exp: 0,
+      speed: 20,
+      sprint: 20,
+      stability: 20,
+      stamina: 20,
+      wins: 3,
+      races: 5
+    }
+  };
+
+  const warning = resolveRandomEvent(player, "extreme", () => 0.99);
+
+  assert.equal(warning.player.gourmetFeed, 1);
+  assert.equal(warning.player.ownedChicken.name, "阿咕霸王");
+  assert.equal(warning.player.wildChickenEncounter.captureConfirm, true);
+  assert.match(warning.message, /確認烤雞捕捉/);
+});
+
 test("地下客棧先機球可無視等級差靠賽捕捉野生雞", () => {
   const now = Date.parse("2026-05-08T04:00:00.000Z");
   const bought = buyUndergroundInnItem({

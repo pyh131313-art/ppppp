@@ -4830,7 +4830,7 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
       return resolveWildChickenRace(player, encounter, random, now, eventId);
     }
 
-    if (choice === "extreme" && encounter.captureConfirm) {
+    if (choice === "extreme" && (encounter.captureConfirm || encounter.raceWeakened)) {
       return attemptCaptureWildChicken(player, encounter, random, eventId);
     }
 
