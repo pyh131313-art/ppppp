@@ -2802,8 +2802,17 @@ if (process.env.DISABLE_WEB_SERVER !== "true") {
 
 async function loginWithRetry(attempt = 1) {
   try {
-    await client.login(token);
+    console.log(`Discord 登入中... 第 ${attempt} 次`);
+    await Promise.race([
+      client.login(token),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Discord 登入逾時")), 45_000);
+      })
+    ]);
   } catch (error) {
+    if (!client.isReady()) {
+      client.destroy();
+    }
     const retryMs = Math.min(60_000, 5_000 * attempt);
     console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
     console.error(error);
