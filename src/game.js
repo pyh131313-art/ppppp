@@ -60,8 +60,11 @@ const {
   addChickenExp,
   CHICKEN_RESEARCH_NOTES,
   getChickenRequiredExp,
+  hasChickenReachedFinish,
   makeWildMineChicken,
-  normalizeOwnedChicken
+  normalizeOwnedChicken,
+  PK_FRAME_COUNT,
+  updateBattleFrame
 } = require("./chickenCare");
 
 function rollWeighted(weights, random = Math.random) {
@@ -2522,6 +2525,79 @@ function attemptCaptureWildChicken(player, encounter, random = Math.random, even
   };
 }
 
+function makeWildChickenRaceOpponent(encounter) {
+  const power = Math.max(8, Math.floor(encounter.power || 16));
+  const level = Math.max(1, Math.floor(power / 4));
+  const traitBias = {
+    berserk: { speed: 2, sprint: 4, stability: -2, stamina: 0 },
+    thief: { speed: 3, sprint: 1, stability: 0, stamina: 1 },
+    reverse: { speed: 1, sprint: 2, stability: 1, stamina: 1 },
+    glow: { speed: 1, sprint: 1, stability: 2, stamina: 2 },
+    thunder: { speed: 2, sprint: 3, stability: -1, stamina: 1 },
+    speed: { speed: 3, sprint: 2, stability: 0, stamina: 0 },
+    gem: { speed: 0, sprint: 1, stability: 2, stamina: 1 }
+  }[encounter.trait] || { speed: 1, sprint: 1, stability: 1, stamina: 1 };
+  const base = Math.max(3, Math.floor(power / 5));
+  return normalizeOwnedChicken({
+    name: encounter.name,
+    icon: encounter.icon || "🐓",
+    level,
+    exp: 0,
+    personality: encounter.trait === "berserk" ? "madDog" : encounter.trait === "thief" ? "sneaky" : "chosen",
+    speed: Math.max(1, base + traitBias.speed),
+    sprint: Math.max(1, base + traitBias.sprint),
+    stability: Math.max(1, base + traitBias.stability),
+    stamina: Math.max(1, base + traitBias.stamina),
+    activeSkill: encounter.trait === "berserk" ? "blazeDash" : encounter.trait === "thief" ? "interfereCrow" : "miracleComeback",
+    passiveSkill: encounter.trait === "glow" ? "winnerAura" : "steadyStep",
+    chickenCounterType: encounter.trait === "berserk" ? "risk" : encounter.trait === "thief" ? "disrupt" : "balanced",
+    skillTriggerTiming: encounter.trait === "berserk" ? "start" : "finish",
+    entryEffect: encounter.rare ? `🌌 ${encounter.name} 的羽光照亮整條礦道。` : `${encounter.icon || "🐓"} ${encounter.name} 從礦縫衝上賽道。`,
+    races: 0,
+    wins: 0,
+    evolutionPoints: {}
+  });
+}
+
+function simulateWildChickenArenaRace(chickenInput, encounter, random = Math.random, now = Date.now()) {
+  const challengerId = "mine-player";
+  const wildId = "mine-wild";
+  const wildChicken = makeWildChickenRaceOpponent(encounter);
+  const tempPlayers = {
+    [challengerId]: { ...createPlayer(), ownedChicken: normalizeOwnedChicken(chickenInput) },
+    [wildId]: { ...createPlayer(), ownedChicken: wildChicken }
+  };
+  const battle = {
+    id: `${now}-mine-wild-chicken`,
+    guildId: "mine",
+    status: "running",
+    challengerId,
+    targetId: wildId,
+    isBoss: false,
+    createdAt: now,
+    runners: null,
+    frames: [],
+    result: null,
+    raceTrackModifier: encounter.region === "sky" ? "wind" : encounter.region === "underground" ? "lava" : encounter.region === "inverted" ? "chaos" : "speed"
+  };
+  const maxFrames = PK_FRAME_COUNT * 3;
+  for (let frame = 0; frame < maxFrames; frame += 1) {
+    updateBattleFrame(battle, tempPlayers, frame, random);
+    if (hasChickenReachedFinish(battle)) break;
+  }
+  const runners = Array.isArray(battle.runners) ? battle.runners : [];
+  const sorted = [...runners].sort((a, b) => b.position - a.position);
+  const winner = sorted[0];
+  const frames = battle.frames.slice(-4);
+  return {
+    won: Boolean(winner && winner.userId === challengerId),
+    frames,
+    wildChicken,
+    playerRunner: runners.find((runner) => runner.userId === challengerId),
+    wildRunner: runners.find((runner) => runner.userId === wildId)
+  };
+}
+
 function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now()) {
   if (!player.ownedChicken) {
     player.wildChickenEncounter = null;
@@ -2534,14 +2610,8 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
   }
   const chicken = normalizeOwnedChicken(player.ownedChicken);
   player.ownedChicken = chicken;
-  const playerPower = chicken.speed + chicken.sprint + chicken.stability + chicken.stamina + chicken.level * 1.5 + random() * 16;
-  const wildPower = encounter.power + (encounter.trait === "berserk" ? random() * 18 : random() * 12);
-  const events = [
-    "起跑碎石飛濺。",
-    encounter.trait === "berserk" ? `${encounter.icon} ${encounter.name} 突然暴衝！` : `${chicken.icon || "🐔"} ${chicken.name} 壓低身體衝刺。`,
-    encounter.trait === "thief" ? `${encounter.name} 試圖叼走你的礦袋。` : "終點前氣流亂成一團。"
-  ];
-  const won = playerPower >= wildPower;
+  const race = simulateWildChickenArenaRace(chicken, encounter, random, now);
+  const won = race.won;
   chicken.races += 1;
   if (won) chicken.wins += 1;
   const expMessage = addChickenExp(player, won ? 80 : 35, random);
@@ -2557,7 +2627,11 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
       message: [
         `${encounter.rare ? "🌌" : "🐓"} ${encounter.name} 出現！`,
         "🏁 短距離對決開始！",
-        ...events,
+        "🏟️ 礦坑臨時賽道展開！",
+        `挑戰者數值：Lv.${chicken.level || 1}｜速${chicken.speed || 0} 衝${chicken.sprint || 0} 穩${chicken.stability || 0} 耐${chicken.stamina || 0}`,
+        `野生雞數值：Lv.${race.wildChicken.level || 1}｜速${race.wildChicken.speed || 0} 衝${race.wildChicken.sprint || 0} 穩${race.wildChicken.stability || 0} 耐${race.wildChicken.stamina || 0}`,
+        "📺【賽況】",
+        ...race.frames,
         `🏆 ${chicken.name} 擊敗了 ${encounter.name}！`,
         `掉落：${drops.join("｜")}`,
         expMessage
@@ -2579,7 +2653,11 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
     message: [
       `${encounter.icon} ${encounter.name} 出現！`,
       "🏁 短距離對決開始！",
-      ...events,
+      "🏟️ 礦坑臨時賽道展開！",
+      `挑戰者數值：Lv.${chicken.level || 1}｜速${chicken.speed || 0} 衝${chicken.sprint || 0} 穩${chicken.stability || 0} 耐${chicken.stamina || 0}`,
+      `野生雞數值：Lv.${race.wildChicken.level || 1}｜速${race.wildChicken.speed || 0} 衝${race.wildChicken.sprint || 0} 穩${race.wildChicken.stability || 0} 耐${race.wildChicken.stamina || 0}`,
+      "📺【賽況】",
+      ...race.frames,
       `🥈 ${chicken.name} 差一點追上。`,
       penalty,
       expMessage
