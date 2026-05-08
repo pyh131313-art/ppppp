@@ -6,11 +6,13 @@ const assert = require("node:assert/strict");
 const {
   buildBattleEmbed,
   buildChickenUpgradeComponents,
+  buildChickenItemComponents,
   buildChickenPanelComponents,
   applyPvpLevelBalance,
   calculateBattleExp,
   calculateBossGoldReward,
   chooseChickenUpgrade,
+  cleanChickenCoop,
   clearBattle,
   clearBattlesForPlayer,
   createBattle,
@@ -18,6 +20,7 @@ const {
   cycleChickenSkillTiming,
   determineEvolutionType,
   ensureOwnedChicken,
+  feedChicken,
   formatOwnedChicken,
   getCounterTypeForChicken,
   getEvolutionMissingRequirements,
@@ -29,7 +32,10 @@ const {
   shareRoastChickenMeal,
   settleBattle,
   updateBattleFrame,
-  useChickenBooster
+  updateChickenCareState,
+  useAutoCleaner,
+  useChickenBooster,
+  useChickenMedicine
 } = require("../src/chickenCare");
 const { createPlayer } = require("../src/game");
 
@@ -51,7 +57,9 @@ test("雞升級會三選一並套用能力", () => {
   assert.equal(buildChickenUpgradeComponents(player).length, 1);
   assert.equal(buildChickenPanelComponents(player, "user1").length, 3);
   const panelJson = buildChickenPanelComponents({ ...player, magicCandy: 1 }, "user1")[1].toJSON();
-  assert.equal(panelJson.components.some((button) => button.custom_id === "chicken_panel:candy:user1"), true);
+  const itemJson = buildChickenItemComponents({ ...player, magicCandy: 1 }, "user1")[0].toJSON();
+  assert.equal(panelJson.components.some((button) => button.custom_id === "chicken_panel:candy:user1"), false);
+  assert.equal(itemJson.components.some((button) => button.custom_id === "chicken_panel:candy:user1"), true);
   assert.equal(upgraded.ok, true);
   assert.equal(upgraded.player.ownedChicken.speed, before + 1);
   assert.deepEqual(upgraded.player.ownedChicken.levelUpOptions, []);
@@ -217,6 +225,55 @@ test("雞面板可以切換技能發動時機", () => {
   assert.equal(result.ok, true);
   assert.equal(result.player.ownedChicken.skillTriggerTiming, "overtaken");
   assert.match(formatOwnedChicken(result.player), /技能時機：被超車時/);
+});
+
+test("養雞照顧會生成大便並可餵食清潔治療", () => {
+  const now = Date.UTC(2026, 4, 8, 0);
+  let player = ensureOwnedChicken({
+    ...createPlayer(),
+    normalFeed: 1,
+    gourmetFeed: 1,
+    chickenMedicine: 1,
+    autoCleaner: 1
+  }, () => 0);
+  player.ownedChicken.lastChickenCareAt = now - 3 * 60 * 60 * 1000;
+  player = updateChickenCareState(player, now, () => 0.99);
+  assert.equal(player.ownedChicken.chickenPoop, 3);
+
+  const fed = feedChicken(player, "normalFeed", now, () => 0.99);
+  assert.equal(fed.ok, true);
+  assert.equal(fed.player.normalFeed, 0);
+  const cleaned = cleanChickenCoop(fed.player, now, () => 0.99);
+  assert.equal(cleaned.player.ownedChicken.chickenPoop, 0);
+  cleaned.player.ownedChicken.chickenDisease = "sick";
+  const healed = useChickenMedicine(cleaned.player, now, () => 0.99);
+  assert.equal(healed.player.ownedChicken.chickenDisease, "");
+  const auto = useAutoCleaner(healed.player, now, () => 0.99);
+  assert.equal(auto.player.autoCleaner, 0);
+  assert.equal(auto.player.ownedChicken.autoCleanExpireTime > now, true);
+});
+
+test("養雞面板整合餵食清潔與使用道具", () => {
+  const player = ensureOwnedChicken({
+    ...createPlayer(),
+    normalFeed: 1,
+    magicCandy: 1,
+    chickenBooster: 1,
+    chickenMedicine: 1,
+    autoCleaner: 1
+  }, () => 0);
+  const panelIds = buildChickenPanelComponents(player, "user1")
+    .flatMap((row) => row.components.map((component) => component.data.custom_id));
+  const itemIds = buildChickenItemComponents(player, "user1")
+    .flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(panelIds.includes("chicken_panel:feed_normal:user1"), true);
+  assert.equal(panelIds.includes("chicken_panel:clean:user1"), true);
+  assert.equal(panelIds.includes("chicken_panel:items:user1"), true);
+  assert.equal(itemIds.includes("chicken_panel:candy:user1"), true);
+  assert.equal(itemIds.includes("chicken_panel:booster:user1"), true);
+  assert.equal(itemIds.includes("chicken_panel:medicine:user1"), true);
+  assert.equal(itemIds.includes("chicken_panel:auto_cleaner:user1"), true);
 });
 
 test("雞用強化藥劑會讓下一場比賽全數值加五並消耗加成", () => {

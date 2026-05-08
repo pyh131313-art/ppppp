@@ -55,6 +55,7 @@ const {
 } = require("./playerState");
 const {
   addChickenExp,
+  CHICKEN_RESEARCH_NOTES,
   getChickenRequiredExp,
   makeWildMineChicken,
   normalizeOwnedChicken
@@ -1548,7 +1549,11 @@ function getShopConsumables(progressInput = {}) {
     progress.undyingTotemUnlocked
       ? { id: "undyingTotem", ...CONFIG.shop.consumables.undyingTotem }
       : null,
-    { id: "magicCandy", ...CONFIG.shop.consumables.magicCandy }
+    { id: "magicCandy", ...CONFIG.shop.consumables.magicCandy },
+    { id: "normalFeed", ...CONFIG.shop.consumables.normalFeed },
+    { id: "gourmetFeed", ...CONFIG.shop.consumables.gourmetFeed },
+    { id: "chickenMedicine", ...CONFIG.shop.consumables.chickenMedicine },
+    { id: "autoCleaner", ...CONFIG.shop.consumables.autoCleaner }
   ].filter(Boolean);
 }
 
@@ -1583,6 +1588,22 @@ function addPendingNextRunTrait(player, traitId) {
   if (!CONFIG.runModes[traitId]) return false;
   player.pendingNextRunTraits = [...new Set([...(player.pendingNextRunTraits || []), traitId])].slice(0, 10);
   return true;
+}
+
+function awardChickenResearchNote(player, random = Math.random) {
+  const notes = Object.entries(CHICKEN_RESEARCH_NOTES || {});
+  if (notes.length === 0) return null;
+  const [id, note] = notes[Math.floor(random() * notes.length)] || notes[0];
+  player.chickenResearchNotes = player.chickenResearchNotes && typeof player.chickenResearchNotes === "object"
+    ? player.chickenResearchNotes
+    : {};
+  player.chickenResearchNotes[id] = (player.chickenResearchNotes[id] || 0) + 1;
+  if (player.ownedChicken) {
+    player.ownedChicken.evolutionPoints = player.ownedChicken.evolutionPoints || {};
+    const pointKey = id === "clumsy" ? "clumsy" : id;
+    player.ownedChicken.evolutionPoints[pointKey] = (player.ownedChicken.evolutionPoints[pointKey] || 0) + 1;
+  }
+  return note;
 }
 
 function resolveTreasureChest(player, choice, random = Math.random, now = Date.now()) {
@@ -1660,6 +1681,10 @@ function resolveTreasureChest(player, choice, random = Math.random, now = Date.n
   if (outcomeRoll < 0.96) {
     player.magicCandy += 1;
     return { player, message: `${chestType} 甜味補給：神奇糖果 +1。` };
+  }
+  if (outcomeRoll < 0.985) {
+    const note = awardChickenResearchNote(player, random);
+    return { player, message: `${chestType} 發現 📜 ${note.title}：${note.hint}` };
   }
   player.healingPotion += 1;
   return { player, message: `${chestType} 稀有補給：治療藥水 +1。` };
@@ -3721,7 +3746,7 @@ function exchange(playerInput, amount = 1, random = Math.random) {
 
 function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const player = getPlayer(playerInput);
-  const safeAmount = Math.max(1, Math.floor(amount));
+  const requestedAmount = Math.max(1, Math.floor(amount));
   const progress = { ...progressInput };
   const now = progress.now || Date.now();
   const globalState = progress.globalState ? normalizeGlobalState(progress.globalState, now) : null;
@@ -3744,6 +3769,8 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
     };
   }
 
+  const oneOnlyItems = new Set(["magicCandy", "normalFeed", "gourmetFeed", "chickenMedicine", "autoCleaner"]);
+  const safeAmount = (shopItem || oneOnlyItems.has(itemId)) ? 1 : requestedAmount;
   const label = shopItem ? shopItem.collectible.name : consumable.label;
   const priceGold = itemId === "magicCandy" ? getMagicCandyPrice(player) : (shopItem ? shopItem.priceGold : consumable.priceGold);
   const cost = priceGold * safeAmount;

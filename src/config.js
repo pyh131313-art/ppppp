@@ -535,6 +535,23 @@ const CONFIG = {
         label: "神奇糖果",
         assetRate: 0.02,
         dailyLimit: 2
+      },
+      normalFeed: {
+        label: "普通飼料",
+        priceGold: 80
+      },
+      gourmetFeed: {
+        label: "超好吃飼料",
+        priceGold: 260
+      },
+      chickenMedicine: {
+        label: "特效藥",
+        priceGold: 350
+      },
+      autoCleaner: {
+        label: "自動掃大便機（1日）",
+        priceGold: 1200,
+        durationMs: 24 * 60 * 60 * 1000
       }
     }
   },

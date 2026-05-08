@@ -13,6 +13,8 @@ const PK_COOLDOWN_MS = 30 * 1000;
 const CHICKEN_BOOST_AMOUNT = 5;
 const CHICKEN_BOOST_MAX_PENDING = 15;
 const CHICKEN_BOOST_DANGER_WINDOW_MS = 10 * 60 * 1000;
+const CHICKEN_CARE_DAY_MS = 24 * 60 * 60 * 1000;
+const CHICKEN_POOP_INTERVAL_MS = 60 * 60 * 1000;
 const SKILL_TRIGGER_TIMINGS = ["start", "mid", "finish", "overtaken"];
 
 const SKILL_TRIGGER_LABELS = {
@@ -76,6 +78,29 @@ const CHICKEN_STATUS_EFFECTS = {
   angry: { label: "😡 暴躁", interfereBonus: 0.14, stabilityPenalty: 0.05 },
   focused: { label: "✨ 專注", skillChanceBonus: 0.14 },
   runaway: { label: "💀 失控", sprintBonus: 0.28, failRiskBonus: 0.12 }
+};
+
+const CHICKEN_RESEARCH_NOTES = {
+  blaze: {
+    title: "爆炎雞育成筆記",
+    hint: "多參加爆衝賽道，保持高興奮，少休息。"
+  },
+  iron: {
+    title: "鐵壁雞育成筆記",
+    hint: "乾淨雞舍、穩定心情，少讓牠跌倒。"
+  },
+  miracle: {
+    title: "奇蹟雞育成筆記",
+    hint: "落後時別放棄，逆轉經驗會留下痕跡。"
+  },
+  trickster: {
+    title: "黑炎雞育成筆記",
+    hint: "干擾與暴躁會讓路線變歪，但別讓健康太差。"
+  },
+  clumsy: {
+    title: "爛雞觀察紙條",
+    hint: "餵太多、太髒、常生病，會把進化推向奇怪方向。"
+  }
 };
 
 const PERSONALITIES = [
@@ -412,6 +437,81 @@ function normalizeStatusEffects(input, limit = 5) {
     .slice(0, limit);
 }
 
+function getCareDay(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function getMoodIcon(value) {
+  if (value >= 80) return "😊";
+  if (value >= 55) return "🙂";
+  if (value >= 30) return "😟";
+  return "😠";
+}
+
+function getHealthLabel(value, disease = "") {
+  if (disease) return "🤒 生病";
+  if (value >= 80) return "正常";
+  if (value >= 50) return "稍差";
+  return "虛弱";
+}
+
+function normalizeCareStats(chicken, now = Date.now()) {
+  if (!chicken || typeof chicken !== "object") return chicken;
+  chicken.chickenHunger = Math.max(0, Math.min(100, Math.floor(chicken.chickenHunger == null ? 70 : chicken.chickenHunger)));
+  chicken.chickenMood = Math.max(0, Math.min(100, Math.floor(chicken.chickenMood == null ? 70 : chicken.chickenMood)));
+  chicken.chickenHealth = Math.max(0, Math.min(100, Math.floor(chicken.chickenHealth == null ? 90 : chicken.chickenHealth)));
+  chicken.chickenPoop = Math.max(0, Math.min(99, Math.floor(chicken.chickenPoop || 0)));
+  chicken.chickenDisease = typeof chicken.chickenDisease === "string" ? chicken.chickenDisease : "";
+  chicken.lastChickenCareAt = Math.max(0, Number(chicken.lastChickenCareAt || 0));
+  chicken.lastChickenFeedDay = typeof chicken.lastChickenFeedDay === "string" ? chicken.lastChickenFeedDay : "";
+  chicken.chickenFeedsToday = Math.max(0, Math.floor(chicken.chickenFeedsToday || 0));
+  chicken.autoCleanExpireTime = Math.max(0, Number(chicken.autoCleanExpireTime || 0));
+  chicken.evolutionBranch = typeof chicken.evolutionBranch === "string" ? chicken.evolutionBranch : "";
+  chicken.hiddenEvolutionValue = Math.max(-100, Math.min(100, Math.floor(chicken.hiddenEvolutionValue || 0)));
+  chicken.evolutionQuality = typeof chicken.evolutionQuality === "string" ? chicken.evolutionQuality : "";
+  if (!chicken.lastChickenCareAt) chicken.lastChickenCareAt = now;
+  if (!chicken.lastChickenFeedDay) chicken.lastChickenFeedDay = getCareDay(now);
+  return chicken;
+}
+
+function updateChickenCareState(playerInput, now = Date.now(), random = Math.random) {
+  const player = ensureOwnedChicken(playerInput);
+  const chicken = player.ownedChicken;
+  normalizeCareStats(chicken, now);
+  const elapsed = Math.max(0, now - (chicken.lastChickenCareAt || now));
+  const hours = Math.floor(elapsed / CHICKEN_POOP_INTERVAL_MS);
+  if (hours > 0) {
+    if (chicken.autoCleanExpireTime > now) {
+      chicken.chickenPoop = 0;
+    } else {
+      chicken.chickenPoop = Math.min(99, chicken.chickenPoop + hours);
+    }
+    chicken.chickenHunger = Math.max(0, chicken.chickenHunger - hours * 5);
+    if (chicken.chickenPoop >= 5) chicken.chickenMood = Math.max(0, chicken.chickenMood - hours * 3);
+    if (chicken.chickenPoop >= 8 || chicken.chickenHunger <= 20) chicken.chickenHealth = Math.max(0, chicken.chickenHealth - hours * 4);
+    chicken.lastChickenCareAt += hours * CHICKEN_POOP_INTERVAL_MS;
+  }
+  const today = getCareDay(now);
+  if (chicken.lastChickenFeedDay !== today) {
+    if ((chicken.chickenFeedsToday || 0) < 2) {
+      chicken.chickenMood = Math.max(0, chicken.chickenMood - 12);
+      chicken.chickenHealth = Math.max(0, chicken.chickenHealth - 8);
+      chicken.hiddenEvolutionValue -= 4;
+    }
+    chicken.lastChickenFeedDay = today;
+    chicken.chickenFeedsToday = 0;
+  }
+  const diseaseRisk = (chicken.chickenPoop >= 8 ? 0.2 : 0)
+    + (chicken.chickenHunger <= 20 ? 0.18 : 0)
+    + (chicken.chickenHealth <= 35 ? 0.18 : 0)
+    + ((chicken.chickenFeedsToday || 0) >= 5 ? 0.12 : 0);
+  if (!chicken.chickenDisease && diseaseRisk > 0 && random() < diseaseRisk) {
+    chicken.chickenDisease = "sick";
+    chicken.chickenStatusEffects = normalizeStatusEffects([...(chicken.chickenStatusEffects || []), { id: "tired", remaining: 3 }]);
+  }
+  return player;
+}
+
 function createEvolutionPoints(input = {}) {
   return Object.fromEntries(getEvolutionPointKeys().map((key) => [
     key,
@@ -434,6 +534,7 @@ function normalizeChickenMeta(chicken) {
   chicken.chickenCounterType = getCounterTypeForChicken(chicken);
   chicken.skillTriggerTiming = normalizeSkillTiming(chicken.skillTriggerTiming, chicken.activeSkill);
   chicken.chickenStatusEffects = normalizeStatusEffects(chicken.chickenStatusEffects);
+  normalizeCareStats(chicken);
   chicken.highestComeback = Math.max(0, Math.floor(chicken.highestComeback || 0));
   chicken.currentWinStreak = Math.max(0, Math.floor(chicken.currentWinStreak || 0));
   chicken.longestWinStreak = Math.max(0, Math.floor(chicken.longestWinStreak || 0));
@@ -472,6 +573,18 @@ function makeOwnedChicken(random = Math.random) {
     chickenCounterType: getCounterTypeForChicken({ personalityId: personality.id }),
     skillTriggerTiming: getDefaultSkillTiming(null),
     chickenStatusEffects: [],
+    chickenHunger: 70,
+    chickenMood: 70,
+    chickenHealth: 90,
+    chickenPoop: 0,
+    chickenDisease: "",
+    lastChickenCareAt: Date.now(),
+    lastChickenFeedDay: getCareDay(),
+    chickenFeedsToday: 0,
+    autoCleanExpireTime: 0,
+    evolutionBranch: "",
+    hiddenEvolutionValue: 0,
+    evolutionQuality: "",
     titles: [],
     frame: "",
     entryEffect: "",
@@ -514,6 +627,18 @@ function makeWildMineChicken(depth = 1, random = Math.random) {
     chickenCounterType: getCounterTypeForChicken({ personalityId: personality.id, evolutionType }),
     skillTriggerTiming: getDefaultSkillTiming(evolution.activeSkill),
     chickenStatusEffects: [],
+    chickenHunger: 75,
+    chickenMood: 75,
+    chickenHealth: 92,
+    chickenPoop: 0,
+    chickenDisease: "",
+    lastChickenCareAt: Date.now(),
+    lastChickenFeedDay: getCareDay(),
+    chickenFeedsToday: 0,
+    autoCleanExpireTime: 0,
+    evolutionBranch: "mine",
+    hiddenEvolutionValue: 8,
+    evolutionQuality: "",
     titles: ["礦坑邂逅"],
     frame: "",
     entryEffect: "⛏️ 牠是在礦洞裡被你抓到的特殊雞。",
@@ -717,13 +842,25 @@ function buildEvolutionCandidateSummary(chicken) {
 
 function applyChickenEvolution(chicken) {
   normalizeChickenMeta(chicken);
-  const nextType = chicken.evolutionType || determineEvolutionType(chicken);
+  let nextType = chicken.evolutionType || determineEvolutionType(chicken);
+  if (chicken.evolutionType && chicken.level >= 16 && !chicken.titles.includes((EVOLUTION_TYPES[chicken.evolutionType] || {}).title)) {
+    if ((chicken.hiddenEvolutionValue || 0) <= -25 || chicken.evolutionBranch === "overfed") {
+      nextType = ["mud", "paper", "lost"][(Math.abs(chicken.hiddenEvolutionValue || 0) + (chicken.chickenPoop || 0)) % 3];
+    }
+  }
   const evolution = EVOLUTION_TYPES[nextType];
   if (!evolution) return "";
   if (!chicken.evolutionType && !canEvolveTo(chicken, nextType, "mature")) return "";
   const firstEvolution = chicken.evolutionType !== nextType;
   const wasComplete = chicken.titles.includes(evolution.title);
   chicken.evolutionType = nextType;
+  chicken.evolutionQuality = (chicken.hiddenEvolutionValue || 0) >= 30
+    ? "perfect"
+    : (chicken.hiddenEvolutionValue || 0) <= -25 || evolution.weak
+      ? "bad"
+      : chicken.chickenDisease
+        ? "abnormal"
+        : chicken.evolutionQuality || "";
   chicken.activeSkill = chicken.activeSkill || evolution.activeSkill;
   chicken.passiveSkill = chicken.passiveSkill || evolution.passiveSkill;
   if (canEvolveTo(chicken, nextType, "complete")) {
@@ -733,7 +870,14 @@ function applyChickenEvolution(chicken) {
     if (!chicken.titles.includes(evolution.title)) chicken.titles.push(evolution.title);
   }
   if (firstEvolution) return `✨ ${chicken.name} 進化成 ${evolution.name}！`;
-  if (chicken.level >= 16 && !wasComplete) return `🐓✨ ${chicken.name} 進入完全體！`;
+  if (chicken.level >= 16 && !wasComplete) {
+    const qualityText = {
+      perfect: "✨ 完美進化",
+      bad: "💀 劣化進化",
+      abnormal: "😵 異常進化"
+    }[chicken.evolutionQuality] || "🐓✨ 完全體";
+    return `${qualityText}：${chicken.name} 進入 ${evolution.title}！`;
+  }
   return "";
 }
 
@@ -825,8 +969,92 @@ function useChickenBooster(playerInput, now = Date.now(), random = Math.random) 
   };
 }
 
+function feedChicken(playerInput, feedType = "normalFeed", now = Date.now(), random = Math.random) {
+  const player = updateChickenCareState(playerInput, now, random);
+  const chicken = player.ownedChicken;
+  const isGourmet = feedType === "gourmetFeed";
+  const key = isGourmet ? "gourmetFeed" : "normalFeed";
+  const label = isGourmet ? "超好吃飼料" : "普通飼料";
+  if ((player[key] || 0) <= 0) {
+    return { ok: false, player, message: `你沒有${label}。` };
+  }
+  player[key] -= 1;
+  chicken.chickenFeedsToday += 1;
+  chicken.chickenHunger = Math.min(100, chicken.chickenHunger + (isGourmet ? 34 : 24));
+  chicken.chickenMood = Math.min(100, chicken.chickenMood + (isGourmet ? 16 : 6));
+  chicken.chickenHealth = Math.min(100, chicken.chickenHealth + (isGourmet ? 4 : 2));
+  if (isGourmet) {
+    chicken.hiddenEvolutionValue += 4;
+    chicken.evolutionBranch = chicken.evolutionBranch || "gourmet";
+  }
+  if (chicken.chickenFeedsToday >= 5) {
+    chicken.chickenMood = Math.max(0, chicken.chickenMood - 8);
+    chicken.chickenHealth = Math.max(0, chicken.chickenHealth - 6);
+    chicken.hiddenEvolutionValue -= 8;
+    chicken.evolutionPoints.clumsy = (chicken.evolutionPoints.clumsy || 0) + 1;
+    chicken.evolutionBranch = "overfed";
+    if (random() < 0.25) chicken.chickenStatusEffects = normalizeStatusEffects([...(chicken.chickenStatusEffects || []), { id: "tired", remaining: 2 }]);
+  }
+  return {
+    ok: true,
+    player,
+    message: `🍖 已餵食${label}。飢餓 ${chicken.chickenHunger}%｜心情 ${getMoodIcon(chicken.chickenMood)}`
+  };
+}
+
+function cleanChickenCoop(playerInput, now = Date.now(), random = Math.random) {
+  const player = updateChickenCareState(playerInput, now, random);
+  const chicken = player.ownedChicken;
+  const cleaned = chicken.chickenPoop;
+  chicken.chickenPoop = 0;
+  chicken.chickenMood = Math.min(100, chicken.chickenMood + Math.min(15, cleaned * 2));
+  chicken.chickenHealth = Math.min(100, chicken.chickenHealth + Math.min(8, cleaned));
+  chicken.hiddenEvolutionValue += cleaned > 0 ? 2 : 0;
+  return {
+    ok: true,
+    player,
+    message: cleaned > 0 ? `🧹 掃掉 ${cleaned} 坨大便。雞舍清爽多了。` : "🧹 雞舍很乾淨，沒有大便。"
+  };
+}
+
+function useChickenMedicine(playerInput, now = Date.now(), random = Math.random) {
+  const player = updateChickenCareState(playerInput, now, random);
+  const chicken = player.ownedChicken;
+  if ((player.chickenMedicine || 0) <= 0) {
+    return { ok: false, player, message: "你沒有特效藥。" };
+  }
+  player.chickenMedicine -= 1;
+  chicken.chickenDisease = "";
+  chicken.chickenHealth = Math.min(100, chicken.chickenHealth + 35);
+  chicken.chickenMood = Math.min(100, chicken.chickenMood + 8);
+  chicken.hiddenEvolutionValue += 3;
+  return { ok: true, player, message: `💊 ${chicken.name} 吃下特效藥，健康恢復了。` };
+}
+
+function useAutoCleaner(playerInput, now = Date.now(), random = Math.random) {
+  const player = updateChickenCareState(playerInput, now, random);
+  const chicken = player.ownedChicken;
+  if ((player.autoCleaner || 0) <= 0) {
+    return { ok: false, player, message: "你沒有自動掃大便機。" };
+  }
+  player.autoCleaner -= 1;
+  chicken.autoCleanExpireTime = Math.max(now, chicken.autoCleanExpireTime || 0) + CHICKEN_CARE_DAY_MS;
+  chicken.chickenPoop = 0;
+  chicken.chickenMood = Math.min(100, chicken.chickenMood + 6);
+  return { ok: true, player, message: "🤖 自動掃大便機啟動 24 小時，雞舍暫時不用擔心。" };
+}
+
+function useChickenCareItem(playerInput, itemId = "magicCandy", now = Date.now(), random = Math.random, eatCandyFn = null) {
+  if (itemId === "booster") return useChickenBooster(playerInput, now, random);
+  if (itemId === "medicine") return useChickenMedicine(playerInput, now, random);
+  if (itemId === "autoCleaner") return useAutoCleaner(playerInput, now, random);
+  if (itemId === "magicCandy" && typeof eatCandyFn === "function") return eatCandyFn(playerInput, random);
+  const player = updateChickenCareState(playerInput, now, random);
+  return { ok: false, player, message: "這個道具目前不能在養雞面板使用。" };
+}
+
 function formatOwnedChicken(playerInput) {
-  const player = ensureOwnedChicken(playerInput);
+  const player = updateChickenCareState(playerInput);
   const chicken = player.ownedChicken;
   normalizeChickenMeta(chicken);
   const personality = getPersonality(chicken.personalityId);
@@ -848,8 +1076,11 @@ function formatOwnedChicken(playerInput) {
     `Lv.${chicken.level}｜${stage.label}`,
     `EXP：${chicken.exp} / ${getExpToLevel(chicken)}`,
     `性格：${personality.label}`,
+    `心情：${getMoodIcon(chicken.chickenMood)} ${chicken.chickenMood}%｜健康：${getHealthLabel(chicken.chickenHealth, chicken.chickenDisease)}｜飢餓：${chicken.chickenHunger}%`,
+    `💩 雞舍：${chicken.chickenPoop} 坨${chicken.autoCleanExpireTime > Date.now() ? "｜🤖 清潔中" : ""}`,
     `類型：${counter.label}`,
     `進化：${evolution ? evolution.name : "未定"}`,
+    `進化分歧：${chicken.evolutionBranch || "未定"}｜品質：${{ perfect: "✨完美", bad: "💀劣化", abnormal: "😵異常" }[chicken.evolutionQuality] || "未知"}`,
     buildEvolutionCandidateSummary(chicken),
     `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,
     `技能時機：${SKILL_TRIGGER_LABELS[timing]}`,
@@ -861,6 +1092,8 @@ function formatOwnedChicken(playerInput) {
     `穩定：${chicken.stability}`,
     `耐力：${chicken.stamina}`,
     `強化藥劑：${player.chickenBooster || 0}｜下場加成：+${chicken.raceStatBoost || 0}`,
+    `飼料：普通 ${player.normalFeed || 0}｜超好吃 ${player.gourmetFeed || 0}｜特效藥 ${player.chickenMedicine || 0}`,
+    `研究紙條：${Object.values(player.chickenResearchNotes || {}).reduce((sum, count) => sum + count, 0)}`,
     "",
     `勝場：${chicken.wins}`,
     `出賽：${chicken.races}`,
@@ -901,6 +1134,35 @@ function buildChickenPanelComponents(playerInput, ownerId = "none") {
     ...upgradeRows,
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:feed_normal:${ownerId}`)
+        .setLabel(`普通飼料 ${player.normalFeed || 0}`)
+        .setEmoji("🍖")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled((player.normalFeed || 0) <= 0),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:feed_gourmet:${ownerId}`)
+        .setLabel(`超好吃 ${player.gourmetFeed || 0}`)
+        .setEmoji("🐔")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled((player.gourmetFeed || 0) <= 0),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:clean:${ownerId}`)
+        .setLabel("掃大便")
+        .setEmoji("🧹")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:items:${ownerId}`)
+        .setLabel("使用道具")
+        .setEmoji("🎒")
+        .setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:timing:${ownerId}`)
+        .setLabel("技能時機")
+        .setEmoji("⏱️")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId(`${CHICKEN_PANEL_PREFIX}:rename:${ownerId}`)
         .setLabel("命名")
         .setEmoji("✏️")
@@ -911,8 +1173,21 @@ function buildChickenPanelComponents(playerInput, ownerId = "none") {
         .setEmoji("🍗")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:refresh:${ownerId}`)
+        .setLabel("刷新")
+        .setEmoji("🔄")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function buildChickenItemComponents(playerInput, ownerId = "none") {
+  const player = getPlayer(playerInput);
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
         .setCustomId(`${CHICKEN_PANEL_PREFIX}:candy:${ownerId}`)
-        .setLabel(`餵糖果 ${player.magicCandy || 0}`)
+        .setLabel(`神奇糖果 ${player.magicCandy || 0}`)
         .setEmoji("🍬")
         .setStyle(ButtonStyle.Success)
         .setDisabled((player.magicCandy || 0) <= 0),
@@ -921,18 +1196,25 @@ function buildChickenPanelComponents(playerInput, ownerId = "none") {
         .setLabel(`強化藥劑 ${player.chickenBooster || 0}`)
         .setEmoji("💉")
         .setStyle(ButtonStyle.Primary)
-        .setDisabled((player.chickenBooster || 0) <= 0)
+        .setDisabled((player.chickenBooster || 0) <= 0),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:medicine:${ownerId}`)
+        .setLabel(`特效藥 ${player.chickenMedicine || 0}`)
+        .setEmoji("💊")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled((player.chickenMedicine || 0) <= 0),
+      new ButtonBuilder()
+        .setCustomId(`${CHICKEN_PANEL_PREFIX}:auto_cleaner:${ownerId}`)
+        .setLabel(`掃大便機 ${player.autoCleaner || 0}`)
+        .setEmoji("🤖")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled((player.autoCleaner || 0) <= 0)
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`${CHICKEN_PANEL_PREFIX}:timing:${ownerId}`)
-        .setLabel("技能時機")
-        .setEmoji("⏱️")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
         .setCustomId(`${CHICKEN_PANEL_PREFIX}:refresh:${ownerId}`)
-        .setLabel("刷新")
-        .setEmoji("🔄")
+        .setLabel("返回養雞面板")
+        .setEmoji("↩️")
         .setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -1268,9 +1550,20 @@ function createRunner(userId, players, random = Math.random, bossId = null, boss
     const boss = scaleBossChicken(getBossById(bossId || userId.slice(5)), bossRank, bossChallengerLevel);
     return { userId, chicken: normalizeChickenMeta({ ...boss, races: 0, wins: 0, exp: 0, levelUpOptions: [] }), position: 0, battleStats: {}, statusEffects: [] };
   }
-  const player = ensureOwnedChicken(players[userId], random);
+  const player = updateChickenCareState(players[userId], Date.now(), random);
   players[userId] = player;
   const chicken = { ...player.ownedChicken };
+  const carePenalty = (chicken.chickenDisease ? 0.82 : 1)
+    * (chicken.chickenPoop >= 8 ? 0.9 : 1)
+    * (chicken.chickenMood <= 25 ? 0.9 : 1)
+    * (chicken.chickenHunger <= 15 ? 0.88 : 1);
+  if (carePenalty < 1) {
+    chicken.speed = clampStat(chicken.speed * carePenalty);
+    chicken.sprint = clampStat(chicken.sprint * carePenalty);
+    chicken.stability = clampStat(chicken.stability * carePenalty);
+    chicken.stamina = clampStat(chicken.stamina * carePenalty);
+    chicken.entryEffect = [chicken.entryEffect, `🤒 ${chicken.name} 狀態不佳，今天跑起來有點沉。`].filter(Boolean).join("\n");
+  }
   const statBoost = Math.max(0, Math.floor(chicken.raceStatBoost || 0));
   if (statBoost > 0) {
     chicken.speed += statBoost;
@@ -1728,6 +2021,7 @@ module.exports = {
   PK_FRAME_COUNT,
   BOSS_CHICKENS,
   CHICKEN_SKILLS,
+  CHICKEN_RESEARCH_NOTES,
   COUNTER_TYPES,
   EVOLUTION_TYPES,
   PERSONALITIES,
@@ -1736,6 +2030,7 @@ module.exports = {
   buildBattleComponents,
   buildBattleEmbed,
   buildChickenEmbed,
+  buildChickenItemComponents,
   buildChickenPanelComponents,
   buildChickenUpgradeComponents,
   addChickenExp,
@@ -1746,11 +2041,13 @@ module.exports = {
   createBattle,
   createBossBattle,
   cycleChickenSkillTiming,
+  cleanChickenCoop,
   calculateBattleExp,
   calculateBossGoldReward,
   determineEvolutionType,
   getEvolutionMissingRequirements,
   ensureOwnedChicken,
+  feedChicken,
   formatOwnedChicken,
   getBattle,
   getBossRank,
@@ -1767,6 +2064,10 @@ module.exports = {
   roastOwnedChicken,
   settleBattle,
   shareRoastChickenMeal,
+  updateChickenCareState,
+  useAutoCleaner,
   updateBattleFrame,
-  useChickenBooster
+  useChickenBooster,
+  useChickenCareItem,
+  useChickenMedicine
 };

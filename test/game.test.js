@@ -1080,19 +1080,23 @@ test("地底營地未選詞條時顯示詞條按鈕與銀行", () => {
   assert.equal(customIds.includes(CUSTOM_IDS.shopOpen), true);
 });
 
-test("商店介面提供批量購買按鈕", () => {
+test("商店介面將挖礦用品與養雞用品分開並限制稀有品單買", () => {
   const rows = buildShopComponents({
     healingPotionUnlocked: true,
     undyingTotemUnlocked: true
   }, createPlayer(), "player-1");
   const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
 
-  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:5`), true);
-  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:healingPotion:10`), true);
-  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:undyingTotem:5`), true);
-  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:zhongkui_peace`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:1`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:5`), false);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:magicCandy:2`), false);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:zhongkui_peace`), false);
   assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:healingPotion`), true);
   assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyCustomPrefix}:undyingTotem`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:normalFeed:1`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:gourmetFeed:1`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:chickenMedicine:1`), true);
+  assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:autoCleaner:1`), true);
 });
 
 test("地表可以花總資產一成回到地底營地", () => {
@@ -1378,6 +1382,17 @@ test("寶箱可以開出下一場限定詞條與礦工帽", () => {
 
   assert.equal(trait.player.pendingNextRunTraits.length, 1);
   assert.equal(helmet.player.minerHelmetCount, 1);
+});
+
+test("寶箱可以開出養雞小紙條並記錄研究", () => {
+  const rolls = [0.5, 0.99, 0.97, 0];
+  const result = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "treasure_chest"
+  }, "risk", () => rolls.shift() ?? 0.99, 1000);
+
+  assert.equal(result.player.chickenResearchNotes.blaze, 1);
+  assert.match(result.message, /養雞|育成|紙條|筆記/);
 });
 
 test("下一場限定詞條會進入初始選項並在選擇後消耗", () => {
@@ -1806,13 +1821,16 @@ test("神奇糖果花總資產 2% 且每天每人限購兩顆", () => {
   const player = { ...createPlayer(), gold: 1000, bankGold: 9000 };
   assert.equal(getMagicCandyPrice(player), 200);
   const first = buyShopItem(player, "magicCandy", 2, { now });
-  const blocked = buyShopItem({ ...first.player, gold: 10000 }, "magicCandy", 1, { now });
+  const second = buyShopItem({ ...first.player, gold: 10000 }, "magicCandy", 1, { now });
+  const blocked = buyShopItem({ ...second.player, gold: 10000 }, "magicCandy", 1, { now });
   const nextDay = buyShopItem({ ...first.player, gold: 10000 }, "magicCandy", 1, { now: now + 24 * 60 * 60 * 1000 });
 
   assert.equal(first.ok, true);
-  assert.equal(first.player.magicCandy, 2);
-  assert.equal(first.player.gold, 600);
-  assert.equal(first.player.magicCandyPurchasesToday, 2);
+  assert.equal(first.player.magicCandy, 1);
+  assert.equal(first.player.gold, 800);
+  assert.equal(first.player.magicCandyPurchasesToday, 1);
+  assert.equal(second.ok, true);
+  assert.equal(second.player.magicCandyPurchasesToday, 2);
   assert.equal(blocked.ok, false);
   assert.match(blocked.message, /上限/);
   assert.equal(nextDay.ok, true);

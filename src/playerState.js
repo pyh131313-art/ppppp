@@ -48,6 +48,10 @@ function createPlayer() {
     healingPotion: 0,
     magicCandy: 0,
     chickenBooster: 0,
+    normalFeed: 0,
+    gourmetFeed: 0,
+    chickenMedicine: 0,
+    autoCleaner: 0,
     chickenBoosterUseLog: [],
     undyingTotem: 0,
     rusty: 0,
@@ -152,6 +156,7 @@ function createPlayer() {
     chickenArenaRank: 1,
     chickenRoastHpBonus: 0,
     chickenAmuletUsed: false,
+    chickenResearchNotes: {},
     ownedChicken: null,
     challenge: null,
     challengeBestDepth: 0,
@@ -261,6 +266,18 @@ function getPlayer(player) {
           }))
           .slice(0, 5)
         : [],
+      chickenHunger: Math.max(0, Math.min(100, Math.floor(player.ownedChicken.chickenHunger == null ? 70 : player.ownedChicken.chickenHunger))),
+      chickenMood: Math.max(0, Math.min(100, Math.floor(player.ownedChicken.chickenMood == null ? 70 : player.ownedChicken.chickenMood))),
+      chickenHealth: Math.max(0, Math.min(100, Math.floor(player.ownedChicken.chickenHealth == null ? 90 : player.ownedChicken.chickenHealth))),
+      chickenPoop: Math.max(0, Math.min(99, Math.floor(player.ownedChicken.chickenPoop || 0))),
+      chickenDisease: typeof player.ownedChicken.chickenDisease === "string" ? player.ownedChicken.chickenDisease : "",
+      lastChickenCareAt: Math.max(0, Number(player.ownedChicken.lastChickenCareAt || 0)),
+      lastChickenFeedDay: typeof player.ownedChicken.lastChickenFeedDay === "string" ? player.ownedChicken.lastChickenFeedDay : "",
+      chickenFeedsToday: Math.max(0, Math.floor(player.ownedChicken.chickenFeedsToday || 0)),
+      autoCleanExpireTime: Math.max(0, Number(player.ownedChicken.autoCleanExpireTime || 0)),
+      evolutionBranch: typeof player.ownedChicken.evolutionBranch === "string" ? player.ownedChicken.evolutionBranch : "",
+      hiddenEvolutionValue: Math.max(-100, Math.min(100, Math.floor(player.ownedChicken.hiddenEvolutionValue || 0))),
+      evolutionQuality: typeof player.ownedChicken.evolutionQuality === "string" ? player.ownedChicken.evolutionQuality : "",
       titles: Array.isArray(player.ownedChicken.titles)
         ? player.ownedChicken.titles.filter((title) => typeof title === "string").slice(0, 12)
         : [],
@@ -278,6 +295,15 @@ function getPlayer(player) {
     : [];
   next.chickenArenaRank = Math.max(1, Math.floor(player && player.chickenArenaRank || 1));
   next.chickenBooster = Math.max(0, Math.floor(player && player.chickenBooster || 0));
+  next.normalFeed = Math.max(0, Math.floor(player && player.normalFeed || 0));
+  next.gourmetFeed = Math.max(0, Math.floor(player && player.gourmetFeed || 0));
+  next.chickenMedicine = Math.max(0, Math.floor(player && player.chickenMedicine || 0));
+  next.autoCleaner = Math.max(0, Math.floor(player && player.autoCleaner || 0));
+  next.chickenResearchNotes = player && player.chickenResearchNotes && typeof player.chickenResearchNotes === "object"
+    ? Object.fromEntries(Object.entries(player.chickenResearchNotes)
+      .filter(([key, value]) => typeof key === "string" && Number.isFinite(Number(value)))
+      .map(([key, value]) => [key, Math.max(0, Math.floor(Number(value)))]))
+    : {};
   next.chickenBoosterUseLog = Array.isArray(player && player.chickenBoosterUseLog)
     ? player.chickenBoosterUseLog.filter((time) => Number.isFinite(time)).slice(-10)
     : [];

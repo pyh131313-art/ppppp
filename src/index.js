@@ -81,14 +81,17 @@ const {
   buildBattleComponents,
   buildBattleEmbed,
   buildChickenEmbed,
+  buildChickenItemComponents,
   buildChickenPanelComponents,
   chooseChickenUpgrade,
+  cleanChickenCoop,
   clearBattle,
   clearBattlesForPlayer,
   createBattle,
   createBossBattle,
   cycleChickenSkillTiming,
   ensureOwnedChicken,
+  feedChicken,
   getBattle,
   isChickenPanelComponent,
   isChickenPkComponent,
@@ -99,7 +102,9 @@ const {
   settleBattle,
   shareRoastChickenMeal,
   updateBattleFrame,
-  useChickenBooster
+  useChickenBooster,
+  useChickenMedicine,
+  useAutoCleaner
 } = require("./chickenCare");
 const {
   CUSTOM_IDS,
@@ -1667,6 +1672,30 @@ async function handleChickenPanelInteraction(interaction) {
     });
     return;
   }
+  if (action === "items") {
+    await interaction.deferUpdate();
+    const player = await updatePlayer(interaction.user.id, (current) => ensureOwnedChicken(current, Math.random));
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(player, "養雞道具", "選擇要使用的道具。")],
+      components: buildChickenItemComponents(player, interaction.user.id)
+    });
+    return;
+  }
+  if (action === "feed_normal" || action === "feed_gourmet" || action === "clean") {
+    await interaction.deferUpdate();
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = action === "clean"
+        ? cleanChickenCoop(player, Date.now(), Math.random)
+        : feedChicken(player, action === "feed_gourmet" ? "gourmetFeed" : "normalFeed", Date.now(), Math.random);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
+      components: buildChickenPanelComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
   if (action === "candy") {
     await interaction.deferUpdate();
     let result = null;
@@ -1675,8 +1704,8 @@ async function handleChickenPanelInteraction(interaction) {
       return result.player;
     });
     await interaction.editReply({
-      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
-      components: buildChickenPanelComponents(result.player, interaction.user.id)
+      embeds: [buildChickenEmbed(result.player, "養雞道具", result.message)],
+      components: buildChickenItemComponents(result.player, interaction.user.id)
     });
     return;
   }
@@ -1688,8 +1717,23 @@ async function handleChickenPanelInteraction(interaction) {
       return result.player;
     });
     await interaction.editReply({
-      embeds: [buildChickenEmbed(result.player, "養雞面板", result.message)],
-      components: buildChickenPanelComponents(result.player, interaction.user.id)
+      embeds: [buildChickenEmbed(result.player, "養雞道具", result.message)],
+      components: buildChickenItemComponents(result.player, interaction.user.id)
+    });
+    return;
+  }
+  if (action === "medicine" || action === "auto_cleaner") {
+    await interaction.deferUpdate();
+    let result = null;
+    await updatePlayer(interaction.user.id, (player) => {
+      result = action === "medicine"
+        ? useChickenMedicine(player, Date.now(), Math.random)
+        : useAutoCleaner(player, Date.now(), Math.random);
+      return result.player;
+    });
+    await interaction.editReply({
+      embeds: [buildChickenEmbed(result.player, "養雞道具", result.message)],
+      components: buildChickenItemComponents(result.player, interaction.user.id)
     });
     return;
   }
