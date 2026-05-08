@@ -38,6 +38,7 @@ const {
   removeRust,
   repairPlayerState,
   rerollRunModeOptions,
+  resolveEventChallenge,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
@@ -2166,15 +2167,25 @@ async function handleMiningButton(interaction) {
     files = [];
   }
 
-  if (interaction.customId === CUSTOM_IDS.eventRisk || interaction.customId === CUSTOM_IDS.eventSafe || interaction.customId === CUSTOM_IDS.eventExtreme) {
-    const choice = interaction.customId === CUSTOM_IDS.eventRisk
+  if (
+    interaction.customId === CUSTOM_IDS.eventRisk
+    || interaction.customId === CUSTOM_IDS.eventSafe
+    || interaction.customId === CUSTOM_IDS.eventExtreme
+    || interaction.customId.startsWith(`${CUSTOM_IDS.eventQtePrefix}:`)
+  ) {
+    const choice = interaction.customId.startsWith(`${CUSTOM_IDS.eventQtePrefix}:`)
+      ? interaction.customId.split(":")[2]
+      : interaction.customId === CUSTOM_IDS.eventRisk
       ? "risk"
       : interaction.customId === CUSTOM_IDS.eventExtreme
         ? "extreme"
         : "safe";
     await updatePlayers((players) => {
       const previousBestDepth = getGlobalBestDepth(players);
-      const result = resolveRandomEvent(players[panelTargetUserId], choice);
+      const player = getPlayer(players[panelTargetUserId]);
+      const result = player.eventChallenge
+        ? resolveEventChallenge(player, choice, Math.random, Date.now())
+        : resolveRandomEvent(player, choice);
       const next = attachGlobalRecordMessage(
         { player: result.player },
         previousBestDepth,

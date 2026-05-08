@@ -110,6 +110,7 @@ function createPlayer() {
     pendingEvent: null,
     nextEventDepth: 4,
     eventMissCount: 0,
+    eventChallenge: null,
     digPathHistory: [],
     memoryChallenge: null,
     tempEffects: [],
@@ -220,6 +221,27 @@ function getPlayer(player) {
       options: player.memoryChallenge.options && typeof player.memoryChallenge.options === "object"
         ? { ...player.memoryChallenge.options }
         : {}
+    }
+    : null;
+  next.eventChallenge = player && player.eventChallenge && typeof player.eventChallenge === "object"
+    ? {
+      eventId: typeof player.eventChallenge.eventId === "string" ? player.eventChallenge.eventId : "",
+      type: typeof player.eventChallenge.type === "string" ? player.eventChallenge.type : "",
+      correctChoice: typeof player.eventChallenge.correctChoice === "string" ? player.eventChallenge.correctChoice : "",
+      choices: Array.isArray(player.eventChallenge.choices)
+        ? player.eventChallenge.choices
+          .filter((choice) => choice && typeof choice.id === "string" && typeof choice.label === "string")
+          .map((choice) => ({ id: choice.id, label: choice.label }))
+          .slice(0, 5)
+        : [],
+      startedAt: Math.max(0, Number(player.eventChallenge.startedAt || 0)),
+      expiresAt: Math.max(0, Number(player.eventChallenge.expiresAt || 0)),
+      durability: Math.max(0, Math.min(9, Math.floor(player.eventChallenge.durability || 0))),
+      angle: Math.max(0, Math.min(359, Math.floor(player.eventChallenge.angle || 0))),
+      targetAngle: Math.max(0, Math.min(359, Math.floor(player.eventChallenge.targetAngle || 0))),
+      tolerance: Math.max(1, Math.min(90, Math.floor(player.eventChallenge.tolerance || 12))),
+      attempts: Math.max(0, Math.min(9, Math.floor(player.eventChallenge.attempts || 0))),
+      hint: typeof player.eventChallenge.hint === "string" ? player.eventChallenge.hint.slice(0, 120) : ""
     }
     : null;
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;

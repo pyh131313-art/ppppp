@@ -676,6 +676,11 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.memoryChallenge = null;
     addFixed("清除卡住的記憶事件");
   }
+  if (clearBlockingState && player.eventChallenge) {
+    player.eventChallenge = null;
+    player.pendingEvent = null;
+    addFixed("清除卡住的互動事件");
+  }
   if (clearBlockingState && (player.minorBuffOptions.length > 0 || player.minorBuffSelections.length > 0)) {
     player.minorBuffOptions = [];
     player.minorBuffSelections = [];
@@ -882,6 +887,10 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.memoryChallenge = null;
     addFixed("清理錯誤記憶事件");
   }
+  if (player.eventChallenge && (!player.eventChallenge.eventId || (!player.eventChallenge.correctChoice && player.eventChallenge.type !== "lockpick"))) {
+    player.eventChallenge = null;
+    addFixed("清理錯誤互動事件");
+  }
   player.tempEffects = Array.isArray(player.tempEffects)
     ? player.tempEffects
       .filter((effect) => effect && typeof effect.id === "string" && effect.id.trim())
@@ -1026,6 +1035,7 @@ function resetRunState(player, random = Math.random) {
   player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
+  player.eventChallenge = null;
   player.digPathHistory = [];
   player.memoryChallenge = null;
   player.nextEventDepth = 4;
@@ -1295,6 +1305,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
+  player.eventChallenge = null;
   player.nextEventDepth = 4;
   player.eventMissCount = 0;
   player.bagBonusSlots = config.bagBonusSlots || 0;
@@ -1921,8 +1932,185 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   else eventId = pickRandomEvent(player, random);
   player.pendingEvent = eventId;
   const event = getRandomEvent(eventId);
+  const challengeMessage = setupEventChallenge(player, event, eventId, random);
   const memoryMessage = setupMemoryChallenge(player, event, eventId, random);
-  return `\n\n事件出現：${event.title}。\n${event.description}${memoryMessage}`;
+  return `\n\n事件出現：${event.title}。\n${event.description}${challengeMessage}${memoryMessage}`;
+}
+
+function setupEventChallenge(player, event, eventId, random = Math.random, now = Date.now()) {
+  player.eventChallenge = null;
+  if (!event) return "";
+  if (event.qte) {
+    const choices = event.qte.choices || [];
+    const correct = choices[Math.floor(random() * choices.length)] || choices[0];
+    const hintPool = event.qte.hints || [];
+    const hint = hintPool[Math.floor(random() * hintPool.length)] || "";
+    player.eventChallenge = {
+      eventId,
+      type: event.qte.type || "qte",
+      correctChoice: correct ? correct.id : "",
+      choices,
+      startedAt: now,
+      expiresAt: now + Math.max(3, event.qte.seconds || 8) * 1000,
+      hint
+    };
+    return `\n⏱️ 限時 ${Math.max(3, event.qte.seconds || 8)} 秒。${hint ? `\n${hint}` : ""}`;
+  }
+  if (event.lockpick) {
+    player.eventChallenge = {
+      eventId,
+      type: "lockpick",
+      correctChoice: "unlock",
+      choices: [
+        { id: "left", label: "左轉" },
+        { id: "right", label: "右轉" },
+        { id: "unlock", label: "嘗試開鎖" }
+      ],
+      startedAt: now,
+      expiresAt: now + Math.max(6, event.lockpick.seconds || 12) * 1000,
+      durability: Math.max(1, event.lockpick.durability || 3),
+      angle: Math.floor(random() * 360),
+      targetAngle: Math.floor(random() * 360),
+      tolerance: Math.max(5, event.lockpick.tolerance || 18),
+      attempts: 0
+    };
+    return `\n🪛 鐵絲耐久：${player.eventChallenge.durability}\n⏱️ 限時 ${Math.max(6, event.lockpick.seconds || 12)} 秒。`;
+  }
+  return "";
+}
+
+function angleDistance(a, b) {
+  const diff = Math.abs(((a - b) % 360 + 360) % 360);
+  return Math.min(diff, 360 - diff);
+}
+
+function getLockpickHint(challenge) {
+  const distance = angleDistance(challenge.angle || 0, challenge.targetAngle || 0);
+  if (distance <= (challenge.tolerance || 12)) return "🔓 喀…鎖芯快開了。";
+  if (distance <= 45) return "⚠️ 鐵絲正在彎曲。";
+  if (distance <= 90) return "喀、喀，角度還差一點。";
+  return "鎖芯幾乎沒有反應。";
+}
+
+function applyChallengeSuccess(player, eventId, random = Math.random) {
+  if (eventId === "qte_bomb_defuse") {
+    player.bombItem += 1;
+    const gold = 50 + getDepthBonus(player.depth) * 12;
+    player.gold += gold;
+    return `✨ CLICK！拆除成功，獲得完整炸彈 x1 和 ${gold} 金幣。`;
+  }
+  if (eventId === "qte_cave_escape") {
+    player.depth += 1;
+    addRunDepthProgress(player, 1);
+    return `✨ 你衝出崩塌區，順勢深入到第 ${player.depth} 層。`;
+  }
+  if (eventId === "qte_resonance_strike") {
+    const reward = addOreReward(player, 4 + getDepthBonus(player.depth), player.depth >= 30 ? "platinumOre" : "goldOre");
+    return `✨ 完美共振！獲得 ${reward.gained} 塊${getOreName(reward.target)}。`;
+  }
+  if (eventId === "qte_memory_route") {
+    addTempEffect(player, { id: "hidden_route", remaining: 3, rewardMultiplier: 1.35, bombWeightMultiplier: 0.85 });
+    return "✨ 你記起路線，進入隱藏礦道。接下來 3 層收益 +35%，炸彈 -15%。";
+  }
+  if (eventId === "puzzle_circuit_repair") {
+    const gold = 90 + getDepthBonus(player.depth) * 18;
+    player.gold += gold;
+    return `✨ 電路接通，寶箱彈開。獲得 ${gold} 金幣。`;
+  }
+  if (eventId === "puzzle_lava_valve") {
+    player.chargeValue = Math.min(100, (player.chargeValue || 0) + 35);
+    addTempEffect(player, { id: "lava_valve", remaining: 2, rewardMultiplier: 1.5 });
+    return "✨ 岩漿改道，能量 +35，接下來 2 層收益 +50%。";
+  }
+  if (eventId === "lockpick_ancient_vault") {
+    const roll = random();
+    if (roll < 0.25) {
+      player.rusty += 1;
+      return "✨ 金庫打開，你拿到生鏽紀念幣 x1。";
+    }
+    const reward = addOreReward(player, 3 + getDepthBonus(player.depth), "goldOre");
+    return `✨ 金庫打開，獲得 ${reward.gained} 塊${getOreName(reward.target)}。`;
+  }
+  const gold = 60 + getDepthBonus(player.depth) * 10;
+  player.gold += gold;
+  return `✨ 成功！獲得 ${gold} 金幣。`;
+}
+
+function applyChallengeFailure(player, eventId, now = Date.now()) {
+  if (eventId === "qte_cave_escape") {
+    const damage = addBombDamage(player, now);
+    player.depth = Math.max(0, player.depth - 1);
+    return `💥 慢了一拍，碎石封路。${damage.message}你被迫退回第 ${player.depth} 層。`;
+  }
+  if (eventId === "qte_memory_route") {
+    addTempEffect(player, { id: "lost_route", remaining: 2, bombWeightMultiplier: 1.35 });
+    return "💥 路線記錯，你踏進危險區。接下來 2 層炸彈 +35%。";
+  }
+  if (eventId === "puzzle_circuit_repair" || eventId === "puzzle_lava_valve") {
+    const damage = addBombDamage(player, now);
+    return `💥 拼圖失誤，陷阱啟動。${damage.message}`;
+  }
+  const damage = addBombDamage(player, now);
+  return `💥 BOOM！${damage.message}`;
+}
+
+function resolveEventChallenge(playerInput, action, random = Math.random, now = Date.now()) {
+  const player = getPlayer(playerInput);
+  const challenge = player.eventChallenge;
+  const event = challenge ? getRandomEvent(challenge.eventId) : null;
+  if (!challenge || !event) {
+    return { ok: false, player, title: "沒有互動事件", message: "目前沒有需要操作的事件。" };
+  }
+
+  if (now > challenge.expiresAt) {
+    const message = applyChallengeFailure(player, challenge.eventId, now);
+    player.pendingEvent = null;
+    player.eventChallenge = null;
+    return { ok: true, player, title: event.title, message: `⏱️ 超時。\n${message}` };
+  }
+
+  if (challenge.type === "lockpick") {
+    if (action === "left" || action === "right") {
+      const delta = action === "left" ? -18 : 18;
+      challenge.angle = (challenge.angle + delta + 360) % 360;
+      challenge.attempts = (challenge.attempts || 0) + 1;
+      player.eventChallenge = challenge;
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `${getLockpickHint(challenge)}\n🪛 鐵絲耐久：${challenge.durability}\n角度：${challenge.angle}°`
+      };
+    }
+    if (angleDistance(challenge.angle || 0, challenge.targetAngle || 0) <= (challenge.tolerance || 12)) {
+      const message = applyChallengeSuccess(player, challenge.eventId, random);
+      player.pendingEvent = null;
+      player.eventChallenge = null;
+      return { ok: true, player, title: event.title, message };
+    }
+    challenge.durability -= 1;
+    if (challenge.durability <= 0) {
+      const message = applyChallengeFailure(player, challenge.eventId, now);
+      player.pendingEvent = null;
+      player.eventChallenge = null;
+      return { ok: true, player, title: event.title, message: `💥 鐵絲斷裂！\n${message}` };
+    }
+    player.eventChallenge = challenge;
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `沒開。${getLockpickHint(challenge)}\n🪛 鐵絲耐久：${challenge.durability}`
+    };
+  }
+
+  const success = action === challenge.correctChoice;
+  const message = success
+    ? applyChallengeSuccess(player, challenge.eventId, random)
+    : applyChallengeFailure(player, challenge.eventId, now);
+  player.pendingEvent = null;
+  player.eventChallenge = null;
+  return { ok: true, player, title: event.title, message };
 }
 
 function addBombDamage(player, now = Date.now(), amount = 1) {
@@ -3061,6 +3249,7 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
   }
 
   player.pendingEvent = null;
+  player.eventChallenge = null;
 
   if (event.requiresPathHistory) {
     return resolveMemoryEvent(player, eventId, event, choice, random, now);
@@ -4595,6 +4784,7 @@ module.exports = {
   removeRust,
   repairPlayerState,
   rerollRunModeOptions,
+  resolveEventChallenge,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,

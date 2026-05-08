@@ -61,6 +61,7 @@ const CUSTOM_IDS = {
   eventRisk: "mine_ui:event:risk",
   eventSafe: "mine_ui:event:safe",
   eventExtreme: "mine_ui:event:extreme",
+  eventQtePrefix: "mine_ui:event_qte",
   exchangeOne: "mine_ui:exchange_one",
   shopBuyPrefix: "mine_ui:shop_buy",
   shopBuyCustomPrefix: "mine_ui:shop_buy_custom",
@@ -817,11 +818,22 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
 
   if (player.pendingEvent) {
     const labels = getEventButtonLabels(player.pendingEvent);
-    addRow(
-      makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
-      makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭"),
-      labels.extreme ? makeButton(CUSTOM_IDS.eventExtreme, labels.extreme, ButtonStyle.Danger, "🔥") : null
-    );
+    if (player.eventChallenge && Array.isArray(player.eventChallenge.choices) && player.eventChallenge.choices.length > 0) {
+      addRow(...player.eventChallenge.choices.map((choice) => (
+        makeButton(
+          `${CUSTOM_IDS.eventQtePrefix}:${choice.id}`,
+          choice.label,
+          choice.id === "unlock" ? ButtonStyle.Success : ButtonStyle.Primary,
+          player.eventChallenge.type === "lockpick" ? "🪛" : "⚡"
+        )
+      )));
+    } else {
+      addRow(
+        makeButton(CUSTOM_IDS.eventRisk, labels.risk, ButtonStyle.Danger, "🎲"),
+        makeButton(CUSTOM_IDS.eventSafe, labels.safe, ButtonStyle.Success, "🧭"),
+        labels.extreme ? makeButton(CUSTOM_IDS.eventExtreme, labels.extreme, ButtonStyle.Danger, "🔥") : null
+      );
+    }
   }
 
   addRow(

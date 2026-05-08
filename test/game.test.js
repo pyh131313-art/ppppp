@@ -35,6 +35,7 @@ const {
   removeRust,
   repairPlayerState,
   rerollRunModeOptions,
+  resolveEventChallenge,
   resolveRandomEvent,
   rescuePlayer,
   returnToSurface,
@@ -499,6 +500,97 @@ test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
   }, "safe");
   assert.equal(resolved.player.pendingEvent, null);
   assert.equal(canChooseMinorBuff(resolved.player), true);
+});
+
+test("QTE 炸彈拆除會建立限時互動並依答案結算", () => {
+  const player = {
+    ...createPlayer(),
+    pendingEvent: "qte_bomb_defuse",
+    eventChallenge: {
+      eventId: "qte_bomb_defuse",
+      type: "wire",
+      correctChoice: "blue",
+      choices: [
+        { id: "red", label: "紅線" },
+        { id: "blue", label: "藍線" },
+        { id: "yellow", label: "黃線" }
+      ],
+      startedAt: 1000,
+      expiresAt: 9000
+    }
+  };
+
+  const success = resolveEventChallenge(player, "blue", () => 0, 2000);
+  assert.equal(success.player.pendingEvent, null);
+  assert.equal(success.player.eventChallenge, null);
+  assert.equal(success.player.bombItem, 1);
+
+  const failed = resolveEventChallenge(player, "red", () => 0, 2000);
+  assert.equal(failed.player.pendingEvent, null);
+  assert.equal(failed.player.bombs, 0.5);
+});
+
+test("QTE 事件面板會顯示專用互動按鈕", () => {
+  const player = {
+    ...createPlayer(),
+    pendingEvent: "qte_bomb_defuse",
+    eventChallenge: {
+      eventId: "qte_bomb_defuse",
+      type: "wire",
+      correctChoice: "blue",
+      choices: [
+        { id: "red", label: "紅線" },
+        { id: "blue", label: "藍線" },
+        { id: "yellow", label: "黃線" }
+      ],
+      startedAt: 1000,
+      expiresAt: 9000
+    }
+  };
+  const rows = buildPanelComponents("user-1", player, {}, "main").map((row) => row.toJSON());
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.custom_id));
+
+  assert.equal(customIds.includes(`${CUSTOM_IDS.eventQtePrefix}:blue`), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.eventRisk), false);
+});
+
+test("開鎖事件會依角度與耐久判定", () => {
+  const player = {
+    ...createPlayer(),
+    pendingEvent: "lockpick_ancient_vault",
+    eventChallenge: {
+      eventId: "lockpick_ancient_vault",
+      type: "lockpick",
+      correctChoice: "unlock",
+      choices: [
+        { id: "left", label: "左轉" },
+        { id: "right", label: "右轉" },
+        { id: "unlock", label: "嘗試開鎖" }
+      ],
+      startedAt: 1000,
+      expiresAt: 13000,
+      durability: 2,
+      angle: 90,
+      targetAngle: 90,
+      tolerance: 10
+    }
+  };
+
+  const opened = resolveEventChallenge(player, "unlock", () => 0.5, 2000);
+  assert.equal(opened.player.pendingEvent, null);
+  assert.match(opened.message, /金庫打開/);
+
+  const missed = resolveEventChallenge({
+    ...player,
+    eventChallenge: {
+      ...player.eventChallenge,
+      angle: 0,
+      targetAngle: 180,
+      durability: 1
+    }
+  }, "unlock", () => 0, 2000);
+  assert.equal(missed.player.eventChallenge, null);
+  assert.equal(missed.player.bombs, 0.5);
 });
 
 test("等待小詞條時礦場面板只顯示小詞條避免按鈕列爆量", () => {

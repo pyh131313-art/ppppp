@@ -19,6 +19,7 @@ const RANDOM_EVENTS = {
   lost_backpack: {
     title: "遺失的背包",
     description: "地上有一個被丟下的背包，裡面可能有補給，也可能有破爛。",
+    weight: 0.65,
     buttons: { risk: "翻找背包", safe: "只拿背帶" }
   },
   goblin_purchase: {
@@ -39,6 +40,7 @@ const RANDOM_EVENTS = {
   underground_stream: {
     title: "地下水脈",
     description: "水聲從石壁後方傳來，礦脈似乎被沖開了。",
+    weight: 0.55,
     buttons: { safe: "沿水繞路", risk: "順水開挖", extreme: "衝進水脈" }
   },
   miner_remains: {
@@ -59,6 +61,7 @@ const RANDOM_EVENTS = {
   lost_supply_cache: {
     title: "遺失補給箱",
     description: "你在角落發現一只封住的補給箱。",
+    weight: 0.55,
     buttons: { safe: "拿急救品", risk: "撬開補給箱", extreme: "整箱扛走" }
   },
   explosive_core: {
@@ -120,7 +123,98 @@ const RANDOM_EVENTS = {
   treasure_chest: {
     title: "礦道寶箱",
     description: "一只寶箱卡在碎石後方，鎖孔裡有微光。",
+    weight: 0.65,
     buttons: { safe: "檢查陷阱", risk: "打開寶箱", extreme: "強行砸開" }
+  },
+  qte_bomb_defuse: {
+    title: "💣 炸彈拆除",
+    description: "倒數聲貼著耳膜。三條線，只能剪一條。",
+    qte: {
+      type: "wire",
+      seconds: 8,
+      choices: [
+        { id: "red", label: "紅線" },
+        { id: "blue", label: "藍線" },
+        { id: "yellow", label: "黃線" }
+      ],
+      hints: ["⚠️ 鐵絲正在震動…", "火花偏向冷色線。", "炸彈外殼燙得不正常。"]
+    }
+  },
+  qte_cave_escape: {
+    title: "🪨 崩塌逃跑",
+    description: "頂板裂開。碎石追著你的腳跟落下。",
+    qte: {
+      type: "escape",
+      seconds: 6,
+      choices: [
+        { id: "left", label: "⬅️" },
+        { id: "right", label: "➡️" },
+        { id: "up", label: "⬆️" },
+        { id: "down", label: "⬇️" }
+      ],
+      hints: ["風從側邊灌進來。", "腳下石粉往低處滑。", "頭頂碎石先往一側落。"]
+    }
+  },
+  qte_resonance_strike: {
+    title: "⚡ 礦脈共振",
+    description: "礦脈亮起一瞬。只有一次敲擊機會。",
+    qte: {
+      type: "timing",
+      seconds: 5,
+      choices: [
+        { id: "early", label: "早敲" },
+        { id: "strike", label: "敲擊" },
+        { id: "late", label: "晚敲" }
+      ],
+      hints: ["光點正在靠近中心。", "震動短暫同步。", "下一拍會很亮。"]
+    }
+  },
+  qte_memory_route: {
+    title: "🌌 記憶路線",
+    description: "牆上閃過四個方向，轉眼就暗下。",
+    qte: {
+      type: "memory",
+      seconds: 10,
+      choices: [
+        { id: "seq_a", label: "⬅️⬇️➡️⬆️" },
+        { id: "seq_b", label: "⬆️➡️⬇️⬅️" },
+        { id: "seq_c", label: "➡️⬆️⬅️⬇️" }
+      ],
+      hints: ["第一步像是往左。", "中段有一次下墜。", "最後的風往上吹。"]
+    }
+  },
+  puzzle_circuit_repair: {
+    title: "⚡ 電路修復",
+    description: "寶箱電路短路。接錯就會炸。",
+    qte: {
+      type: "puzzle",
+      seconds: 10,
+      choices: [
+        { id: "line_a", label: "接 A 線" },
+        { id: "line_b", label: "接 B 線" },
+        { id: "line_c", label: "接 C 線" }
+      ],
+      hints: ["電流避開焦黑線。", "銅線仍有餘溫。", "綠燈閃得最穩。"]
+    }
+  },
+  puzzle_lava_valve: {
+    title: "🌋 岩漿閥門",
+    description: "岩漿正在逼近。閥門只能扳一次。",
+    qte: {
+      type: "puzzle",
+      seconds: 9,
+      choices: [
+        { id: "north", label: "導向北槽" },
+        { id: "east", label: "導向東槽" },
+        { id: "west", label: "導向西槽" }
+      ],
+      hints: ["熱氣從東側回流。", "北槽有凝固痕。", "西側石壁比較厚。"]
+    }
+  },
+  lockpick_ancient_vault: {
+    title: "🔓 古代金庫",
+    description: "鎖芯很老，但還活著。鐵絲撐不了太久。",
+    lockpick: { seconds: 12, durability: 3, tolerance: 18, lockType: "ancient" }
   },
   lost_miner: {
     title: "迷路礦工",
@@ -375,7 +469,15 @@ function pickRandomEvent(player, random = Math.random, filter = null) {
     if (filter && !filter(id, RANDOM_EVENTS[id])) return false;
     return canEventAppear(RANDOM_EVENTS[id], player);
   });
-  return eventIds[Math.floor(random() * eventIds.length)] || eventIds[0];
+  const weighted = eventIds.map((id) => ({ id, weight: Math.max(0, RANDOM_EVENTS[id].weight == null ? 1 : RANDOM_EVENTS[id].weight) }));
+  const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
+  if (totalWeight <= 0) return eventIds[Math.floor(random() * eventIds.length)] || eventIds[0];
+  let roll = random() * totalWeight;
+  for (const item of weighted) {
+    roll -= item.weight;
+    if (roll <= 0) return item.id;
+  }
+  return weighted[weighted.length - 1] ? weighted[weighted.length - 1].id : eventIds[0];
 }
 
 function pickGemEvent(player, random = Math.random) {
