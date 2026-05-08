@@ -5,7 +5,7 @@ services:
     plan: starter
     region: singapore
     buildCommand: corepack enable && pnpm install --frozen-lockfile
-    startCommand: pnpm start
+    startCommand: pnpm web
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
