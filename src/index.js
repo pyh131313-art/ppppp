@@ -1088,6 +1088,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (name === "開礦場面板") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
+        return;
+      }
+      const target = interaction.options.getUser("玩家", true);
+      await interaction.deferReply({ ephemeral: true });
+      const previousPanelPlayer = getPlayer((await loadPlayers())[target.id]);
+      await deletePreviousMinePanel(previousPanelPlayer, interaction.channel);
+      const player = await updatePlayer(target.id, (current) => ensureRunModeOptions(current, Math.random));
+      const progress = getProgressWithGlobal(await loadPlayers());
+      await interaction.editReply({
+        content: `管理面板：${target}`,
+        embeds: [buildPanelEmbed(player, "管理面板", "已開啟指定玩家的礦場面板。", target)],
+        files: buildHudFiles(player),
+        components: buildPanelComponents(target.id, player, progress)
+      });
+      const reply = await interaction.fetchReply();
+      await updatePlayer(target.id, (current) => {
+        const next = getPlayer(current);
+        next.activeMinePanelMessageId = reply.id;
+        next.activeMinePanelChannelId = reply.channelId || (interaction.channel && interaction.channel.id) || "";
+        return next;
+      });
+      return;
+    }
+
     if (name === "重置玩家") {
       if (!canUseAdminCommand(interaction.user.id)) {
         await interaction.reply({ content: "你沒有權限使用這個指令。", ephemeral: true });
@@ -1868,7 +1895,8 @@ async function handleChallengeInteraction(interaction) {
 async function handleMiningButton(interaction) {
   const panelTargetUserId = getPanelTargetUserId(interaction) || interaction.user.id;
   const isRescueButton = interaction.customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`);
-  if (panelTargetUserId !== interaction.user.id && !isRescueButton) {
+  const isAdminPanelOperator = canUseAdminCommand(interaction.user.id);
+  if (panelTargetUserId !== interaction.user.id && !isRescueButton && !isAdminPanelOperator) {
     await interaction.reply({
       content: "這是別人的礦場面板。請使用 `/礦場` 打開自己的面板。",
       ephemeral: true
