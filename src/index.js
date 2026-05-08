@@ -65,7 +65,7 @@ const {
   getGlobalStateFromPlayers,
   setGlobalStateToPlayers
 } = require("./globalState");
-const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
+const { loadPlayers, savePlayers, updatePlayer, updatePlayers } = require("./storage");
 const {
   FRAME_COUNT,
   RACE_CUSTOM_IDS,
@@ -203,6 +203,25 @@ function canUseAdminCommand(userId) {
 
 function canUseOwnerCommand(userId) {
   return String(userId || "") === OWNER_USER_ID;
+}
+
+function validatePlayerExport(players) {
+  if (!players || typeof players !== "object" || Array.isArray(players)) {
+    return { ok: false, message: "檔案格式錯誤：最外層必須是玩家資料物件。" };
+  }
+  const entries = Object.entries(players);
+  if (entries.length === 0) {
+    return { ok: false, message: "檔案裡沒有任何玩家資料，已拒絕匯入。" };
+  }
+  for (const [userId, player] of entries) {
+    if (!/^\d{5,30}$/.test(String(userId))) {
+      return { ok: false, message: `玩家 ID 格式錯誤：${userId}` };
+    }
+    if (!player || typeof player !== "object" || Array.isArray(player)) {
+      return { ok: false, message: `玩家 ${userId} 的資料不是物件。` };
+    }
+  }
+  return { ok: true, count: entries.length };
 }
 
 function buildPlayerCheckReport(target, rawPlayer) {
@@ -1206,6 +1225,65 @@ client.on(Events.InteractionCreate, async (interaction) => {
         content: `已普發猛禽洞窟入場券。\n新增：${result.issued} 人｜原本已有：${result.alreadyHad} 人｜玩家資料總數：${result.total}`,
         ephemeral: true
       });
+      return;
+    }
+
+    if (name === "匯出玩家資料") {
+      if (!canUseOwnerCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有機器人擁有者可以使用這個指令。", ephemeral: true });
+        return;
+      }
+      const players = await loadPlayers();
+      const exportedAt = new Date().toISOString().replace(/[:.]/g, "-");
+      const body = Buffer.from(`${JSON.stringify(players, null, 2)}\n`, "utf8");
+      await interaction.reply({
+        content: `已匯出玩家資料，共 ${Object.keys(players).length} 筆。請先保留這個檔案，確認新服務匯入成功前不要刪掉。`,
+        files: [{ attachment: body, name: `players-export-${exportedAt}.json` }],
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "匯入玩家資料") {
+      if (!canUseOwnerCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有機器人擁有者可以使用這個指令。", ephemeral: true });
+        return;
+      }
+      const confirmation = interaction.options.getString("確認", true);
+      if (confirmation !== "覆蓋玩家資料") {
+        await interaction.reply({ content: "確認文字不正確。請輸入：覆蓋玩家資料", ephemeral: true });
+        return;
+      }
+      const attachment = interaction.options.getAttachment("檔案", true);
+      if (!attachment.name.endsWith(".json")) {
+        await interaction.reply({ content: "請上傳 JSON 檔。", ephemeral: true });
+        return;
+      }
+      if (attachment.size > 20 * 1024 * 1024) {
+        await interaction.reply({ content: "檔案太大，請先聯絡我改用 Render Shell 搬移。", ephemeral: true });
+        return;
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        await interaction.editReply(`下載附件失敗：HTTP ${response.status}`);
+        return;
+      }
+      let importedPlayers = null;
+      try {
+        importedPlayers = JSON.parse(await response.text());
+      } catch {
+        await interaction.editReply("JSON 解析失敗，請確認檔案是 /匯出玩家資料 產生的原始檔。");
+        return;
+      }
+      const validation = validatePlayerExport(importedPlayers);
+      if (!validation.ok) {
+        await interaction.editReply(validation.message);
+        return;
+      }
+      const before = Object.keys(await loadPlayers()).length;
+      await savePlayers(importedPlayers);
+      await interaction.editReply(`已匯入玩家資料。\n原本：${before} 筆｜現在：${validation.count} 筆\n請立刻用 /檢查玩家 或網頁確認資料。`);
       return;
     }
 

@@ -118,7 +118,7 @@ async function loadMe() {
   if (response.status === 401) return;
   const body = await response.json();
   if (!body.ok) {
-    showNotice("讀取資料失敗，稍後再試。");
+    showNotice(`讀取資料失敗：${body.message || "server_error"}`);
     return;
   }
   state.data = body.data;

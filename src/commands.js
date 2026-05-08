@@ -61,6 +61,20 @@ const commands = [
     .setName("普發入場券")
     .setDescription("開發者專用：發給所有玩家猛禽洞窟入場券。"),
   new SlashCommandBuilder()
+    .setName("匯出玩家資料")
+    .setDescription("開發者專用：匯出全部玩家資料作為搬家備份。"),
+  new SlashCommandBuilder()
+    .setName("匯入玩家資料")
+    .setDescription("開發者專用：從匯出的 JSON 檔覆蓋匯入玩家資料。")
+    .addAttachmentOption((option) => option
+      .setName("檔案")
+      .setDescription("由 /匯出玩家資料 產生的 JSON 檔。")
+      .setRequired(true))
+    .addStringOption((option) => option
+      .setName("確認")
+      .setDescription("請輸入：覆蓋玩家資料")
+      .setRequired(true)),
+  new SlashCommandBuilder()
     .setName("檢查玩家")
     .setDescription("管理用：檢查指定玩家的挖礦狀態。")
     .addUserOption((option) => option
