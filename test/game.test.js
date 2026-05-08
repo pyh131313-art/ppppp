@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buyShopItem,
+  buyUndergroundInnItem,
   canChooseMinorBuff,
   chooseMinorBuff,
   chooseRunMode,
@@ -23,6 +24,7 @@ const {
   getDigPathOptions,
   getElevatorCost,
   getMagicCandyPrice,
+  getUndergroundInnSnapshot,
   getMinorBuffEffectiveStacks,
   getMinorBuffOptions,
   getRandomEvents,
@@ -64,10 +66,16 @@ const {
   buildBankComponents,
   buildPanelComponents,
   buildPanelEmbed,
+  buildShopEmbed,
   buildShopComponents,
   CUSTOM_IDS
 } = require("../src/ui");
 const { pickRandomEvent } = require("../src/eventSystem");
+const {
+  buildDeveloperPanelEmbed,
+  getTaiwanDateKey,
+  recordAnalyticsOnPlayers
+} = require("../src/analyticsSystem");
 
 test("炸彈每次扣半血，累積到生命上限才死亡", () => {
   const start = chooseRunMode(createPlayer(), "double").player;
@@ -344,12 +352,51 @@ test("坑洞路線會跳層給獎勵並扣血", () => {
   assert.match(result.message, /金光坑洞/);
 });
 
+test("厚底鞋會抵擋一次坑洞墜落傷害且不能和藥水共存", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    digPathOptions: { middle: "coinPit" },
+    thickSoleShoes: 1
+  };
+  const result = mine(player, () => 0, 1000, "middle");
+  const potionBlocked = buyShopItem(
+    { ...createPlayer(), gold: 100, thickSoleShoes: 1 },
+    "healingPotion",
+    1,
+    { healingPotionUnlocked: true }
+  );
+
+  assert.equal(result.kind, "gold");
+  assert.equal(result.player.bombs, 0);
+  assert.equal(result.player.thickSoleShoes, 0);
+  assert.match(result.message, /厚底鞋/);
+  assert.equal(potionBlocked.ok, false);
+  assert.match(potionBlocked.message, /無法同時攜帶/);
+});
+
 test("進入礦洞有小機率掉進寶石礦洞", () => {
   const result = chooseRunMode(createPlayer(), "safe", () => 0);
 
   assert.equal(result.ok, true);
   assert.equal(result.player.caveType, "gem");
   assert.match(result.message, /寶石礦洞/);
+});
+
+test("地下客棧寶石洞入場券會讓下次下礦必進寶石洞", () => {
+  const now = Date.parse("2026-05-08T04:00:00.000Z");
+  const player = {
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    invertedOre: 999,
+    runModeOptions: ["safe", "double"]
+  };
+  const bought = buyUndergroundInnItem(player, "gemTicket", createGlobalState(now), now);
+  const next = chooseRunMode({ ...bought.player, zone: "surface" }, "safe", () => 0.99);
+
+  assert.equal(bought.ok, true);
+  assert.equal(bought.player.guaranteedGemCaveTicket, 1);
+  assert.equal(next.player.caveType, "gem");
+  assert.equal(next.player.guaranteedGemCaveTicket, 0);
 });
 
 test("可以丟棄多種可攜帶物品並阻擋破爛", () => {
@@ -777,7 +824,7 @@ test("礦區記憶事件排對給獎勵，排錯會受罰", () => {
   assert.equal(wrong.player.bombs, 0.5);
 });
 
-test("礦洞特殊雞事件可以犧牲原雞捕捉特殊雞", () => {
+test("野生賽雞短跑挑戰成功會給掉落並影響進化", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
     depth: 25,
@@ -788,7 +835,7 @@ test("礦洞特殊雞事件可以犧牲原雞捕捉特殊雞", () => {
       level: 3,
       exp: 0,
       speed: 5,
-      sprint: 5,
+      sprint: 20,
       stability: 5,
       stamina: 5,
       wins: 0,
@@ -796,40 +843,67 @@ test("礦洞特殊雞事件可以犧牲原雞捕捉特殊雞", () => {
       evolutionPoints: {}
     }
   };
-  const rolls = [0.1];
+  const rolls = [0.9, 0.1, 0.1, 0.1, 0.99, 0.99, 0.99];
   const result = resolveRandomEvent(player, "risk", () => rolls.shift() ?? 0);
 
   assert.equal(result.ok, true);
-  assert.notEqual(result.player.ownedChicken.name, "阿咕霸王");
-  assert.equal(result.player.ownedChicken.origin, "mine");
-  assert.equal(result.player.ownedChicken.evolutionType, "mineCrystal");
-  assert.match(result.message, /成功抓到/);
+  assert.equal(result.player.ownedChicken.name, "阿咕霸王");
+  assert.equal(result.player.ownedChicken.races, 1);
+  assert.equal(result.player.ownedChicken.wins, 1);
+  assert.equal(result.player.gold > 0, true);
+  assert.equal(result.player.wildChickenInfluence.shallow, 2);
+  assert.match(result.message, /短距離對決/);
 });
 
-test("礦洞特殊雞捕捉失敗會失去原本的雞", () => {
+test("野生賽雞餵食可能留下雞蛋與稀有公告", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    depth: 10,
+    depth: -30,
+    zone: "upward",
     pendingEvent: "wild_mine_chicken",
-    ownedChicken: {
-      name: "阿咕霸王",
-      icon: "🐔",
-      level: 3,
-      exp: 0,
-      speed: 5,
-      sprint: 5,
-      stability: 5,
-      stamina: 5,
-      wins: 0,
-      races: 0,
-      evolutionPoints: {}
-    }
+    gourmetFeed: 1
   };
-  const result = resolveRandomEvent(player, "risk", () => 0.99);
+  const rolls = [0.01, 0.1, 0.1, 0.1, 0.99, 0.1, 0.99, 0.99];
+  const result = resolveRandomEvent(player, "extreme", () => rolls.shift() ?? 0);
 
   assert.equal(result.ok, true);
-  assert.equal(result.player.ownedChicken, null);
-  assert.match(result.message, /現在沒有自己的雞/);
+  assert.equal(result.player.gourmetFeed, 0);
+  assert.equal(result.player.chickenEggs, 1);
+  assert.match(result.message, /雞蛋/);
+  assert.match(result.announcement, /傳說中的/);
+});
+
+test("強制撤離事件只在普通挖礦流程中把玩家送回營地", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "mine",
+    depth: 60,
+    runDepthProgress: 60,
+    ore: 2,
+    pendingEvent: "mine_collapse_evacuation"
+  };
+  const result = resolveRandomEvent(player, "safe", () => 0.99);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.zone, "surface");
+  assert.equal(result.player.depth, 0);
+  assert.match(result.message, /撤離/);
+});
+
+test("強制撤離事件需要足夠深度才會進事件池", () => {
+  const shallow = pickRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, zone: "mine", depth: 10 },
+    () => 0,
+    (id) => id === "mine_collapse_evacuation"
+  );
+  const deep = pickRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, zone: "mine", depth: 60 },
+    () => 0,
+    (id) => id === "mine_collapse_evacuation"
+  );
+
+  assert.equal(shallow == null, true);
+  assert.equal(deep, "mine_collapse_evacuation");
 });
 
 test("遺失的背包可以本次擴大包包容量", () => {
@@ -1248,14 +1322,43 @@ test("天上往下挖途中可以返回最近營地並重置本趟層數", () =>
   assert.equal(customIds.includes(CUSTOM_IDS.returnSurface), true);
 });
 
-test("地底客棧目前顯示敬請期待", () => {
+test("地底客棧會顯示高價顛倒資源交易商品", () => {
+  const globalState = createGlobalState(Date.parse("2026-05-08T04:00:00.000Z"));
   const result = openUndergroundInn({
     ...createPlayer(),
-    zone: "undergroundCamp"
-  });
+    zone: "undergroundCamp",
+    invertedOre: 52,
+    invertedGem: 18
+  }, globalState, Date.parse("2026-05-08T04:00:00.000Z"));
+  const snapshot = getUndergroundInnSnapshot(result.globalState, Date.parse("2026-05-08T04:00:00.000Z"));
 
   assert.equal(result.ok, true);
-  assert.match(result.message, /敬請期待/);
+  assert.match(result.message, /寶石洞入場券/);
+  assert.match(result.message, /顛倒礦石：52/);
+  assert.equal(snapshot.items.some((item) => item.id === "gemTicket" && item.price >= 34), true);
+});
+
+test("地下客棧祝福會限時提高收購價且同類不可重複", () => {
+  const now = Date.parse("2026-05-08T04:00:00.000Z");
+  const player = {
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    invertedGem: 999
+  };
+  const bought = buyUndergroundInnItem(player, "goldOreBlessing", createGlobalState(now), now);
+  const blocked = buyUndergroundInnItem(bought.player, "goldOreBlessing", bought.globalState, now + 1000);
+  const settlement = returnToSurface({
+    ...bought.player,
+    zone: "mine",
+    depth: 20,
+    runMode: "safe",
+    goldOre: 1
+  }, Math.random, bought.globalState, now + 1000);
+
+  assert.equal(bought.ok, true);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.message, /不能重複/);
+  assert.equal(settlement.player.gold, 150);
 });
 
 test("地底營地銀行可存款提款且顯示總資產", () => {
@@ -2130,6 +2233,30 @@ test("共同死亡達到 100 次後商店解鎖不死圖騰", () => {
   assert.equal(result.player.gold, 0);
 });
 
+test("不死圖騰每天每人最多購買五個並在台灣日期重置", () => {
+  const progress = {
+    undyingTotemUnlocked: true,
+    now: Date.parse("2026-05-08T04:00:00.000Z")
+  };
+  const first = buyShopItem({ ...createPlayer(), gold: 3000 }, "undyingTotem", 5, progress);
+  const blocked = buyShopItem(first.player, "undyingTotem", 1, progress);
+  const nextDay = buyShopItem(first.player, "undyingTotem", 1, {
+    ...progress,
+    now: Date.parse("2026-05-08T16:05:00.000Z")
+  });
+  const embed = buildShopEmbed(first.player, "測試", progress);
+  const description = embed.toJSON().description;
+
+  assert.equal(first.ok, true);
+  assert.equal(first.player.undyingTotem, 5);
+  assert.equal(first.player.dailyTotemPurchaseCount, 5);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.message, /5\/5/);
+  assert.equal(nextDay.ok, true);
+  assert.equal(nextDay.player.dailyTotemPurchaseCount, 1);
+  assert.match(description, /今日剩餘：0 \/ 5/);
+});
+
 test("不死圖騰會在死亡時原地復活並繼續挖礦", () => {
   const start = chooseRunMode(
     { ...createPlayer(), runModeOptions: ["safe", "double"], undyingTotem: 1 },
@@ -2435,4 +2562,27 @@ test("超過三分鐘救援不退回死亡損失金幣", () => {
   assert.equal(result.target.gold, 30);
   assert.equal(result.target.lastDeathLostGold, 0);
   assert.doesNotMatch(result.message, /退回/);
+});
+
+test("開發者分析會持久記錄每日活躍、經濟與健康度", () => {
+  const now = Date.parse("2026-05-08T04:00:00.000Z");
+  const players = {
+    userA: { ...createPlayer(), gold: 1200, bankGold: 3000 },
+    userB: { ...createPlayer(), gold: 50, bankGold: 0 }
+  };
+  recordAnalyticsOnPlayers(players, "userA", "mine", { depth: 20, route: "坑洞", trait: "safe" }, now);
+  recordAnalyticsOnPlayers(players, "userA", "event", { eventId: "qte_bomb_defuse" }, now);
+  recordAnalyticsOnPlayers(players, "userA", "goldEarned", { amount: 500 }, now);
+  recordAnalyticsOnPlayers(players, "userB", "race", {}, now);
+  const dateKey = getTaiwanDateKey(now);
+  const day = players.__global.dailyAnalytics.days[dateKey];
+  const activeEmbed = buildDeveloperPanelEmbed(players, "active", now).toJSON().description;
+  const economyEmbed = buildDeveloperPanelEmbed(players, "economy", now).toJSON().description;
+
+  assert.equal(day.mineRuns, 1);
+  assert.equal(day.eventsTriggered, 1);
+  assert.equal(day.goldEarned, 500);
+  assert.equal(day.races, 1);
+  assert.match(activeEmbed, /活躍玩家：2/);
+  assert.match(economyEmbed, /全服總金幣：4250/);
 });

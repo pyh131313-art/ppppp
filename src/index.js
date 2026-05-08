@@ -17,6 +17,7 @@ const { cleanEnvValue } = require("./env");
 const { registerApplicationCommands } = require("./register-app-commands");
 const {
   buyShopItem,
+  buyUndergroundInnItem,
   chooseMinorBuff,
   chooseRunMode,
   createPlayer,
@@ -31,6 +32,7 @@ const {
   getCommunityProgress,
   getPlayer,
   getShopItems,
+  getUndergroundInnSnapshot,
   mine,
   openUndergroundStorage,
   openUndergroundInn,
@@ -118,6 +120,7 @@ const {
   buildPanelEmbed,
   buildShopComponents,
   buildStorageComponents,
+  buildUndergroundInnComponents,
   buildShopEmbed,
   isMiningUiButton
 } = require("./ui");
@@ -135,6 +138,11 @@ const {
   parseChallengeCustomId,
   startChallenge
 } = require("./challengeMode");
+const {
+  buildDeveloperPanelComponents,
+  buildDeveloperPanelEmbed,
+  recordAnalyticsOnPlayers
+} = require("./analyticsSystem");
 
 const token = cleanEnvValue(process.env.DISCORD_TOKEN);
 
@@ -158,6 +166,7 @@ const client = new Client({
 const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const ADMIN_RESET_PREFIX = "admin_reset";
+const DEV_PANEL_PREFIX = "devpanel";
 const ADMIN_USER_IDS = new Set([
   "712287814192201790",
   ...String(process.env.ADMIN_USER_IDS || process.env.BOT_OWNER_IDS || "")
@@ -380,6 +389,11 @@ async function finishRace(race) {
   let settled = null;
   await updatePlayers((players) => {
     settled = settleRace(race, players, Math.random);
+    for (const ticket of Object.values(race.playersInMatch || {})) {
+      recordAnalyticsOnPlayers(players, ticket.userId, "race");
+      const chicken = (race.selectedChickens || []).find((item) => item.id === ticket.chickenId);
+      if (chicken) recordAnalyticsOnPlayers(players, ticket.userId, "chicken", { chicken: chicken.name });
+    }
     return settled.players;
   });
   await editRaceMessage(race, settled.message);
@@ -416,6 +430,12 @@ async function startChickenBattleAnimation(battle) {
     let settled = null;
     await updatePlayers((currentPlayers) => {
       settled = settleBattle(battle, currentPlayers, Math.random, Date.now());
+      recordAnalyticsOnPlayers(currentPlayers, battle.challengerId, "race");
+      const challenger = getPlayer(currentPlayers[battle.challengerId]);
+      if (challenger.ownedChicken) {
+        recordAnalyticsOnPlayers(currentPlayers, battle.challengerId, "chicken", { chicken: challenger.ownedChicken.evolution || challenger.ownedChicken.personality || "養成雞" });
+      }
+      if (!battle.isBoss && battle.targetId) recordAnalyticsOnPlayers(currentPlayers, battle.targetId, "race");
       return settled.players;
     });
     await editBattleMessage(battle, settled.players, message ? `${message}\n${settled.message}` : settled.message);
@@ -640,6 +660,7 @@ async function handleShopBuyModalSubmit(interaction) {
   let shopProgress = null;
   await updatePlayers((players) => {
     const progress = getProgressWithGlobal(players);
+    const before = getPlayer(players[targetUserId]);
     result = buyShopItem(players[targetUserId], itemId, amount, progress);
     const nextProgress = result.globalState
       ? { ...progress, globalState: result.globalState }
@@ -647,6 +668,8 @@ async function handleShopBuyModalSubmit(interaction) {
     shopProgress = nextProgress;
     players[targetUserId] = result.player;
     if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+    const spent = Math.max(0, (before.gold || 0) - (result.player.gold || 0));
+    if (result.ok && spent > 0) recordAnalyticsOnPlayers(players, targetUserId, "goldSpent", { amount: spent });
     return players;
   });
 
@@ -970,6 +993,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith(`${DEV_PANEL_PREFIX}:`)) {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有開發者或管理員可以使用開發者面板。", ephemeral: true });
+        return;
+      }
+      const page = interaction.customId.split(":")[1] || "active";
+      const players = await loadPlayers();
+      await interaction.update({
+        embeds: [buildDeveloperPanelEmbed(players, page)],
+        components: buildDeveloperPanelComponents(page)
+      });
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && isChallengeComponent(interaction.customId)) {
       await handleChallengeInteraction(interaction);
       return;
@@ -983,6 +1020,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
     const name = interaction.commandName;
+    await updatePlayers((players) => recordAnalyticsOnPlayers(players, interaction.user.id, "active"));
+
+    if (name === "開發者面板" || name === "devpanel") {
+      if (!canUseAdminCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有開發者或管理員可以使用開發者面板。", ephemeral: true });
+        return;
+      }
+      const players = await loadPlayers();
+      await interaction.reply({
+        embeds: [buildDeveloperPanelEmbed(players, "active")],
+        components: buildDeveloperPanelComponents("active"),
+        ephemeral: true
+      });
+      return;
+    }
 
     if (name === "礦場") {
       await interaction.deferReply();
@@ -1374,10 +1426,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       let message = "";
       await updatePlayers((players) => {
         const currentProgress = getProgressWithGlobal(players);
+        const before = getPlayer(players[interaction.user.id]);
         const result = buyShopItem(players[interaction.user.id], itemId, amount, currentProgress);
         message = result.message;
         players[interaction.user.id] = result.player;
         if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+        const spent = Math.max(0, (before.gold || 0) - (result.player.gold || 0));
+        if (result.ok && spent > 0) recordAnalyticsOnPlayers(players, interaction.user.id, "goldSpent", { amount: spent });
         return players;
       });
       await interaction.reply(makeReply("購買", message));
@@ -1901,39 +1956,57 @@ async function handleChallengeInteraction(interaction) {
   await interaction.deferUpdate();
   let result = null;
   let showLeaderboard = false;
-  await updatePlayer(interaction.user.id, (player) => {
+  await updatePlayers((players) => {
+    const player = players[interaction.user.id];
     if (parsed.action === "trait") {
       const selected = interaction.isStringSelectMenu() ? interaction.values[0] : "";
       result = chooseChallengeTrait(player, selected);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      return players;
     }
     if (parsed.action === "start") {
       result = startChallenge(player, Math.random);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      if (result.player && result.player.challenge && result.player.challenge.active) {
+        recordAnalyticsOnPlayers(players, interaction.user.id, "challenge");
+      }
+      return players;
     }
     if (parsed.action === "route") {
       result = mineChallengeRoute(player, parsed.value, Math.random);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      if (result.player && result.player.challenge && result.player.challenge.stats && result.player.challenge.stats.events > ((player && player.challenge && player.challenge.stats && player.challenge.stats.events) || 0)) {
+        recordAnalyticsOnPlayers(players, interaction.user.id, "event", { eventId: "challenge" });
+      }
+      return players;
     }
     if (parsed.action === "potion") {
       result = drinkChallengePotion(player);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      if ((result.player.challenge && result.player.challenge.potions) < (player.challenge && player.challenge.potions || 0)) {
+        recordAnalyticsOnPlayers(players, interaction.user.id, "potion", { amount: 1 });
+      }
+      return players;
     }
     if (parsed.action === "leave") {
       result = endChallenge(player, false);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      return players;
     }
     if (parsed.action === "sell" || parsed.action === "buyPotion" || parsed.action === "buyBuff" || parsed.action === "replaceTrait" || parsed.action === "skip") {
       result = handleMerchantAction(player, parsed.action, parsed.value);
-      return result.player;
+      players[interaction.user.id] = result.player;
+      return players;
     }
     if (parsed.action === "leaderboard") {
       showLeaderboard = true;
       result = { player: getPlayer(player), message: "排行榜" };
-      return result.player;
+      players[interaction.user.id] = result.player;
+      return players;
     }
     result = { player: getPlayer(player), message: "未知的挑戰操作。" };
-    return result.player;
+    players[interaction.user.id] = result.player;
+    return players;
   });
 
   if (showLeaderboard) {
@@ -2088,12 +2161,26 @@ async function handleMiningButton(interaction) {
         : null;
     await updatePlayers((players) => {
       const previousBestDepth = getGlobalBestDepth(players);
+      const beforePlayer = getPlayer(players[panelTargetUserId]);
       const outcome = attachGlobalRecordMessage(
-        mine(players[panelTargetUserId], Math.random, Date.now(), digPath),
+        mine(beforePlayer, Math.random, Date.now(), digPath),
         previousBestDepth,
         interaction.user
       );
       players[panelTargetUserId] = outcome.player;
+      recordAnalyticsOnPlayers(players, panelTargetUserId, "mine", {
+        depth: outcome.player.runDepthProgress || outcome.player.depth || 0,
+        route: digPath || "dig",
+        trait: outcome.player.runMode || ""
+      });
+      if (!beforePlayer.dead && outcome.player.dead) {
+        recordAnalyticsOnPlayers(players, panelTargetUserId, "death", { cause: "挖礦死亡" });
+      }
+      if (outcome.player.pendingEvent && outcome.player.pendingEvent !== beforePlayer.pendingEvent) {
+        recordAnalyticsOnPlayers(players, panelTargetUserId, "event", { eventId: outcome.player.pendingEvent });
+      }
+      const earnedGold = Math.max(0, (outcome.player.gold || 0) - (beforePlayer.gold || 0));
+      if (earnedGold > 0) recordAnalyticsOnPlayers(players, panelTargetUserId, "goldEarned", { amount: earnedGold });
       componentPlayer = outcome.player;
       embed = buildMiningEmbed(outcome, interaction.user, hudPage);
       files = buildHudFiles(outcome.player, outcome);
@@ -2193,8 +2280,15 @@ async function handleMiningButton(interaction) {
       );
       const message = next.globalRecordMessage
         ? `${result.message}\n\n${next.globalRecordMessage}`
-        : result.message;
+        : result.announcement
+          ? `${result.message}\n\n${result.announcement.replace("<@PLAYER>", `<@${panelTargetUserId}>`)}`
+          : result.message;
       players[panelTargetUserId] = result.player;
+      if (!player.dead && result.player.dead) {
+        recordAnalyticsOnPlayers(players, panelTargetUserId, "death", { cause: "事件" });
+      }
+      const earnedGold = Math.max(0, (result.player.gold || 0) - (player.gold || 0));
+      if (earnedGold > 0) recordAnalyticsOnPlayers(players, panelTargetUserId, "goldEarned", { amount: earnedGold });
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, result.title, message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
@@ -2251,6 +2345,7 @@ async function handleMiningButton(interaction) {
     let shopProgress = null;
     await updatePlayers((players) => {
       const progress = getProgressWithGlobal(players);
+      const before = getPlayer(players[panelTargetUserId]);
       const result = buyShopItem(players[panelTargetUserId], shopBuyRequest.itemId, shopBuyRequest.amount, progress);
       const nextProgress = result.globalState
         ? { ...progress, globalState: result.globalState }
@@ -2261,6 +2356,8 @@ async function handleMiningButton(interaction) {
       files = buildHudFiles(result.player);
       players[panelTargetUserId] = result.player;
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      const spent = Math.max(0, (before.gold || 0) - (result.player.gold || 0));
+      if (result.ok && spent > 0) recordAnalyticsOnPlayers(players, panelTargetUserId, "goldSpent", { amount: spent });
       return players;
     });
     await interaction.editReply({
@@ -2303,12 +2400,15 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.drinkPotion) {
-    await updatePlayer(panelTargetUserId, (player) => {
+    await updatePlayers((players) => {
+      const player = players[panelTargetUserId];
       const result = drinkHealingPotion(player);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "治療藥水", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
-      return result.player;
+      players[panelTargetUserId] = result.player;
+      if (result.ok) recordAnalyticsOnPlayers(players, panelTargetUserId, "potion", { amount: 1 });
+      return players;
     });
   }
 
@@ -2366,13 +2466,66 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId === CUSTOM_IDS.undergroundInn) {
-    await updatePlayer(panelTargetUserId, (player) => {
-      const result = openUndergroundInn(player);
+    let innSnapshot = null;
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const result = openUndergroundInn(players[panelTargetUserId], progress.globalState, Date.now());
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      players[panelTargetUserId] = result.player;
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "地底客棧", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
-      return result.player;
+      innSnapshot = getUndergroundInnSnapshot(result.globalState, Date.now());
+      return players;
     });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildUndergroundInnComponents(innSnapshot)
+    });
+    return;
+  }
+
+  if (interaction.customId && interaction.customId.startsWith(`${CUSTOM_IDS.undergroundInnBuyPrefix}:`)) {
+    const itemId = interaction.customId.split(":")[2];
+    let innSnapshot = null;
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const result = buyUndergroundInnItem(players[panelTargetUserId], itemId, progress.globalState, Date.now());
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      players[panelTargetUserId] = result.player;
+      const opened = openUndergroundInn(result.player, result.globalState, Date.now());
+      componentPlayer = opened.player;
+      embed = buildPanelEmbed(opened.player, "地底客棧", `${result.message}\n\n${opened.message}`, interaction.user, hudPage);
+      files = buildHudFiles(opened.player);
+      innSnapshot = getUndergroundInnSnapshot(opened.globalState, Date.now());
+      return players;
+    });
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildUndergroundInnComponents(innSnapshot)
+    });
+    return;
+  }
+
+  if (interaction.customId === CUSTOM_IDS.undergroundInnBlessings) {
+    const progress = getProgressWithGlobal(await loadPlayers());
+    const result = openUndergroundInn(panelPlayer, progress.globalState, Date.now());
+    const blessingLines = Object.entries(result.player.activeMarketBlessings || {})
+      .filter(([, expiresAt]) => expiresAt > Date.now())
+      .map(([type, expiresAt]) => `${type}：剩餘 ${Math.ceil((expiresAt - Date.now()) / 60000)} 分`);
+    embed = buildPanelEmbed(result.player, "地底客棧｜祝福", blessingLines.length ? blessingLines.join("\n") : "目前沒有收購祝福。", interaction.user, hudPage);
+    files = buildHudFiles(result.player);
+    await interaction.editReply({
+      embeds: [embed],
+      files,
+      attachments: [],
+      components: buildUndergroundInnComponents(getUndergroundInnSnapshot(progress.globalState, Date.now()))
+    });
+    return;
   }
 
   if (interaction.customId === CUSTOM_IDS.undergroundStorage) {

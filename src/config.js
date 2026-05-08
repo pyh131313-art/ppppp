@@ -529,7 +529,8 @@ const CONFIG = {
       undyingTotem: {
         label: "不死圖騰",
         priceGold: 500,
-        unlockDeaths: 100
+        unlockDeaths: 100,
+        dailyLimit: 5
       },
       magicCandy: {
         label: "神奇糖果",

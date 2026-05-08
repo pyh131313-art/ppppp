@@ -313,9 +313,42 @@ const RANDOM_EVENTS = {
     buttons: { risk: "選①", safe: "選②", extreme: "選③" }
   },
   wild_mine_chicken: {
-    title: "礦洞裡的特殊雞",
-    description: "一隻羽毛沾著礦光的雞躲在岩縫旁。牠可能很強，也可能一轉身就跑掉。",
-    buttons: { safe: "放牠離開", risk: "烤掉原雞捕捉", extreme: "徒手硬抓" }
+    title: "野生賽雞",
+    description: "🐓 你聽見礦道深處傳來奇怪的雞叫聲…",
+    weight: 0.9,
+    buttons: { safe: "放過", risk: "短跑挑戰", extreme: "餵食互動" }
+  },
+  mine_collapse_evacuation: {
+    title: "礦坑大崩塌",
+    description: "⚠️ 礦坑開始劇烈震動，支撐木樑一根接一根斷裂。",
+    weight: 0.12,
+    minDepth: 45,
+    forceEvacuation: true,
+    buttons: { safe: "抓緊撤離", risk: "搶救資源", extreme: "硬撐到底" }
+  },
+  spatial_turbulence_evacuation: {
+    title: "空間亂流",
+    description: "🌀 礦道突然反折，入口和出口像被揉在一起。",
+    weight: 0.08,
+    minDepth: 70,
+    forceEvacuation: true,
+    buttons: { safe: "順流撤退", risk: "抓住礦袋", extreme: "逆流衝刺" }
+  },
+  sky_rift_evacuation: {
+    title: "天域裂縫",
+    description: "⚡ 頭頂裂開白色縫隙，整條路線被往上拉扯。",
+    weight: 0.06,
+    minDepth: 90,
+    forceEvacuation: true,
+    buttons: { safe: "穩住身體", risk: "伸手撈光", extreme: "跳進裂縫" }
+  },
+  deep_pollution_evacuation: {
+    title: "深層污染爆發",
+    description: "💀 黑色粉塵從礦壁滲出，空氣像被污染的水一樣沉重。",
+    weight: 0.08,
+    minDepth: 80,
+    forceEvacuation: true,
+    buttons: { safe: "立刻脫離", risk: "封住礦脈", extreme: "硬吸一口" }
   }
 };
 
@@ -457,6 +490,8 @@ function canEventAppear(event, player) {
   if (event.caveType && player.caveType !== event.caveType) return false;
   if (event.reverseOnly && player.zone !== "upward") return false;
   if (event.highTier && !player.highTierEligible) return false;
+  if (event.minDepth && Math.abs(player.depth || 0) < event.minDepth) return false;
+  if (event.forceEvacuation && !["mine", "upward", "skyDown"].includes(player.zone)) return false;
   if (event.requiresPathHistory && (!Array.isArray(player.digPathHistory) || player.digPathHistory.length < event.requiresPathHistory)) return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.caveType === "gem") return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.zone === "upward") return false;

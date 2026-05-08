@@ -57,7 +57,6 @@ const {
   addChickenExp,
   CHICKEN_RESEARCH_NOTES,
   getChickenRequiredExp,
-  makeWildMineChicken,
   normalizeOwnedChicken
 } = require("./chickenCare");
 
@@ -117,6 +116,47 @@ function addItemReward(player, key, amount) {
 
 const getTotalAsset = economySystem.getTotalAsset;
 const PLAYER_VALUE_CAP = 1_000_000_000_000;
+const UNDERGROUND_INN_CYCLE_MS = 6 * 60 * 60 * 1000;
+const UNDERGROUND_INN_ITEMS = {
+  gemTicket: {
+    label: "💎 寶石洞入場券",
+    resource: "invertedOre",
+    basePrice: 34,
+    priceSpread: 20,
+    description: "下次從地表下礦必定進入寶石洞窟。"
+  },
+  goldOreBlessing: {
+    label: "📈 金礦收購祝福",
+    resource: "invertedGem",
+    basePrice: 12,
+    priceSpread: 10,
+    blessing: "goldOre",
+    description: "30 分鐘內金礦與金錠收購價提升。"
+  },
+  gemBlessing: {
+    label: "💎 寶石收購祝福",
+    resource: "invertedGem",
+    basePrice: 15,
+    priceSpread: 12,
+    blessing: "gem",
+    description: "30 分鐘內寶石收購價提升。"
+  },
+  reverseBlessing: {
+    label: "🌀 顛倒礦收購祝福",
+    resource: "invertedGem",
+    basePrice: 18,
+    priceSpread: 14,
+    blessing: "inverted",
+    description: "30 分鐘內保留中的顛倒資源交易價提高。"
+  },
+  thickSoleShoes: {
+    label: "👞 厚底鞋",
+    resource: "invertedOre",
+    basePrice: 8,
+    priceSpread: 9,
+    description: "抵擋一次坑洞墜落傷害，不能與藥水共存。"
+  }
+};
 
 function migratePreUpdateDeepPlayer(playerInput) {
   const player = getPlayer(playerInput);
@@ -328,7 +368,16 @@ function resolvePitDigPath(player, path, random = Math.random, now = Date.now(),
   const extraDepth = minJump + Math.floor(random() * (maxJump - minJump + 1));
   player.depth += extraDepth;
   const extraRecord = addRunDepthProgress(player, extraDepth);
-  const damage = addBombDamage(player, now, path.damage || 1);
+  let damage = null;
+  let fallMessage = "";
+  if ((player.thickSoleShoes || 0) > 0) {
+    player.thickSoleShoes -= 1;
+    damage = { dead: false, damage: 0, message: "👞 厚底鞋幫你緩衝了墜落！" };
+    fallMessage = damage.message;
+  } else {
+    damage = addBombDamage(player, now, path.damage || 1);
+    fallMessage = damage.message;
+  }
   const recordLine = [recordMessage, extraRecord].filter(Boolean).join("\n");
   const rewardType = path.pitReward === "mixed"
     ? (random() < 0.5 ? "gold" : "ore")
@@ -340,7 +389,7 @@ function resolvePitDigPath(player, path, random = Math.random, now = Date.now(),
       kind: "dead",
       player,
       title: path.label,
-      message: `你跳進${path.label}，往下摔了 ${extraDepth} 層。\n${damage.message}${recordLine ? `\n${recordLine}` : ""}`,
+      message: `你跳進${path.label}，往下摔了 ${extraDepth} 層。\n${fallMessage}${recordLine ? `\n${recordLine}` : ""}`,
       recordMessage: recordLine
     };
   }
@@ -353,7 +402,7 @@ function resolvePitDigPath(player, path, random = Math.random, now = Date.now(),
       reward.target,
       player,
       path.label,
-      `你跳進${path.label}，往下摔了 ${extraDepth} 層，${damage.message}\n撿到 ${reward.gained} 塊${getOreName(reward.target)}。`,
+      `你跳進${path.label}，往下摔了 ${extraDepth} 層，${fallMessage}\n撿到 ${reward.gained} 塊${getOreName(reward.target)}。`,
       recordLine,
       random
     );
@@ -367,7 +416,7 @@ function resolvePitDigPath(player, path, random = Math.random, now = Date.now(),
     "gold",
     player,
     path.label,
-    `你跳進${path.label}，往下摔了 ${extraDepth} 層，${damage.message}\n撿到 ${gold} 金幣。`,
+    `你跳進${path.label}，往下摔了 ${extraDepth} 層，${fallMessage}\n撿到 ${gold} 金幣。`,
     recordLine,
     random
   );
@@ -1036,6 +1085,7 @@ function resetRunState(player, random = Math.random) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.eventChallenge = null;
+  player.wildChickenEncounter = null;
   player.digPathHistory = [];
   player.memoryChallenge = null;
   player.nextEventDepth = 4;
@@ -1089,7 +1139,134 @@ const withdrawBank = (playerInput, amount = null) => economySystem.withdrawBank(
 const travelToUndergroundCamp = (playerInput, now = Date.now()) => (
   economySystem.travelToUndergroundCamp(playerInput, isInMine, now)
 );
-const openUndergroundInn = economySystem.openUndergroundInn;
+
+function getInnCycle(now = Date.now()) {
+  return Math.floor(now / UNDERGROUND_INN_CYCLE_MS) * UNDERGROUND_INN_CYCLE_MS;
+}
+
+function innWave(itemId, cycle) {
+  let hash = 0;
+  const seed = `${itemId}:${cycle}`;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) % 9973;
+  return hash / 9973;
+}
+
+function normalizeUndergroundInnInventory(globalStateInput = null, now = Date.now()) {
+  const state = normalizeGlobalState(globalStateInput || {}, now);
+  const cycleStartedAt = getInnCycle(now);
+  const current = state.undergroundInnInventory || {};
+  if (current.cycleStartedAt === cycleStartedAt && current.prices) return state;
+  const previousPurchases = current.purchases || {};
+  const prices = {};
+  for (const [itemId, item] of Object.entries(UNDERGROUND_INN_ITEMS)) {
+    const demand = Math.min(18, Math.floor(previousPurchases[itemId] || 0));
+    prices[itemId] = item.basePrice + Math.floor(innWave(itemId, cycleStartedAt) * item.priceSpread) + demand * 2;
+  }
+  state.undergroundInnInventory = {
+    cycleStartedAt,
+    purchases: {},
+    prices
+  };
+  return state;
+}
+
+function getUndergroundInnSnapshot(globalStateInput = null, now = Date.now()) {
+  const state = normalizeUndergroundInnInventory(globalStateInput, now);
+  return {
+    globalState: state,
+    items: Object.entries(UNDERGROUND_INN_ITEMS).map(([id, item]) => ({
+      id,
+      ...item,
+      price: state.undergroundInnInventory.prices[id] || item.basePrice
+    }))
+  };
+}
+
+function formatBlessingTime(expiresAt, now = Date.now()) {
+  const remaining = Math.max(0, Math.ceil((expiresAt - now) / 60000));
+  return `${remaining} 分`;
+}
+
+function pruneMarketBlessings(player, now = Date.now()) {
+  player.activeMarketBlessings = Object.fromEntries(
+    Object.entries(player.activeMarketBlessings || {}).filter(([, expiresAt]) => Number(expiresAt) > now)
+  );
+  return player;
+}
+
+function getMarketBlessingMultiplier(player, type, now = Date.now()) {
+  pruneMarketBlessings(player, now);
+  return player.activeMarketBlessings && player.activeMarketBlessings[type] > now ? 1.25 : 1;
+}
+
+function openUndergroundInn(playerInput, globalStateInput = null, now = Date.now()) {
+  const player = pruneMarketBlessings(getPlayer(playerInput), now);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, globalState: globalStateInput, message: "地底客棧只能在地底營地使用。" };
+  }
+  const snapshot = getUndergroundInnSnapshot(globalStateInput, now);
+  const itemLines = snapshot.items.map((item) => `${item.label}\n價格：${item.price} ${item.resource === "invertedOre" ? "顛倒礦石" : "顛倒寶石"}\n${item.description}`);
+  const blessings = Object.entries(player.activeMarketBlessings || {})
+    .filter(([, expiresAt]) => expiresAt > now)
+    .map(([type, expiresAt]) => `${type}：${formatBlessingTime(expiresAt, now)}`);
+  return {
+    ok: true,
+    player,
+    globalState: snapshot.globalState,
+    message: [
+      "【地下客棧】",
+      "",
+      `顛倒礦石：${player.invertedOre || 0}`,
+      `顛倒寶石：${player.invertedGem || 0}`,
+      "",
+      "今日商品：",
+      ...itemLines,
+      "",
+      `祝福：${blessings.length ? blessings.join("｜") : "無"}`
+    ].join("\n")
+  };
+}
+
+function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now = Date.now()) {
+  const player = pruneMarketBlessings(getPlayer(playerInput), now);
+  if (player.zone !== "undergroundCamp") {
+    return { ok: false, player, globalState: globalStateInput, message: "地底客棧只能在地底營地使用。" };
+  }
+  const item = UNDERGROUND_INN_ITEMS[itemId];
+  const snapshot = getUndergroundInnSnapshot(globalStateInput, now);
+  if (!item) return { ok: false, player, globalState: snapshot.globalState, message: "客棧今天沒有這個商品。" };
+  const price = snapshot.globalState.undergroundInnInventory.prices[itemId] || item.basePrice;
+  if ((player[item.resource] || 0) < price) {
+    return {
+      ok: false,
+      player,
+      globalState: snapshot.globalState,
+      message: `顛倒資源不足。${item.label} 需要 ${price} ${item.resource === "invertedOre" ? "顛倒礦石" : "顛倒寶石"}。`
+    };
+  }
+  if (itemId === "gemTicket" && player.guaranteedGemCaveTicket > 0) {
+    return { ok: false, player, globalState: snapshot.globalState, message: "你已經有寶石洞入場券，不能堆疊攜帶。" };
+  }
+  if (itemId === "thickSoleShoes" && (player.healingPotion || 0) > 0) {
+    return { ok: false, player, globalState: snapshot.globalState, message: "❌ 你無法同時攜帶藥水與厚底鞋。" };
+  }
+  if (item.blessing && player.activeMarketBlessings[item.blessing] > now) {
+    return { ok: false, player, globalState: snapshot.globalState, message: "同類型收購祝福還在生效，不能重複疊加。" };
+  }
+
+  player[item.resource] -= price;
+  snapshot.globalState.undergroundInnInventory.purchases[itemId] = (snapshot.globalState.undergroundInnInventory.purchases[itemId] || 0) + 1;
+  if (itemId === "gemTicket") player.guaranteedGemCaveTicket = 1;
+  else if (itemId === "thickSoleShoes") player.thickSoleShoes = (player.thickSoleShoes || 0) + 1;
+  else if (item.blessing) player.activeMarketBlessings[item.blessing] = now + 30 * 60 * 1000;
+
+  return {
+    ok: true,
+    player,
+    globalState: snapshot.globalState,
+    message: `你用 ${price} ${item.resource === "invertedOre" ? "顛倒礦石" : "顛倒寶石"} 買下 ${item.label}。`
+  };
+}
 
 const STORAGE_ITEMS = [
   ["ore", "普通礦石"],
@@ -1294,7 +1471,12 @@ function chooseRunMode(playerInput, mode, random = null) {
     player.zone = "undergroundCamp";
   } else {
     const gemChance = CONFIG.mining.gemCaveChance + (config.gemCaveChanceBonus || 0);
-    player.caveType = random && random() < gemChance ? "gem" : "normal";
+    if (player.guaranteedGemCaveTicket > 0) {
+      player.guaranteedGemCaveTicket -= 1;
+      player.caveType = "gem";
+    } else {
+      player.caveType = random && random() < gemChance ? "gem" : "normal";
+    }
     player.zone = "mine";
   }
   player.enteringGold = player.gold;
@@ -1596,6 +1778,15 @@ function getPotionPurchaseDay(now = Date.now()) {
   return new Date(now).toISOString().slice(0, 10);
 }
 
+function getTaiwanPurchaseDay(now = Date.now()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(now));
+}
+
 function normalizePotionDailyLimit(player, now = Date.now()) {
   const today = getPotionPurchaseDay(now);
   if (player.potionPurchaseDay !== today) {
@@ -1610,6 +1801,15 @@ function normalizeMagicCandyDailyLimit(player, now = Date.now()) {
   if (player.magicCandyPurchaseDay !== today) {
     player.magicCandyPurchaseDay = today;
     player.magicCandyPurchasesToday = 0;
+  }
+  return player;
+}
+
+function normalizeTotemDailyLimit(player, now = Date.now()) {
+  const today = getTaiwanPurchaseDay(now);
+  if (player.lastTotemResetDate !== today) {
+    player.lastTotemResetDate = today;
+    player.dailyTotemPurchaseCount = 0;
   }
   return player;
 }
@@ -1794,15 +1994,17 @@ function settleSellableResources(playerInput, globalStateInput = null, now = Dat
   };
   const globalState = globalStateInput ? normalizeGlobalState(globalStateInput, now) : null;
   const market = (id) => globalState ? getMarketMultiplier(globalState, id, now) : 1;
+  const goldOreBlessing = getMarketBlessingMultiplier(player, "goldOre", now);
+  const gemBlessing = getMarketBlessingMultiplier(player, "gem", now);
   const oreGold = Math.floor(sold.ore * CONFIG.ore.goldPerOre * market("ore"))
-    + Math.floor(sold.goldOre * CONFIG.ore.goldPerGoldOre * market("goldOre"))
+    + Math.floor(sold.goldOre * CONFIG.ore.goldPerGoldOre * market("goldOre") * goldOreBlessing)
     + Math.floor(sold.platinumOre * CONFIG.ore.goldPerPlatinumOre * market("platinumOre"));
   const ingotGold = Math.floor(sold.oreIngot * CONFIG.ore.goldPerOreIngot * market("oreIngot"))
-    + Math.floor(sold.goldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot"))
+    + Math.floor(sold.goldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot") * goldOreBlessing)
     + Math.floor(sold.platinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot * market("platinumOreIngot"));
-  const gemGold = sold.redGem * CONFIG.ore.redGemGold
+  const gemGold = Math.floor((sold.redGem * CONFIG.ore.redGemGold
     + sold.blueGem * CONFIG.ore.blueGemGold
-    + sold.greenGem * CONFIG.ore.greenGemGold;
+    + sold.greenGem * CONFIG.ore.greenGemGold) * gemBlessing);
   const specialGold = sold.goldBlock * CONFIG.ore.goldPerGoldBlock
     + sold.bombItem * CONFIG.ore.goldPerBombItem;
   const total = oreGold + ingotGold + gemGold + specialGold;
@@ -1887,6 +2089,183 @@ function setDepthRecord(player) {
 function addRunDepthProgress(player, amount) {
   player.runDepthProgress = Math.max(0, (player.runDepthProgress || 0) + Math.max(0, Math.floor(amount || 0)));
   return setDepthRecord(player);
+}
+
+function getWildChickenRegion(player) {
+  if (player.zone === "skyCamp" || player.zone === "skyDown") return "sky";
+  if (player.zone === "upward" && (player.depth || 0) < 0) return "inverted";
+  if (player.zone === "upward" || player.zone === "undergroundCamp" || (player.depth || 0) >= 60) return "underground";
+  return "shallow";
+}
+
+const WILD_CHICKEN_POOLS = {
+  shallow: [
+    { name: "普通野雞", icon: "🐔", trait: "normal", power: 14 },
+    { name: "小黃雞", icon: "🐤", trait: "gem", power: 13 }
+  ],
+  underground: [
+    { name: "污染雞", icon: "🐓", trait: "berserk", power: 20 },
+    { name: "深層黑羽雞", icon: "🐓", trait: "thief", power: 23 }
+  ],
+  inverted: [
+    { name: "反轉雞", icon: "🐔", trait: "reverse", power: 24 },
+    { name: "異常雞", icon: "🐓", trait: "berserk", power: 26 }
+  ],
+  sky: [
+    { name: "發光雞", icon: "✨", trait: "glow", power: 26 },
+    { name: "星羽雞", icon: "🌟", trait: "glow", power: 29 }
+  ]
+};
+
+const RARE_WILD_CHICKENS = [
+  { name: "虹羽雞", icon: "🌌", trait: "glow", region: "sky", power: 36 },
+  { name: "深淵炎雞", icon: "🔥", trait: "berserk", region: "underground", power: 38 },
+  { name: "雷鳴雞", icon: "⚡", trait: "thunder", region: "inverted", power: 37 }
+];
+
+function createWildChickenEncounter(player, random = Math.random) {
+  if (player.wildChickenEncounter && player.wildChickenEncounter.name) return player.wildChickenEncounter;
+  const rare = random() < 0.03;
+  const region = getWildChickenRegion(player);
+  const template = rare
+    ? RARE_WILD_CHICKENS[Math.floor(random() * RARE_WILD_CHICKENS.length)] || RARE_WILD_CHICKENS[0]
+    : (WILD_CHICKEN_POOLS[region] || WILD_CHICKEN_POOLS.shallow)[Math.floor(random() * (WILD_CHICKEN_POOLS[region] || WILD_CHICKEN_POOLS.shallow).length)];
+  const depthPower = Math.min(12, Math.floor(Math.abs(player.depth || 0) / 12));
+  const encounter = {
+    id: `${Date.now()}-${Math.floor(random() * 100000)}`,
+    name: template.name,
+    icon: template.icon,
+    region: template.region || region,
+    trait: template.trait,
+    rare,
+    power: template.power + depthPower
+  };
+  player.wildChickenEncounter = encounter;
+  return encounter;
+}
+
+function addWildChickenInfluence(player, encounter, amount = 1) {
+  if (!encounter) return;
+  player.wildChickenInfluence = player.wildChickenInfluence || {};
+  player.wildChickenInfluence[encounter.region] = (player.wildChickenInfluence[encounter.region] || 0) + amount;
+  player.wildChickenInfluence[encounter.trait] = (player.wildChickenInfluence[encounter.trait] || 0) + amount;
+  if (player.ownedChicken) {
+    player.ownedChicken.evolutionPoints = player.ownedChicken.evolutionPoints || {};
+    const pointKey = encounter.trait === "berserk" || encounter.trait === "thunder"
+      ? "thunder"
+      : encounter.region === "underground"
+        ? "mine"
+        : encounter.region === "inverted"
+          ? "shadow"
+          : encounter.trait === "glow"
+            ? "crystal"
+            : "gale";
+    player.ownedChicken.evolutionPoints[pointKey] = (player.ownedChicken.evolutionPoints[pointKey] || 0) + amount;
+  }
+}
+
+function awardWildChickenDrop(player, encounter, random = Math.random) {
+  const lines = [];
+  const depthBonus = getDepthBonus(Math.abs(player.depth || 0));
+  const gold = encounter.rare ? 240 + depthBonus * 12 : 60 + depthBonus * 7;
+  player.gold += gold;
+  lines.push(`金幣 +${gold}`);
+  if (encounter.trait === "gem" || encounter.trait === "glow") {
+    const gemKey = encounter.region === "sky" ? "blueGem" : encounter.region === "underground" ? "redGem" : "greenGem";
+    const amount = encounter.rare ? 2 : 1;
+    const added = addItemReward(player, gemKey, amount);
+    lines.push(`${getOreName(gemKey)} +${added}`);
+  } else if (encounter.region === "inverted") {
+    const added = addItemReward(player, "invertedOre", encounter.rare ? 3 : 1);
+    lines.push(`顛倒礦石 +${added}`);
+  } else {
+    const reward = addOreReward(player, encounter.rare ? 3 : 1, encounter.region === "underground" ? "goldOre" : "ore");
+    lines.push(`${getOreName(reward.target)} +${reward.gained}`);
+  }
+  if (random() < (encounter.rare ? 0.35 : 0.12)) {
+    player.gourmetFeed = (player.gourmetFeed || 0) + 1;
+    lines.push("超好吃飼料 +1");
+  }
+  if (random() < (encounter.rare ? 0.28 : 0.08)) {
+    player.chickenEggs = (player.chickenEggs || 0) + 1;
+    lines.push("🥚 雞蛋 +1");
+  }
+  if (encounter.rare && random() < 0.2) {
+    player.rareEvolutionMaterial = (player.rareEvolutionMaterial || 0) + 1;
+    lines.push("稀有進化素材 +1");
+  }
+  if (random() < 0.14) {
+    player.chickenResearchNotes = player.chickenResearchNotes || {};
+    const noteId = encounter.region === "underground" ? "mineCrystal" : "blaze";
+    player.chickenResearchNotes[noteId] = (player.chickenResearchNotes[noteId] || 0) + 1;
+    lines.push("養雞小紙條 +1");
+  }
+  return lines;
+}
+
+function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now()) {
+  if (!player.ownedChicken) {
+    player.wildChickenEncounter = null;
+    return {
+      ok: true,
+      player,
+      title: "野生賽雞",
+      message: `${encounter.icon} ${encounter.name} 抬頭看了你一眼。\n你沒有自己的雞可以出賽，牠鑽進礦縫消失了。`
+    };
+  }
+  const chicken = normalizeOwnedChicken(player.ownedChicken);
+  player.ownedChicken = chicken;
+  const playerPower = chicken.speed + chicken.sprint + chicken.stability + chicken.stamina + chicken.level * 1.5 + random() * 16;
+  const wildPower = encounter.power + (encounter.trait === "berserk" ? random() * 18 : random() * 12);
+  const events = [
+    "起跑碎石飛濺。",
+    encounter.trait === "berserk" ? `${encounter.icon} ${encounter.name} 突然暴衝！` : `${chicken.icon || "🐔"} ${chicken.name} 壓低身體衝刺。`,
+    encounter.trait === "thief" ? `${encounter.name} 試圖叼走你的礦袋。` : "終點前氣流亂成一團。"
+  ];
+  const won = playerPower >= wildPower;
+  chicken.races += 1;
+  if (won) chicken.wins += 1;
+  const expMessage = addChickenExp(player, won ? 80 : 35, random);
+  addWildChickenInfluence(player, encounter, won ? 2 : 1);
+  player.wildChickenEncounter = null;
+  if (won) {
+    const drops = awardWildChickenDrop(player, encounter, random);
+    return {
+      ok: true,
+      player,
+      title: "野生賽雞",
+      announcement: encounter.rare ? `🌌 傳說中的「${encounter.name}」被 <@PLAYER> 擊敗了！` : "",
+      message: [
+        `${encounter.rare ? "🌌" : "🐓"} ${encounter.name} 出現！`,
+        "🏁 短距離對決開始！",
+        ...events,
+        `🏆 ${chicken.name} 擊敗了 ${encounter.name}！`,
+        `掉落：${drops.join("｜")}`,
+        expMessage
+      ].filter(Boolean).join("\n")
+    };
+  }
+  let penalty = "牠甩開你，消失在礦道深處。";
+  if (encounter.trait === "thief" && player.gold > 0) {
+    const stolen = Math.min(player.gold, 30 + getDepthBonus(player.depth) * 5);
+    player.gold -= stolen;
+    penalty = `${encounter.name} 叼走 ${stolen} 金幣。`;
+  } else if (encounter.trait === "berserk" && random() < 0.45) {
+    penalty = `${encounter.name} 暴衝撞碎石壁，${addBombDamage(player, now).message}`;
+  }
+  return {
+    ok: true,
+    player,
+    title: "野生賽雞",
+    message: [
+      `${encounter.icon} ${encounter.name} 出現！`,
+      "🏁 短距離對決開始！",
+      ...events,
+      `🥈 ${chicken.name} 差一點追上。`,
+      penalty,
+      expMessage
+    ].filter(Boolean).join("\n")
+  };
 }
 
 function moveNormalMineDepth(player, amount) {
@@ -3525,68 +3904,87 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
   }
 
   if (eventId === "wild_mine_chicken") {
+    const encounter = createWildChickenEncounter(player, random);
     if (choice === "safe") {
-      if (player.ownedChicken) {
-        player.ownedChicken.evolutionPoints = player.ownedChicken.evolutionPoints || {};
-        player.ownedChicken.evolutionPoints.mine = (player.ownedChicken.evolutionPoints.mine || 0) + 1;
-      }
+      addWildChickenInfluence(player, encounter, 1);
+      player.wildChickenEncounter = null;
       return {
         ok: true,
         player,
         title: event.title,
-        message: "你放牠離開。牠回頭叫了一聲，像是在記住你的味道。"
+        message: `${encounter.icon} ${encounter.name} 從岩縫旁探出頭。\n你放牠離開。牠回頭叫了一聲，像是在記住你的味道。`
       };
     }
 
-    const hadChicken = Boolean(player.ownedChicken);
-    const oldChicken = player.ownedChicken;
-    if (choice === "extreme" && hadChicken) {
+    if (choice === "risk") return resolveWildChickenRace(player, encounter, random, now);
+
+    const feedKey = player.gourmetFeed > 0 ? "gourmetFeed" : player.normalFeed > 0 ? "normalFeed" : "";
+    if (!feedKey) {
+      addWildChickenInfluence(player, encounter, 1);
+      player.wildChickenEncounter = null;
       return {
         ok: true,
         player,
         title: event.title,
-        message: `你想徒手硬抓，但「${oldChicken.name}」叫了一聲，特殊雞立刻鑽進岩縫。想抓牠，得先下定決心騰出位置。`
+        message: `${encounter.icon} ${encounter.name} 靠近你的礦袋。\n你伸手嘗試互動，但身上沒有飼料。牠留下幾根羽毛後跑走。`
       };
     }
-    const depthBonus = Math.min(0.12, Math.max(0, player.depth || 0) * 0.002);
-    const successChance = choice === "risk"
-      ? (hadChicken ? 0.62 : 0.42) + depthBonus
-      : 0.32 + depthBonus;
 
-    if (choice === "risk" && hadChicken) {
-      player.ownedChicken = null;
-    }
-
-    if (random() < successChance) {
-      const wildChicken = makeWildMineChicken(player.depth, random);
-      player.ownedChicken = wildChicken;
-      const specialName = {
-        mineCrystal: "礦晶雞",
-        rustFeather: "鏽羽雞",
-        abyssEcho: "深鳴雞"
-      }[wildChicken.evolutionType] || "礦坑系特殊雞";
-      const sacrificeText = choice === "risk" && oldChicken
-        ? `你烤掉了「${oldChicken.name}」當誘餌，`
-        : "你壓低腳步靠近，";
+    player[feedKey] -= 1;
+    const roll = random();
+    addWildChickenInfluence(player, encounter, feedKey === "gourmetFeed" ? 2 : 1);
+    if (roll < (feedKey === "gourmetFeed" ? 0.42 : 0.25)) {
+      const drops = awardWildChickenDrop(player, encounter, random);
+      player.wildChickenEncounter = null;
       return {
         ok: true,
         player,
         title: event.title,
-        message: `${sacrificeText}成功抓到 ${wildChicken.icon}「${wildChicken.name}」。\n牠是礦坑特殊雞，數值偏高，未來可能進化成 ${specialName}。`
+        announcement: encounter.rare ? `🌌 傳說中的「${encounter.name}」接受了 <@PLAYER> 的餵食！` : "",
+        message: `${encounter.icon} ${encounter.name} 吃下飼料，友善地蹭了蹭你的手。\n牠留下：${drops.join("｜")}`
       };
     }
 
-    const damageText = choice === "extreme" && random() < 0.45
-      ? `\n牠逃跑時踢落碎石，${addBombDamage(player, now).message}`
-      : "";
-    const lostText = choice === "risk" && oldChicken
-      ? `你烤掉了「${oldChicken.name}」，但特殊雞沒有上鉤。你現在沒有自己的雞了。`
-      : "你撲了個空，特殊雞鑽進岩縫消失了。";
+    if (roll < 0.72) {
+      return resolveWildChickenRace(player, encounter, random, now);
+    }
+
+    const damageText = encounter.trait === "berserk" ? `\n牠反而暴走，${addBombDamage(player, now).message}` : "";
+    player.wildChickenEncounter = null;
     return {
       ok: true,
       player,
       title: event.title,
-      message: `${lostText}${damageText}`
+      message: `${encounter.icon} ${encounter.name} 嗅了嗅飼料，突然受驚逃跑。${damageText}`
+    };
+  }
+
+  if (eventId === "mine_collapse_evacuation" || eventId === "spatial_turbulence_evacuation" || eventId === "sky_rift_evacuation" || eventId === "deep_pollution_evacuation") {
+    const bonus = choice === "risk" || choice === "extreme" ? 80 + getDepthBonus(player.depth) * 15 : 0;
+    if (bonus > 0) player.gold += bonus;
+    const damage = choice === "extreme" && random() < 0.55 ? `\n${addBombDamage(player, now).message}` : "";
+    const target = eventId === "spatial_turbulence_evacuation" && player.undergroundCampUnlocked
+      ? "undergroundCamp"
+      : eventId === "sky_rift_evacuation" && player.skyCampUnlocked
+        ? "skyCamp"
+        : "surface";
+    if (target === "surface") {
+      const result = returnToSurface(player, random, null, now);
+      result.title = event.title;
+      result.message = `${event.title === "礦坑大崩塌" ? "🌋 礦坑徹底崩塌！" : "⚠️ 危險爆發！"}\n你被迫撤離回營地！\n${bonus ? `撤離前搶到 ${bonus} 金幣。\n` : ""}${result.message}${damage}`;
+      return result;
+    }
+    player.zone = target;
+    player.pendingEvent = null;
+    player.eventChallenge = null;
+    player.depth = target === "skyCamp" ? -100 : 100;
+    player.runDepthProgress = 0;
+    player.caveType = null;
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `${event.title === "空間亂流" ? "🌀 空間亂流把你吸走！" : "⚡ 天域裂縫強行拉走你！"}\n${bonus ? `混亂中搶到 ${bonus} 金幣。\n` : ""}你被迫回到${target === "skyCamp" ? "天域營地" : "地底營地"}。${damage}`
     };
   }
 
@@ -4018,6 +4416,14 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
   const priceGold = itemId === "magicCandy" ? getMagicCandyPrice(player) : (shopItem ? shopItem.priceGold : consumable.priceGold);
   const cost = priceGold * safeAmount;
   if (itemId === "healingPotion") {
+    if ((player.thickSoleShoes || 0) > 0) {
+      return {
+        ok: false,
+        player,
+        globalState,
+        message: "❌ 你無法同時攜帶藥水與厚底鞋。"
+      };
+    }
     normalizePotionDailyLimit(player, now);
     const dailyLimit = CONFIG.shop.consumables.healingPotion.dailyLimit;
     if ((player.potionPurchasesToday || 0) + safeAmount > dailyLimit) {
@@ -4041,6 +4447,18 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
       };
     }
   }
+  if (itemId === "undyingTotem") {
+    normalizeTotemDailyLimit(player, now);
+    const dailyLimit = CONFIG.shop.consumables.undyingTotem.dailyLimit;
+    if ((player.dailyTotemPurchaseCount || 0) + safeAmount > dailyLimit) {
+      return {
+        ok: false,
+        player,
+        globalState,
+        message: `❌ 今日不死圖騰已達購買上限（${player.dailyTotemPurchaseCount || 0}/${dailyLimit}）`
+      };
+    }
+  }
   if (player.gold < cost) {
     return {
       ok: false,
@@ -4056,6 +4474,7 @@ function buyShopItem(playerInput, itemId, amount = 1, progressInput = {}) {
     player[itemId] = (player[itemId] || 0) + safeAmount;
     if (itemId === "healingPotion") player.potionPurchasesToday = (player.potionPurchasesToday || 0) + safeAmount;
     if (itemId === "magicCandy") player.magicCandyPurchasesToday = (player.magicCandyPurchasesToday || 0) + safeAmount;
+    if (itemId === "undyingTotem") player.dailyTotemPurchaseCount = (player.dailyTotemPurchaseCount || 0) + safeAmount;
   }
 
   return {
@@ -4330,20 +4749,22 @@ function returnToSurface(playerInput, random = Math.random, globalStateInput = n
   const soldBombItem = player.bombItem;
   const globalState = globalStateInput ? normalizeGlobalState(globalStateInput, now) : null;
   const market = (id) => globalState ? getMarketMultiplier(globalState, id, now) : 1;
+  const goldOreBlessing = getMarketBlessingMultiplier(player, "goldOre", now);
+  const gemBlessing = getMarketBlessingMultiplier(player, "gem", now);
   const oreGold = Math.floor(soldOre * CONFIG.ore.goldPerOre * market("ore"));
-  const goldOreGold = Math.floor(soldGoldOre * CONFIG.ore.goldPerGoldOre * market("goldOre"));
+  const goldOreGold = Math.floor(soldGoldOre * CONFIG.ore.goldPerGoldOre * market("goldOre") * goldOreBlessing);
   const platinumOreGold = Math.floor(soldPlatinumOre * CONFIG.ore.goldPerPlatinumOre * market("platinumOre"));
   const goldBlockGold = soldGoldBlock * CONFIG.ore.goldPerGoldBlock;
   const oreIngotGold = Math.floor(soldOreIngot * CONFIG.ore.goldPerOreIngot * market("oreIngot"));
-  const goldOreIngotGold = Math.floor(soldGoldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot"));
+  const goldOreIngotGold = Math.floor(soldGoldOreIngot * CONFIG.ore.goldPerGoldOreIngot * market("goldOreIngot") * goldOreBlessing);
   const platinumOreIngotGold = Math.floor(soldPlatinumOreIngot * CONFIG.ore.goldPerPlatinumOreIngot * market("platinumOreIngot"));
   const bombItemGold = soldBombItem * CONFIG.ore.goldPerBombItem;
   const soldRedGem = player.redGem;
   const soldBlueGem = player.blueGem;
   const soldGreenGem = player.greenGem;
-  const gemGold = soldRedGem * CONFIG.ore.redGemGold
+  const gemGold = Math.floor((soldRedGem * CONFIG.ore.redGemGold
     + soldBlueGem * CONFIG.ore.blueGemGold
-    + soldGreenGem * CONFIG.ore.greenGemGold;
+    + soldGreenGem * CONFIG.ore.greenGemGold) * gemBlessing);
   const baseReward = oreGold + goldOreGold + platinumOreGold + goldBlockGold + oreIngotGold + goldOreIngotGold + platinumOreIngotGold + bombItemGold + gemGold;
   const finalReward = calculateFinalReward(player, baseReward);
   const clearedJunk = player.junk;
@@ -4732,6 +5153,7 @@ module.exports = {
   awardCollectible,
   awardRustCollectible,
   buyShopItem,
+  buyUndergroundInnItem,
   canChooseMinorBuff,
   chooseMinorBuff,
   chooseRunMode,
@@ -4763,6 +5185,7 @@ module.exports = {
   getCaveLabel,
   getMaxBombs,
   getMagicCandyPrice,
+  getUndergroundInnSnapshot,
   getPlayer,
   getRandomEvent,
   getRandomEvents,

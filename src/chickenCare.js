@@ -1234,6 +1234,7 @@ function formatOwnedChicken(playerInput) {
     `耐力：${chicken.stamina}`,
     `強化藥劑：${player.chickenBooster || 0}｜下場加成：+${chicken.raceStatBoost || 0}`,
     `飼料：普通 ${player.normalFeed || 0}｜超好吃 ${player.gourmetFeed || 0}｜特效藥 ${player.chickenMedicine || 0}`,
+    `雞蛋：${player.chickenEggs || 0}｜進化素材：${player.rareEvolutionMaterial || 0}`,
     `研究紙條：${Object.values(player.chickenResearchNotes || {}).reduce((sum, count) => sum + count, 0)}`,
     "",
     `勝場：${chicken.wins}`,

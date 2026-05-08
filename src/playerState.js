@@ -78,6 +78,9 @@ function createPlayer() {
     invertedOre: 0,
     invertedGem: 0,
     orichalcum: 0,
+    guaranteedGemCaveTicket: 0,
+    thickSoleShoes: 0,
+    activeMarketBlessings: {},
     platinumJunk: 0,
     uiMode: "full",
     activeMinePanelMessageId: "",
@@ -124,6 +127,8 @@ function createPlayer() {
     potionPurchasesToday: 0,
     magicCandyPurchaseDay: "",
     magicCandyPurchasesToday: 0,
+    lastTotemResetDate: "",
+    dailyTotemPurchaseCount: 0,
     minerHelmetCount: 0,
     undergroundStorage: {
       ore: 0,
@@ -158,6 +163,10 @@ function createPlayer() {
     chickenRoastHpBonus: 0,
     chickenAmuletUsed: false,
     chickenResearchNotes: {},
+    chickenEggs: 0,
+    rareEvolutionMaterial: 0,
+    wildChickenInfluence: {},
+    wildChickenEncounter: null,
     ownedChicken: null,
     challenge: null,
     challengeBestDepth: 0,
@@ -327,6 +336,8 @@ function getPlayer(player) {
     : [];
   next.chickenArenaRank = Math.max(1, Math.floor(player && player.chickenArenaRank || 1));
   next.chickenBooster = Math.max(0, Math.floor(player && player.chickenBooster || 0));
+  next.lastTotemResetDate = typeof (player && player.lastTotemResetDate) === "string" ? player.lastTotemResetDate : "";
+  next.dailyTotemPurchaseCount = Math.max(0, Math.floor(player && player.dailyTotemPurchaseCount || 0));
   next.normalFeed = Math.max(0, Math.floor(player && player.normalFeed || 0));
   next.gourmetFeed = Math.max(0, Math.floor(player && player.gourmetFeed || 0));
   next.chickenMedicine = Math.max(0, Math.floor(player && player.chickenMedicine || 0));
@@ -336,6 +347,31 @@ function getPlayer(player) {
       .filter(([key, value]) => typeof key === "string" && Number.isFinite(Number(value)))
       .map(([key, value]) => [key, Math.max(0, Math.floor(Number(value)))]))
     : {};
+  next.chickenEggs = Math.max(0, Math.floor(player && player.chickenEggs || 0));
+  next.rareEvolutionMaterial = Math.max(0, Math.floor(player && player.rareEvolutionMaterial || 0));
+  next.guaranteedGemCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedGemCaveTicket || 0)));
+  next.thickSoleShoes = Math.max(0, Math.floor(player && player.thickSoleShoes || 0));
+  next.activeMarketBlessings = player && player.activeMarketBlessings && typeof player.activeMarketBlessings === "object"
+    ? Object.fromEntries(Object.entries(player.activeMarketBlessings)
+      .filter(([key, value]) => typeof key === "string" && Number.isFinite(Number(value)))
+      .map(([key, value]) => [key, Math.max(0, Number(value))]))
+    : {};
+  next.wildChickenInfluence = player && player.wildChickenInfluence && typeof player.wildChickenInfluence === "object"
+    ? Object.fromEntries(Object.entries(player.wildChickenInfluence)
+      .filter(([key, value]) => typeof key === "string" && Number.isFinite(Number(value)))
+      .map(([key, value]) => [key, Math.max(0, Math.floor(Number(value)))]))
+    : {};
+  next.wildChickenEncounter = player && player.wildChickenEncounter && typeof player.wildChickenEncounter === "object"
+    ? {
+      id: typeof player.wildChickenEncounter.id === "string" ? player.wildChickenEncounter.id : "",
+      name: typeof player.wildChickenEncounter.name === "string" ? player.wildChickenEncounter.name : "",
+      icon: typeof player.wildChickenEncounter.icon === "string" ? player.wildChickenEncounter.icon : "🐓",
+      region: typeof player.wildChickenEncounter.region === "string" ? player.wildChickenEncounter.region : "shallow",
+      trait: typeof player.wildChickenEncounter.trait === "string" ? player.wildChickenEncounter.trait : "normal",
+      rare: Boolean(player.wildChickenEncounter.rare),
+      power: Math.max(1, Math.floor(player.wildChickenEncounter.power || 1))
+    }
+    : null;
   next.chickenBoosterUseLog = Array.isArray(player && player.chickenBoosterUseLog)
     ? player.chickenBoosterUseLog.filter((time) => Number.isFinite(time)).slice(-10)
     : [];

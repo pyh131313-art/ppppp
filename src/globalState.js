@@ -25,6 +25,20 @@ function createGlobalState(now = Date.now()) {
       cycleStartedAt: getCurrentMarketCycle(now),
       sold: {},
       multipliers: {}
+    },
+    dailyAnalytics: {
+      lastDate: "",
+      days: {}
+    },
+    playerActivityStats: {},
+    economyStats: {
+      dailyGoldCreated: {},
+      dailyGoldSpent: {}
+    },
+    undergroundInnInventory: {
+      cycleStartedAt: 0,
+      purchases: {},
+      prices: {}
     }
   };
 }
@@ -37,7 +51,24 @@ function normalizeGlobalState(input = {}, now = Date.now()) {
     market: {
       ...base.market,
       ...(input && input.market ? input.market : {})
-    }
+    },
+    dailyAnalytics: input && input.dailyAnalytics && typeof input.dailyAnalytics === "object"
+      ? input.dailyAnalytics
+      : base.dailyAnalytics,
+    playerActivityStats: input && input.playerActivityStats && typeof input.playerActivityStats === "object"
+      ? input.playerActivityStats
+      : base.playerActivityStats,
+    economyStats: input && input.economyStats && typeof input.economyStats === "object"
+      ? input.economyStats
+      : base.economyStats,
+    undergroundInnInventory: input && input.undergroundInnInventory && typeof input.undergroundInnInventory === "object"
+      ? {
+        ...base.undergroundInnInventory,
+        ...input.undergroundInnInventory,
+        purchases: input.undergroundInnInventory.purchases && typeof input.undergroundInnInventory.purchases === "object" ? input.undergroundInnInventory.purchases : {},
+        prices: input.undergroundInnInventory.prices && typeof input.undergroundInnInventory.prices === "object" ? input.undergroundInnInventory.prices : {}
+      }
+      : base.undergroundInnInventory
   };
   restockPotionIfNeeded(state, now);
   resetMarketIfNeeded(state, now);

@@ -86,6 +86,12 @@ const commands = [
       .setDescription("要重置的玩家。")
       .setRequired(true)),
   new SlashCommandBuilder()
+    .setName("開發者面板")
+    .setDescription("管理用：查看今日活躍、經濟、熱門玩法與健康度。"),
+  new SlashCommandBuilder()
+    .setName("devpanel")
+    .setDescription("Developer only: show analytics and health panel."),
+  new SlashCommandBuilder()
     .setName("礦場ui")
     .setDescription("切換礦場顯示模式。")
     .addStringOption((option) => option
