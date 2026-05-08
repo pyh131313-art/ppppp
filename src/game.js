@@ -1287,7 +1287,7 @@ function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now
   if (itemId === "gemTicket" && player.guaranteedGemCaveTicket > 0) {
     return { ok: false, player, globalState: snapshot.globalState, message: "你已經有寶石洞入場券，不能堆疊攜帶。" };
   }
-  if (itemId === "raptorTicket" && player.guaranteedRaptorCaveTicket > 0) {
+  if (itemId === "raptorTicket" && ((player.guaranteedRaptorCaveTicket || 0) > 0 || (player.activeRaptorCaveTicket || 0) > 0)) {
     return { ok: false, player, globalState: snapshot.globalState, message: "你已經有猛禽洞窟入場券，不能堆疊攜帶。" };
   }
   if (itemId === "thickSoleShoes" && (player.healingPotion || 0) > 0) {
@@ -1562,12 +1562,12 @@ function chooseRunMode(playerInput, mode, random = null) {
     player.zone = "undergroundCamp";
   } else {
     const gemChance = CONFIG.mining.gemCaveChance + (config.gemCaveChanceBonus || 0);
-    if (player.guaranteedGemCaveTicket > 0) {
+    if (player.activeRaptorCaveTicket > 0) {
+      player.activeRaptorCaveTicket = 0;
+      player.caveType = "raptor";
+    } else if (player.guaranteedGemCaveTicket > 0) {
       player.guaranteedGemCaveTicket -= 1;
       player.caveType = "gem";
-    } else if (player.guaranteedRaptorCaveTicket > 0) {
-      player.guaranteedRaptorCaveTicket -= 1;
-      player.caveType = "raptor";
     } else {
       player.caveType = random && random() < gemChance ? "gem" : "normal";
     }
@@ -1624,6 +1624,30 @@ function chooseRunMode(playerInput, mode, random = null) {
       : player.caveType === "raptor"
       ? `已選擇 ${config.label}。你推開猛禽洞窟的石門，礦道深處到處都是雞叫聲。越深的野雞越強。`
       : `已選擇 ${config.label}。可以開始深入挖礦。`
+  };
+}
+
+function useRaptorCaveTicket(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.dead) {
+    return { ok: false, player, message: "死亡狀態不能使用入場券。" };
+  }
+  if (player.zone !== "surface" || isInMine(player)) {
+    return { ok: false, player, message: "猛禽洞窟入場券只能在地表、下礦前使用。" };
+  }
+  if ((player.activeRaptorCaveTicket || 0) > 0) {
+    return { ok: false, player, message: "猛禽洞窟入場券已啟用。選擇詞條後就會進入猛禽洞窟。" };
+  }
+  if ((player.guaranteedRaptorCaveTicket || 0) <= 0) {
+    return { ok: false, player, message: "你沒有猛禽洞窟入場券。" };
+  }
+
+  player.guaranteedRaptorCaveTicket -= 1;
+  player.activeRaptorCaveTicket = 1;
+  return {
+    ok: true,
+    player,
+    message: "已使用猛禽洞窟入場券。下一次從地表選擇詞條後，會進入猛禽洞窟。"
   };
 }
 
@@ -6220,6 +6244,7 @@ module.exports = {
   transferCollectible,
   transferHealingPotion,
   tradeSkyUnknownLife,
+  useRaptorCaveTicket,
   withdrawUndergroundStorage,
   withdrawBank
 };

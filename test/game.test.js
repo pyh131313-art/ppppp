@@ -54,6 +54,7 @@ const {
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
+  useRaptorCaveTicket,
   openUndergroundStorage,
   depositUndergroundStorage,
   withdrawUndergroundStorage,
@@ -419,12 +420,19 @@ test("地下客棧猛禽洞窟入場券會讓下次下礦必進猛禽洞窟", ()
     runModeOptions: ["safe", "double"]
   };
   const bought = buyUndergroundInnItem(player, "raptorTicket", createGlobalState(now), now);
-  const next = chooseRunMode({ ...bought.player, zone: "surface" }, "safe", () => 0.99);
+  const beforeUse = chooseRunMode({ ...bought.player, zone: "surface" }, "safe", () => 0.99);
+  const used = useRaptorCaveTicket({ ...bought.player, zone: "surface" });
+  const next = chooseRunMode(used.player, "safe", () => 0.99);
 
   assert.equal(bought.ok, true);
   assert.equal(bought.player.guaranteedRaptorCaveTicket, 1);
+  assert.equal(beforeUse.player.caveType, "normal");
+  assert.equal(used.ok, true);
+  assert.equal(used.player.guaranteedRaptorCaveTicket, 0);
+  assert.equal(used.player.activeRaptorCaveTicket, 1);
   assert.equal(next.player.caveType, "raptor");
   assert.equal(next.player.guaranteedRaptorCaveTicket, 0);
+  assert.equal(next.player.activeRaptorCaveTicket, 0);
   assert.match(next.message, /猛禽洞窟/);
 });
 

@@ -89,6 +89,7 @@ const CUSTOM_IDS = {
   undergroundStorage: "mine_ui:underground_storage",
   storageDeposit: "mine_ui:storage_deposit",
   storageWithdraw: "mine_ui:storage_withdraw",
+  useRaptorTicket: "mine_ui:use_raptor_ticket",
   revive: "mine_ui:revive",
   rescuePrefix: "mine_ui:rescue"
 };
@@ -332,6 +333,8 @@ function buildStatusEffects(playerInput, curse = null) {
   if (player.goldBeast) effects.push(`吞金獸：第${player.goldBeast.returnDepth}層`);
   if (player.potionCooldown > 0) effects.push(`藥水CD：${player.potionCooldown}層`);
   if (player.minerHelmetCount > 0) effects.push(`礦工帽：${player.minerHelmetCount}`);
+  if ((player.guaranteedRaptorCaveTicket || 0) > 0) effects.push("猛禽券：未使用");
+  if ((player.activeRaptorCaveTicket || 0) > 0) effects.push("猛禽券：已啟用");
   if ((player.pendingNextRunTraits || []).length > 0) effects.push(`下場限定詞條：${player.pendingNextRunTraits.length}`);
   if (player.returnBlessing) effects.push("歸還祝福");
   if (player.rescueBonusCount > 0) effects.push(`救援小詞條 x${player.rescueBonusCount}`);
@@ -975,6 +978,16 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.shopOpen, "商店", ButtonStyle.Success, "🏪"),
       makeButton(CUSTOM_IDS.bankOpen, "銀行", ButtonStyle.Success, "🏦")
     );
+    if ((player.guaranteedRaptorCaveTicket || 0) > 0 || (player.activeRaptorCaveTicket || 0) > 0) {
+      addRow(
+        makeButton(
+          CUSTOM_IDS.useRaptorTicket,
+          (player.activeRaptorCaveTicket || 0) > 0 ? "猛禽券已啟用" : "使用猛禽券",
+          ButtonStyle.Primary,
+          "🎫"
+        ).setDisabled((player.activeRaptorCaveTicket || 0) > 0)
+      );
+    }
     if (player.undergroundCampUnlocked) {
       addRow(makeButton(CUSTOM_IDS.undergroundCamp, `搭乘電梯前往地底營地 (${getElevatorCost(player)})`, ButtonStyle.Primary, "🛗"));
     }

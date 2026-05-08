@@ -81,6 +81,7 @@ function createPlayer() {
     orichalcum: 0,
     guaranteedGemCaveTicket: 0,
     guaranteedRaptorCaveTicket: 0,
+    activeRaptorCaveTicket: 0,
     thickSoleShoes: 0,
     quickChickenBall: 0,
     activeMarketBlessings: {},
@@ -414,6 +415,7 @@ function getPlayer(player) {
   next.rareEvolutionMaterial = Math.max(0, Math.floor(player && player.rareEvolutionMaterial || 0));
   next.guaranteedGemCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedGemCaveTicket || 0)));
   next.guaranteedRaptorCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedRaptorCaveTicket || 0)));
+  next.activeRaptorCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.activeRaptorCaveTicket || 0)));
   next.thickSoleShoes = Math.max(0, Math.floor(player && player.thickSoleShoes || 0));
   next.quickChickenBall = Math.max(0, Math.floor(player && player.quickChickenBall || 0));
   next.activeMarketBlessings = player && player.activeMarketBlessings && typeof player.activeMarketBlessings === "object"

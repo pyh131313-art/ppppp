@@ -50,6 +50,7 @@ const {
   shimmerCollectible,
   tradeSkyUnknownLife,
   transferHealingPotion,
+  useRaptorCaveTicket,
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
@@ -1183,7 +1184,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         let alreadyHad = 0;
         for (const userId of Object.keys(players)) {
           const next = getPlayer(players[userId]);
-          if ((next.guaranteedRaptorCaveTicket || 0) > 0) {
+          if ((next.guaranteedRaptorCaveTicket || 0) > 0 || (next.activeRaptorCaveTicket || 0) > 0) {
             alreadyHad += 1;
           } else {
             next.guaranteedRaptorCaveTicket = 1;
@@ -2182,6 +2183,16 @@ async function handleMiningButton(interaction) {
       const result = rerollRunModeOptions(player, Math.random);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "刷新詞條", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.useRaptorTicket) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = useRaptorCaveTicket(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "猛禽洞窟入場券", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });
