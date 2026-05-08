@@ -278,6 +278,16 @@ function getPlayer(player) {
       evolutionBranch: typeof player.ownedChicken.evolutionBranch === "string" ? player.ownedChicken.evolutionBranch : "",
       hiddenEvolutionValue: Math.max(-100, Math.min(100, Math.floor(player.ownedChicken.hiddenEvolutionValue || 0))),
       evolutionQuality: typeof player.ownedChicken.evolutionQuality === "string" ? player.ownedChicken.evolutionQuality : "",
+      secondEvolution: player.ownedChicken.secondEvolution && typeof player.ownedChicken.secondEvolution === "object"
+        ? {
+          id: typeof player.ownedChicken.secondEvolution.id === "string" ? player.ownedChicken.secondEvolution.id : "",
+          title: typeof player.ownedChicken.secondEvolution.title === "string" ? player.ownedChicken.secondEvolution.title : "",
+          icon: typeof player.ownedChicken.secondEvolution.icon === "string" ? player.ownedChicken.secondEvolution.icon : "",
+          branch: typeof player.ownedChicken.secondEvolution.branch === "string" ? player.ownedChicken.secondEvolution.branch : "",
+          quality: typeof player.ownedChicken.secondEvolution.quality === "string" ? player.ownedChicken.secondEvolution.quality : "",
+          frame: typeof player.ownedChicken.secondEvolution.frame === "string" ? player.ownedChicken.secondEvolution.frame : ""
+        }
+        : null,
       titles: Array.isArray(player.ownedChicken.titles)
         ? player.ownedChicken.titles.filter((title) => typeof title === "string").slice(0, 12)
         : [],

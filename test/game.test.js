@@ -1087,6 +1087,7 @@ test("商店介面將挖礦用品與養雞用品分開並限制稀有品單買",
   }, createPlayer(), "player-1");
   const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
 
+  assert.equal(rows.length <= 5, true);
   assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:1`), true);
   assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:zhongkui_peace:5`), false);
   assert.equal(customIds.includes(`${CUSTOM_IDS.shopBuyPrefix}:magicCandy:2`), false);

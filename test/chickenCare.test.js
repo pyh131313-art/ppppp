@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  addChickenExp,
   buildBattleEmbed,
   buildChickenUpgradeComponents,
   buildChickenItemComponents,
@@ -104,6 +105,40 @@ test("完全體進化需要足夠勝場", () => {
   assert.deepEqual(getEvolutionMissingRequirements(player.ownedChicken, "miracle", "complete"), ["勝場 8/12"]);
   assert.match(formatOwnedChicken(player), /完全體：逆轉之星/);
   assert.match(formatOwnedChicken(player), /還差：勝場 8\/12/);
+});
+
+test("完全體會依照照顧品質進入二階分支", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 15;
+  player.ownedChicken.wins = 20;
+  player.ownedChicken.evolutionType = "blaze";
+  player.ownedChicken.evolutionPoints = { blaze: 20 };
+  player.ownedChicken.hiddenEvolutionValue = 35;
+  player.ownedChicken.chickenMood = 90;
+  player.ownedChicken.chickenHealth = 90;
+
+  const message = addChickenExp(player, getChickenRequiredExp(player.ownedChicken), () => 0);
+
+  assert.match(message, /爆炎王雞/);
+  assert.equal(player.ownedChicken.secondEvolution.title, "爆炎王雞");
+  assert.equal(player.ownedChicken.evolutionBranch, "blazeKing");
+  assert.match(formatOwnedChicken(player), /二階：爆炎王雞/);
+});
+
+test("二階進化照顧太歪時會走劣化分支", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 15;
+  player.ownedChicken.wins = 20;
+  player.ownedChicken.evolutionType = "blaze";
+  player.ownedChicken.evolutionPoints = { blaze: 20 };
+  player.ownedChicken.hiddenEvolutionValue = -40;
+  player.ownedChicken.evolutionBranch = "overfed";
+
+  const message = addChickenExp(player, getChickenRequiredExp(player.ownedChicken), () => 0);
+
+  assert.match(message, /肥宅爆炎雞/);
+  assert.equal(player.ownedChicken.secondEvolution.title, "肥宅爆炎雞");
+  assert.equal(player.ownedChicken.evolutionQuality, "bad");
 });
 
 test("賽雞可以依不同傾向進化成更多路線", () => {

@@ -290,6 +290,33 @@ const EVOLUTION_TYPES = {
   }
 };
 
+const SECOND_STAGE_EVOLUTIONS = {
+  blaze: {
+    normal: { id: "blazeWing", title: "炎翼雞", icon: "🐓🔥", branch: "blazeWing", frame: "炎翼完全體" },
+    perfect: { id: "blazeKing", title: "爆炎王雞", icon: "🐓🔥👑", branch: "blazeKing", frame: "爆炎王" },
+    bad: { id: "fatBlaze", title: "肥宅爆炎雞", icon: "🐔🔥🍖", branch: "overfedBlaze", frame: "肥炎完全體" },
+    abnormal: { id: "blackBlaze", title: "黑炎雞", icon: "🐓😈🔥", branch: "blackBlaze", frame: "黑炎完全體" }
+  },
+  iron: {
+    normal: { id: "ironGuard", title: "鋼羽雞", icon: "🐔🛡️", branch: "ironGuard", frame: "鋼羽完全體" },
+    perfect: { id: "fortressKing", title: "鐵壁王雞", icon: "🐔🛡️👑", branch: "fortressKing", frame: "鐵壁王" },
+    bad: { id: "rustArmor", title: "鏽甲雞", icon: "🐔🟧🛡️", branch: "rustArmor", frame: "鏽甲完全體" },
+    abnormal: { id: "sealedIron", title: "封印鐵雞", icon: "🐔🛡️💀", branch: "sealedIron", frame: "封印完全體" }
+  },
+  miracle: {
+    normal: { id: "starMiracle", title: "星光奇蹟雞", icon: "🐤✨", branch: "starMiracle", frame: "星光完全體" },
+    perfect: { id: "miracleKing", title: "天命奇蹟雞", icon: "🐤✨👑", branch: "miracleKing", frame: "天命完全體" },
+    bad: { id: "nearMiss", title: "差一點雞", icon: "🐤💫", branch: "nearMiss", frame: "差點完全體" },
+    abnormal: { id: "voidMiracle", title: "虛空奇蹟雞", icon: "🐤🌌", branch: "voidMiracle", frame: "虛空完全體" }
+  },
+  trickster: {
+    normal: { id: "prankLord", title: "惡作劇王雞", icon: "🐓😈", branch: "prankLord", frame: "惡作劇完全體" },
+    perfect: { id: "darkTrickster", title: "黑羽策士雞", icon: "🐓😈👑", branch: "darkTrickster", frame: "黑羽策士" },
+    bad: { id: "annoyingChicken", title: "吵鬧爛雞", icon: "🐓📢", branch: "annoyingChicken", frame: "吵鬧完全體" },
+    abnormal: { id: "curseTrickster", title: "詛咒惡作劇雞", icon: "🐓😈💀", branch: "curseTrickster", frame: "詛咒完全體" }
+  }
+};
+
 const CHICKEN_SKILLS = {
   blazeDash: { name: "爆炎衝刺", text: "終點前有機率大加速" },
   hotStart: { name: "火羽開局", text: "前段偶爾爆衝" },
@@ -525,10 +552,26 @@ function normalizeChickenArray(input, limit = 12) {
     : [];
 }
 
+function normalizeSecondEvolution(input) {
+  if (!input || typeof input !== "object") return null;
+  const id = typeof input.id === "string" ? input.id : "";
+  const title = typeof input.title === "string" ? input.title : "";
+  if (!id || !title) return null;
+  return {
+    id,
+    title,
+    icon: typeof input.icon === "string" ? input.icon : "",
+    branch: typeof input.branch === "string" ? input.branch : id,
+    quality: typeof input.quality === "string" ? input.quality : "",
+    frame: typeof input.frame === "string" ? input.frame : ""
+  };
+}
+
 function normalizeChickenMeta(chicken) {
   if (!chicken || typeof chicken !== "object") return chicken;
   chicken.evolutionPoints = createEvolutionPoints(chicken.evolutionPoints);
   chicken.evolutionType = EVOLUTION_TYPES[chicken.evolutionType] ? chicken.evolutionType : null;
+  chicken.secondEvolution = normalizeSecondEvolution(chicken.secondEvolution);
   chicken.activeSkill = CHICKEN_SKILLS[chicken.activeSkill] ? chicken.activeSkill : null;
   chicken.passiveSkill = CHICKEN_SKILLS[chicken.passiveSkill] ? chicken.passiveSkill : null;
   chicken.chickenCounterType = getCounterTypeForChicken(chicken);
@@ -568,6 +611,7 @@ function makeOwnedChicken(random = Math.random) {
     bossWins: 0,
     evolutionPoints: createEvolutionPoints(),
     evolutionType: null,
+    secondEvolution: null,
     activeSkill: null,
     passiveSkill: null,
     chickenCounterType: getCounterTypeForChicken({ personalityId: personality.id }),
@@ -622,6 +666,7 @@ function makeWildMineChicken(depth = 1, random = Math.random) {
     bossWins: 0,
     evolutionPoints: createEvolutionPoints({ [evolution.pointKey]: 6 + depthBonus }),
     evolutionType,
+    secondEvolution: null,
     activeSkill: evolution.activeSkill,
     passiveSkill: evolution.passiveSkill,
     chickenCounterType: getCounterTypeForChicken({ personalityId: personality.id, evolutionType }),
@@ -674,6 +719,7 @@ function normalizeOwnedChicken(input) {
     bossWins: Math.max(0, Math.floor(input.bossWins || 0)),
     evolutionPoints: createEvolutionPoints(input.evolutionPoints),
     evolutionType: EVOLUTION_TYPES[input.evolutionType] ? input.evolutionType : null,
+    secondEvolution: normalizeSecondEvolution(input.secondEvolution),
     activeSkill: CHICKEN_SKILLS[input.activeSkill] ? input.activeSkill : null,
     passiveSkill: CHICKEN_SKILLS[input.passiveSkill] ? input.passiveSkill : null,
     chickenCounterType: COUNTER_TYPES[input.chickenCounterType]
@@ -803,6 +849,38 @@ function canEvolveTo(chicken, type, phase = "mature") {
   return getEvolutionMissingRequirements(chicken, type, phase).length === 0;
 }
 
+function getEvolutionQuality(chicken, evolution) {
+  if ((chicken.hiddenEvolutionValue || 0) >= 30 && !chicken.chickenDisease && (chicken.chickenMood || 0) >= 70 && (chicken.chickenHealth || 0) >= 70) {
+    return "perfect";
+  }
+  if ((chicken.hiddenEvolutionValue || 0) <= -25 || evolution.weak || chicken.evolutionBranch === "overfed") {
+    return "bad";
+  }
+  if (chicken.chickenDisease || (chicken.chickenHealth || 0) <= 35) {
+    return "abnormal";
+  }
+  return chicken.evolutionQuality || "normal";
+}
+
+function getSecondStageEvolution(chicken, evolution, quality) {
+  const table = SECOND_STAGE_EVOLUTIONS[chicken.evolutionType] || {};
+  const branch = table[quality] || table.normal;
+  if (branch) return { ...branch, quality };
+  const qualityLabel = {
+    perfect: "王",
+    bad: "劣化",
+    abnormal: "異變"
+  }[quality] || "二階";
+  return {
+    id: `${chicken.evolutionType || "unknown"}_${quality}`,
+    title: `${evolution.name}${qualityLabel}`,
+    icon: evolution.icon,
+    branch: `${chicken.evolutionType || "unknown"}_${quality}`,
+    frame: `${evolution.title}・${qualityLabel}`,
+    quality
+  };
+}
+
 function buildEvolutionProgress(chicken) {
   normalizeChickenMeta(chicken);
   const targetType = chicken.evolutionType || determineEvolutionType(chicken);
@@ -820,7 +898,8 @@ function buildEvolutionProgress(chicken) {
       ? `完全體：${evolution.title}\n還差：${missing.join("｜")}`
       : `完全體：${evolution.title}\n條件已達成，下次獲得經驗或比賽結算時進化`;
   }
-  return `完全體：${evolution.title}｜已完成`;
+  if (chicken.secondEvolution) return `二階分支：${chicken.secondEvolution.title}｜已完成`;
+  return `二階分支：${getSecondStageEvolution(chicken, evolution, getEvolutionQuality(chicken, evolution)).title}\n條件已達成，下次獲得經驗或比賽結算時進化`;
 }
 
 function buildEvolutionCandidateSummary(chicken) {
@@ -843,40 +922,35 @@ function buildEvolutionCandidateSummary(chicken) {
 function applyChickenEvolution(chicken) {
   normalizeChickenMeta(chicken);
   let nextType = chicken.evolutionType || determineEvolutionType(chicken);
-  if (chicken.evolutionType && chicken.level >= 16 && !chicken.titles.includes((EVOLUTION_TYPES[chicken.evolutionType] || {}).title)) {
-    if ((chicken.hiddenEvolutionValue || 0) <= -25 || chicken.evolutionBranch === "overfed") {
-      nextType = ["mud", "paper", "lost"][(Math.abs(chicken.hiddenEvolutionValue || 0) + (chicken.chickenPoop || 0)) % 3];
-    }
-  }
   const evolution = EVOLUTION_TYPES[nextType];
   if (!evolution) return "";
   if (!chicken.evolutionType && !canEvolveTo(chicken, nextType, "mature")) return "";
   const firstEvolution = chicken.evolutionType !== nextType;
   const wasComplete = chicken.titles.includes(evolution.title);
+  const hadSecondEvolution = Boolean(chicken.secondEvolution);
   chicken.evolutionType = nextType;
-  chicken.evolutionQuality = (chicken.hiddenEvolutionValue || 0) >= 30
-    ? "perfect"
-    : (chicken.hiddenEvolutionValue || 0) <= -25 || evolution.weak
-      ? "bad"
-      : chicken.chickenDisease
-        ? "abnormal"
-        : chicken.evolutionQuality || "";
+  chicken.evolutionQuality = getEvolutionQuality(chicken, evolution);
   chicken.activeSkill = chicken.activeSkill || evolution.activeSkill;
   chicken.passiveSkill = chicken.passiveSkill || evolution.passiveSkill;
   if (canEvolveTo(chicken, nextType, "complete")) {
-    chicken.icon = evolution.icon;
-    chicken.frame = chicken.frame || evolution.title;
+    const secondEvolution = chicken.secondEvolution || getSecondStageEvolution(chicken, evolution, chicken.evolutionQuality);
+    if (!chicken.secondEvolution) chicken.secondEvolution = normalizeSecondEvolution(secondEvolution);
+    chicken.icon = secondEvolution.icon || evolution.icon;
+    chicken.frame = secondEvolution.frame || evolution.title;
     chicken.entryEffect = chicken.entryEffect || evolution.entryEffect;
     if (!chicken.titles.includes(evolution.title)) chicken.titles.push(evolution.title);
+    if (secondEvolution.title && !chicken.titles.includes(secondEvolution.title)) chicken.titles.push(secondEvolution.title);
+    chicken.evolutionBranch = secondEvolution.branch || chicken.evolutionBranch;
   }
   if (firstEvolution) return `✨ ${chicken.name} 進化成 ${evolution.name}！`;
-  if (chicken.level >= 16 && !wasComplete) {
+  if (chicken.level >= 16 && (!wasComplete || !hadSecondEvolution)) {
     const qualityText = {
       perfect: "✨ 完美進化",
       bad: "💀 劣化進化",
       abnormal: "😵 異常進化"
-    }[chicken.evolutionQuality] || "🐓✨ 完全體";
-    return `${qualityText}：${chicken.name} 進入 ${evolution.title}！`;
+    }[chicken.evolutionQuality] || "🐓✨ 二階進化";
+    const secondTitle = chicken.secondEvolution ? chicken.secondEvolution.title : evolution.title;
+    return `${qualityText}：${chicken.name} 進化成 ${secondTitle}！`;
   }
   return "";
 }
@@ -1080,6 +1154,7 @@ function formatOwnedChicken(playerInput) {
     `💩 雞舍：${chicken.chickenPoop} 坨${chicken.autoCleanExpireTime > Date.now() ? "｜🤖 清潔中" : ""}`,
     `類型：${counter.label}`,
     `進化：${evolution ? evolution.name : "未定"}`,
+    `二階：${chicken.secondEvolution ? chicken.secondEvolution.title : "未定"}`,
     `進化分歧：${chicken.evolutionBranch || "未定"}｜品質：${{ perfect: "✨完美", bad: "💀劣化", abnormal: "😵異常" }[chicken.evolutionQuality] || "未知"}`,
     buildEvolutionCandidateSummary(chicken),
     `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,

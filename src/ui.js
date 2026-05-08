@@ -987,6 +987,12 @@ function buildShopComponents(progressInput = {}, playerInput = null, targetUserI
     );
   }
   firstRow.push(makeButton(CUSTOM_IDS.exchangeOne, "鑄造紀念幣", ButtonStyle.Success, "🪙"));
+  if (progress.healingPotionUnlocked) {
+    firstRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:healingPotion`, "指定買藥水", ButtonStyle.Primary, "🔢"));
+  }
+  if (progress.undyingTotemUnlocked) {
+    firstRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:undyingTotem`, "指定買圖騰", ButtonStyle.Primary, "🔢"));
+  }
   rows.push(new ActionRowBuilder().addComponents(...firstRow));
   const consumableRow = [];
   if (progress.healingPotionUnlocked) {
@@ -1005,14 +1011,6 @@ function buildShopComponents(progressInput = {}, playerInput = null, targetUserI
   for (let i = 0; i < consumableRow.length; i += 5) {
     rows.push(new ActionRowBuilder().addComponents(...consumableRow.slice(i, i + 5)));
   }
-  const customAmountRow = [];
-  if (progress.healingPotionUnlocked) {
-    customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:healingPotion`, "指定買藥水", ButtonStyle.Primary, "🔢"));
-  }
-  if (progress.undyingTotemUnlocked) {
-    customAmountRow.push(makeButton(`${CUSTOM_IDS.shopBuyCustomPrefix}:undyingTotem`, "指定買圖騰", ButtonStyle.Primary, "🔢"));
-  }
-  if (customAmountRow.length > 0) rows.push(new ActionRowBuilder().addComponents(...customAmountRow));
   const chickenItemRow = [
     makeButton(`${CUSTOM_IDS.shopBuyPrefix}:normalFeed:1`, "普通飼料", ButtonStyle.Success, "🍖"),
     makeButton(`${CUSTOM_IDS.shopBuyPrefix}:gourmetFeed:1`, "超好吃飼料", ButtonStyle.Success, "🐔"),
