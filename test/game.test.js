@@ -520,6 +520,26 @@ test("事件選項會清除事件並套用結果", () => {
   assert.equal(result.player.ore, 2);
 });
 
+test("破損升降機不會把深度移到非法狀態", () => {
+  const shallow = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 1,
+    pendingEvent: "broken_lift"
+  }, "risk", () => 0.99, 1000);
+  const deep = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    depth: 99,
+    runDepthProgress: 99,
+    pendingEvent: "broken_lift"
+  }, "risk", () => 0, 1000);
+
+  assert.equal(shallow.player.depth, 1);
+  assert.equal(shallow.player.zone, "mine");
+  assert.equal(deep.player.depth, 100);
+  assert.equal(deep.player.zone, "lavaPool");
+  assert.match(deep.message, /岩漿池/);
+});
+
 test("礦區記憶事件只會在有足夠路線紀錄時出現", () => {
   const player = chooseRunMode(createPlayer(), "safe").player;
   assert.equal(

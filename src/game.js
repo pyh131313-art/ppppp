@@ -1865,6 +1865,24 @@ function addRunDepthProgress(player, amount) {
   return setDepthRecord(player);
 }
 
+function moveNormalMineDepth(player, amount) {
+  const beforeDepth = Math.max(1, Math.floor(player.depth || 1));
+  const nextDepth = Math.max(1, beforeDepth + Math.floor(amount || 0));
+  const cappedDepth = Math.min(CONFIG.mining.lavaDepth, nextDepth);
+  player.depth = cappedDepth;
+  const progressMessage = cappedDepth > beforeDepth ? addRunDepthProgress(player, cappedDepth - beforeDepth) : setDepthRecord(player);
+  if (nextDepth >= CONFIG.mining.lavaDepth) {
+    player.zone = "lavaPool";
+    player.caveType = null;
+    player.lavaProgress = 0;
+    return {
+      progressMessage,
+      transitionMessage: "升降機衝到深層盡頭，前方只剩翻滾的岩漿池。"
+    };
+  }
+  return { progressMessage, transitionMessage: "" };
+}
+
 function maybeTriggerRandomEvent(player, random = Math.random) {
   if (player.dead || player.pendingEvent || !shouldCheckEvent(Math.abs(player.depth), player)) return "";
   const mode = getMode(player);
@@ -3684,9 +3702,15 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     }
     const roll = random();
     if (eventId === "broken_lift" || eventId === "deep_airflow") {
-      player.depth += roll < 0.65 ? 2 : -1;
-      const recordMessage = setDepthRecord(player);
-      return { ok: true, player, title: event.title, message: `礦道位移到第 ${player.depth} 層。${recordMessage}` };
+      const shift = roll < 0.65 ? 2 : -1;
+      const moved = moveNormalMineDepth(player, shift);
+      const failMessage = shift < 0 ? "升降機突然下墜又卡住，你退回較淺的礦道。" : "升降機搖晃著往深處滑行。";
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `${failMessage}礦道位移到第 ${player.depth} 層。${moved.transitionMessage}${moved.progressMessage}`
+      };
     }
     if (eventId === "rusty_safe" && getBagFreeSlots(player) > 0) {
       player.rusty += 1;
