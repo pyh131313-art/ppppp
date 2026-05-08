@@ -122,7 +122,7 @@ test("完全體會依照照顧品質進入二階分支", () => {
   assert.match(message, /爆炎王雞/);
   assert.equal(player.ownedChicken.secondEvolution.title, "爆炎王雞");
   assert.equal(player.ownedChicken.evolutionBranch, "blazeKing");
-  assert.match(formatOwnedChicken(player), /二階：爆炎王雞/);
+  assert.match(formatOwnedChicken(player), /二階分支：爆炎王雞/);
 });
 
 test("二階進化照顧太歪時會走劣化分支", () => {
@@ -139,6 +139,24 @@ test("二階進化照顧太歪時會走劣化分支", () => {
   assert.match(message, /肥宅爆炎雞/);
   assert.equal(player.ownedChicken.secondEvolution.title, "肥宅爆炎雞");
   assert.equal(player.ownedChicken.evolutionQuality, "bad");
+});
+
+test("雷鳴衝線王階段也會進入雷鳴系二階分支", () => {
+  const player = ensureOwnedChicken(createPlayer(), () => 0);
+  player.ownedChicken.level = 15;
+  player.ownedChicken.wins = 20;
+  player.ownedChicken.evolutionType = "thunder";
+  player.ownedChicken.evolutionPoints = { thunder: 20 };
+  player.ownedChicken.hiddenEvolutionValue = 35;
+  player.ownedChicken.chickenMood = 95;
+  player.ownedChicken.chickenHealth = 95;
+
+  const message = addChickenExp(player, getChickenRequiredExp(player.ownedChicken), () => 0);
+
+  assert.match(message, /雷鳴衝線皇/);
+  assert.equal(player.ownedChicken.secondEvolution.title, "雷鳴衝線皇");
+  assert.match(formatOwnedChicken(player), /目前型態：雷鳴雞/);
+  assert.match(formatOwnedChicken(player), /二階分支：雷鳴衝線皇/);
 });
 
 test("賽雞可以依不同傾向進化成更多路線", () => {

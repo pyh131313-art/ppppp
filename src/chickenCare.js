@@ -314,6 +314,12 @@ const SECOND_STAGE_EVOLUTIONS = {
     perfect: { id: "darkTrickster", title: "黑羽策士雞", icon: "🐓😈👑", branch: "darkTrickster", frame: "黑羽策士" },
     bad: { id: "annoyingChicken", title: "吵鬧爛雞", icon: "🐓📢", branch: "annoyingChicken", frame: "吵鬧完全體" },
     abnormal: { id: "curseTrickster", title: "詛咒惡作劇雞", icon: "🐓😈💀", branch: "curseTrickster", frame: "詛咒完全體" }
+  },
+  thunder: {
+    normal: { id: "thunderRunner", title: "雷羽衝線雞", icon: "🐓⚡", branch: "thunderRunner", frame: "雷羽衝線" },
+    perfect: { id: "thunderCrown", title: "雷鳴衝線皇", icon: "🐓⚡👑", branch: "thunderCrown", frame: "雷鳴衝線皇" },
+    bad: { id: "shortCircuit", title: "短路雷雞", icon: "🐔⚡💫", branch: "shortCircuit", frame: "短路雷羽" },
+    abnormal: { id: "stormBerserker", title: "暴雷失控雞", icon: "🐓⚡💀", branch: "stormBerserker", frame: "暴雷失控" }
   }
 };
 
@@ -1153,8 +1159,8 @@ function formatOwnedChicken(playerInput) {
     `心情：${getMoodIcon(chicken.chickenMood)} ${chicken.chickenMood}%｜健康：${getHealthLabel(chicken.chickenHealth, chicken.chickenDisease)}｜飢餓：${chicken.chickenHunger}%`,
     `💩 雞舍：${chicken.chickenPoop} 坨${chicken.autoCleanExpireTime > Date.now() ? "｜🤖 清潔中" : ""}`,
     `類型：${counter.label}`,
-    `進化：${evolution ? evolution.name : "未定"}`,
-    `二階：${chicken.secondEvolution ? chicken.secondEvolution.title : "未定"}`,
+    `目前型態：${evolution ? evolution.name : "未定"}`,
+    `二階分支：${chicken.secondEvolution ? chicken.secondEvolution.title : "未定"}`,
     `進化分歧：${chicken.evolutionBranch || "未定"}｜品質：${{ perfect: "✨完美", bad: "💀劣化", abnormal: "😵異常" }[chicken.evolutionQuality] || "未知"}`,
     buildEvolutionCandidateSummary(chicken),
     `技能：${activeSkill ? activeSkill.name : "未解鎖"}｜${passiveSkill ? passiveSkill.name : "未解鎖"}`,
