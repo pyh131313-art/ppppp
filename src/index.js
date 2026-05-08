@@ -2813,6 +2813,11 @@ async function loginWithRetry(attempt = 1) {
     if (!client.isReady()) {
       client.destroy();
     }
+    if (attempt >= 3) {
+      console.error("Discord 登入連續失敗，交給 Render 重新啟動。");
+      console.error(error);
+      process.exit(1);
+    }
     const retryMs = Math.min(60_000, 5_000 * attempt);
     console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
     console.error(error);
