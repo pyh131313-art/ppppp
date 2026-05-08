@@ -7,13 +7,15 @@ const {
   updateEventState
 } = require("./eventPitySystem");
 const {
+  advanceEventTypeMissCounters,
   getRandomEvent,
   getRandomEvents,
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
   pickSkyEvent,
-  pickRandomEvent
+  pickRandomEvent,
+  recordEventTypeEncounter
 } = require("./eventSystem");
 const {
   applyTraitWeights,
@@ -118,6 +120,7 @@ function addItemReward(player, key, amount) {
 
 const getTotalAsset = economySystem.getTotalAsset;
 const PLAYER_VALUE_CAP = 1_000_000_000_000;
+const SUPPLY_STATION_INTERVAL = 25;
 const UNDERGROUND_INN_CYCLE_MS = 6 * 60 * 60 * 1000;
 const UNDERGROUND_INN_ITEMS = {
   gemTicket: {
@@ -737,6 +740,12 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.pendingEvent = null;
     addFixed("清除卡住的詞條交換事件");
   }
+  if (clearBlockingState && player.supplyStation) {
+    player.supplyStation = null;
+    player.nextSupplyDepth = Math.abs(player.depth || 0) + SUPPLY_STATION_INTERVAL;
+    player.nextBuffDepth = player.nextSupplyDepth;
+    addFixed("清除卡住的補給站");
+  }
   if (clearBlockingState && (player.minorBuffOptions.length > 0 || player.minorBuffSelections.length > 0)) {
     player.minorBuffOptions = [];
     player.minorBuffSelections = [];
@@ -1090,6 +1099,8 @@ function resetRunState(player, random = Math.random) {
   player.minorBuffSelections = [];
   player.minorBuffBreakthroughMode = false;
   player.nextBuffDepth = 5;
+  player.nextSupplyDepth = SUPPLY_STATION_INTERVAL;
+  player.supplyStation = null;
   player.pendingEvent = null;
   player.eventChallenge = null;
   player.traitSwapEvent = null;
@@ -1538,7 +1549,9 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.minorBuffOptions = [];
   player.minorBuffSelections = [];
   player.minorBuffBreakthroughMode = false;
-  player.nextBuffDepth = 5;
+  player.nextBuffDepth = SUPPLY_STATION_INTERVAL;
+  player.nextSupplyDepth = SUPPLY_STATION_INTERVAL;
+  player.supplyStation = null;
   player.pendingEvent = null;
   player.eventChallenge = null;
   player.traitSwapEvent = null;
@@ -1583,12 +1596,200 @@ function chooseRunMode(playerInput, mode, random = null) {
 }
 
 function canChooseMinorBuff(playerInput) {
+  getPlayer(playerInput);
+  return false;
+}
+
+function getSupplyStationRegion(playerInput) {
+  const player = getPlayer(playerInput);
+  if (player.zone === "skyDown") return "sky";
+  if (player.zone === "upward") return player.depth < 0 ? "inverted" : "underground";
+  if (player.caveType === "gem") return "gem";
+  return "normal";
+}
+
+function getSupplyStationMeta(region, variant = "normal") {
+  const base = {
+    normal: { title: "🪵 普通補給站", potionMultiplier: 1, buffMultiplier: 1, sellMultiplier: 1 },
+    gem: { title: "💎 寶石補給站", potionMultiplier: 1.15, buffMultiplier: 1.1, sellMultiplier: 1.05 },
+    underground: { title: "🌋 地底黑市", potionMultiplier: 1.35, buffMultiplier: 1.2, sellMultiplier: 0.95 },
+    inverted: { title: "🌀 顛倒補給點", potionMultiplier: 1.15, buffMultiplier: 1.35, sellMultiplier: 1.15 },
+    sky: { title: "☁️ 天域商販", potionMultiplier: 1.25, buffMultiplier: 1.25, sellMultiplier: 1.3 }
+  }[region] || { title: "🏪 補給站", potionMultiplier: 1, buffMultiplier: 1, sellMultiplier: 1 };
+  if (variant === "blackMarket") return { ...base, title: `💀 黑市${base.title.replace(/^[^\s]+ /, "")}`, potionMultiplier: base.potionMultiplier * 1.7, buffMultiplier: base.buffMultiplier * 1.8, sellMultiplier: base.sellMultiplier * 1.2 };
+  if (variant === "gambler") return { ...base, title: `🎲 賭徒${base.title.replace(/^[^\s]+ /, "")}`, potionMultiplier: base.potionMultiplier * 0.85, buffMultiplier: base.buffMultiplier * 0.9, sellMultiplier: base.sellMultiplier * 1.1 };
+  if (variant === "mystery") return { ...base, title: `🌌 神秘${base.title.replace(/^[^\s]+ /, "")}`, potionMultiplier: base.potionMultiplier * 1.3, buffMultiplier: base.buffMultiplier * 1.55, sellMultiplier: base.sellMultiplier * 1.35 };
+  return base;
+}
+
+function getSupplyBuffPool(region) {
+  const pools = {
+    normal: ["gold", "bomb", "bag", "ore", "sustain", "luck", "event"],
+    gem: ["luck", "event", "bag", "sustain", "ore"],
+    underground: ["ore", "gold", "event", "luck", "bomb", "reverse"],
+    inverted: ["reverse", "bag", "event", "luck", "gold", "bomb"],
+    sky: ["luck", "event", "sustain", "bag", "reverse", "gold"]
+  };
+  return pools[region] || pools.normal;
+}
+
+function canOpenSupplyStation(playerInput) {
   const player = getPlayer(playerInput);
   return !player.dead
     && !player.pendingEvent
     && Boolean(player.runMode)
-    && Math.abs(player.depth) >= player.nextBuffDepth
-    && Math.abs(player.depth) % 5 === 0;
+    && !player.supplyStation
+    && Math.abs(player.depth || 0) >= (player.nextSupplyDepth || SUPPLY_STATION_INTERVAL)
+    && Math.abs(player.depth || 0) % SUPPLY_STATION_INTERVAL === 0;
+}
+
+function createSupplyStation(playerInput, random = Math.random) {
+  const player = getPlayer(playerInput);
+  const depth = Math.abs(player.depth || 0);
+  const region = getSupplyStationRegion(player);
+  const variantRoll = random();
+  const variant = variantRoll < 0.05 ? "mystery" : variantRoll < 0.11 ? "gambler" : variantRoll < 0.18 ? "blackMarket" : "normal";
+  const meta = getSupplyStationMeta(region, variant);
+  const jitter = (min, max) => min + Math.floor(random() * (max - min + 1));
+  const items = [];
+  const potionPrice = Math.floor(jitter(120, 450) * meta.potionMultiplier * (1 + Math.min(1.2, depth / 180)));
+  items.push({ id: "potion", type: "potion", label: "治療藥水", price: potionPrice, stock: jitter(1, variant === "blackMarket" ? 2 : 5) });
+
+  const pool = getSupplyBuffPool(region).filter((id) => CONFIG.minorBuffs[id]);
+  const candidates = [...pool];
+  const buffCount = variant === "mystery" ? 3 : 2;
+  for (let i = 0; i < buffCount && candidates.length > 0; i += 1) {
+    const [buff] = candidates.splice(Math.floor(random() * candidates.length), 1);
+    const config = CONFIG.minorBuffs[buff];
+    const rarity = config.unique ? 1.45 : buff === "reverse" || buff === "luck" || buff === "event" ? 1.25 : 1;
+    items.push({
+      id: `buff_${buff}`,
+      type: "buff",
+      buff,
+      label: config.label,
+      price: Math.floor(jitter(520, 980) * meta.buffMultiplier * rarity * (1 + Math.min(1.35, depth / 220))),
+      stock: jitter(1, variant === "gambler" ? 3 : 2)
+    });
+  }
+
+  const sellOffers = Object.entries(player.minorBuffs || {})
+    .filter(([buff, count]) => count > 0 && CONFIG.minorBuffs[buff])
+    .map(([buff, count]) => ({
+      buff,
+      price: Math.floor((180 + count * 90 + depth * 2) * meta.sellMultiplier * (CONFIG.minorBuffs[buff].unique ? 1.35 : 1))
+    }))
+    .slice(0, 5);
+
+  player.supplyStation = {
+    id: `${Date.now()}-${Math.floor(random() * 100000)}`,
+    depth,
+    region,
+    variant,
+    items,
+    sellOffers
+  };
+  return player;
+}
+
+function formatSupplyStation(playerInput) {
+  const player = getPlayer(playerInput);
+  const station = player.supplyStation;
+  if (!station) return "目前沒有補給站。";
+  const meta = getSupplyStationMeta(station.region, station.variant);
+  const itemLines = station.items.map((item, index) => (
+    item.type === "potion"
+      ? `${index + 1}. 🧪 ${item.label}｜價格 ${item.price}｜庫存 ${item.stock}`
+      : `${index + 1}. ✨ ${item.label}｜價格 ${item.price}｜庫存 ${item.stock}`
+  ));
+  const sellLines = station.sellOffers.length
+    ? station.sellOffers.map((offer) => `💰 ${CONFIG.minorBuffs[offer.buff].label}｜收購價 ${offer.price}`)
+    : ["無可收購小詞條"];
+  return [
+    `【${meta.title}】`,
+    `深度：${station.depth}｜金幣：${player.gold}`,
+    "",
+    "販售：",
+    ...itemLines,
+    "",
+    "收購：",
+    ...sellLines
+  ].join("\n");
+}
+
+function getSupplyStationView(playerInput) {
+  const player = getPlayer(playerInput);
+  const station = player.supplyStation;
+  if (!station) return null;
+  const meta = getSupplyStationMeta(station.region, station.variant);
+  return {
+    title: meta.title,
+    depth: station.depth,
+    region: station.region,
+    variant: station.variant,
+    items: station.items.map((item) => ({
+      ...item,
+      emoji: item.type === "potion" ? "🧪" : "✨",
+      disabled: item.stock <= 0 || player.gold < item.price
+    })),
+    sellOffers: station.sellOffers
+      .filter((offer) => CONFIG.minorBuffs[offer.buff])
+      .map((offer) => ({
+        ...offer,
+        label: CONFIG.minorBuffs[offer.buff].label,
+        disabled: (player.minorBuffs[offer.buff] || 0) <= 0
+      }))
+  };
+}
+
+function buySupplyStationItem(playerInput, itemId) {
+  const player = getPlayer(playerInput);
+  const station = player.supplyStation;
+  if (!station) return { ok: false, player, message: "目前沒有補給站。" };
+  const item = station.items.find((entry) => entry.id === itemId);
+  if (!item) return { ok: false, player, message: "補給站沒有這個商品。" };
+  if (item.stock <= 0) return { ok: false, player, message: "這個商品賣完了。" };
+  if (player.gold < item.price) return { ok: false, player, message: `金幣不足，需要 ${item.price} 金幣。` };
+  if (item.type === "buff" && !isSelectableMiniTrait(player, item.buff) && !isMiniTraitBreakthroughMode(player)) {
+    return { ok: false, player, message: `${item.label} 目前不能再購買。` };
+  }
+  player.gold -= item.price;
+  item.stock -= 1;
+  if (item.type === "potion") {
+    player.healingPotion += 1;
+  } else {
+    player.minorBuffs[item.buff] = (player.minorBuffs[item.buff] || 0) + 1;
+  }
+  return {
+    ok: true,
+    player,
+    message: `${item.type === "potion" ? "買下治療藥水" : `買下 ${item.label}`}，花費 ${item.price} 金幣。\n\n${formatSupplyStation(player)}`
+  };
+}
+
+function sellSupplyStationBuff(playerInput, buff) {
+  const player = getPlayer(playerInput);
+  const station = player.supplyStation;
+  if (!station) return { ok: false, player, message: "目前沒有補給站。" };
+  const offer = station.sellOffers.find((entry) => entry.buff === buff);
+  if (!offer) return { ok: false, player, message: "補給站不收這個小詞條。" };
+  if ((player.minorBuffs[buff] || 0) <= 0) return { ok: false, player, message: "你沒有這個小詞條可以出售。" };
+  player.minorBuffs[buff] -= 1;
+  player.gold += offer.price;
+  station.sellOffers = station.sellOffers.filter((entry) => entry.buff !== buff || (player.minorBuffs[buff] || 0) > 0);
+  return {
+    ok: true,
+    player,
+    message: `出售 ${CONFIG.minorBuffs[buff].label}，獲得 ${offer.price} 金幣。\n\n${formatSupplyStation(player)}`
+  };
+}
+
+function leaveSupplyStation(playerInput) {
+  const player = getPlayer(playerInput);
+  if (!player.supplyStation) return { ok: false, player, message: "目前沒有補給站。" };
+  player.nextSupplyDepth = Math.abs(player.depth || 0) + SUPPLY_STATION_INTERVAL;
+  player.nextBuffDepth = player.nextSupplyDepth;
+  player.supplyStation = null;
+  return { ok: true, player, message: `離開補給站。下一個補給站預計在第 ${player.nextSupplyDepth} 層。` };
 }
 
 function getMinorBuffMaxStacks(buff) {
@@ -2408,6 +2609,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   if (
     player.dead
     || player.pendingEvent
+    || player.supplyStation
     || player.minorBuffOptions.length > 0
     || player.minorBuffSelections.length > 0
     || !shouldCheckEvent(Math.abs(player.depth), player)
@@ -2429,6 +2631,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   else if (player.highTierEligible && random() < 0.18) eventId = pickHighTierEvent(player, random);
   else eventId = pickRandomEvent(player, random);
   player.pendingEvent = eventId;
+  recordEventTypeEncounter(player, eventId);
   const event = getRandomEvent(eventId);
   const challengeMessage = setupEventChallenge(player, event, eventId, random);
   const memoryMessage = setupMemoryChallenge(player, event, eventId, random);
@@ -2831,14 +3034,17 @@ function blockStalactiteWithHelmet(player) {
 }
 
 function buildOutcome(kind, player, title, message, recordMessage = "", random = Math.random) {
+  if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
+    advanceEventTypeMissCounters(player, 1);
+  }
   const eventMessage = kind === "blocked" || kind === "full" || player.dead
     ? ""
     : maybeTriggerRandomEvent(player, random);
   if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
     tickTempEffects(player);
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
-    if (canChooseMinorBuff(player) && player.minorBuffOptions.length === 0) {
-      Object.assign(player, refreshMinorBuffOptions(player, random));
+    if (canOpenSupplyStation(player)) {
+      Object.assign(player, createSupplyStation(player, random));
     }
   }
   const funMessage = applyPostDigFun(player, kind, random);
@@ -2847,7 +3053,7 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     kind,
     player,
     title,
-    message: `${message}${tensionHint ? `\n${tensionHint}` : ""}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}`,
+    message: `${message}${tensionHint ? `\n${tensionHint}` : ""}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}${player.supplyStation ? `\n\n${formatSupplyStation(player)}` : ""}`,
     recordMessage
   };
 }
@@ -3363,6 +3569,15 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       message: event
         ? `目前遇到事件：${event.title}。請先選擇事件選項。`
         : "目前遇到事件，請先選擇事件選項。"
+    };
+  }
+
+  if (player.supplyStation) {
+    return {
+      kind: "blocked",
+      player,
+      title: "補給站",
+      message: "補給站擋在路口。請先購買、出售或離開。\n\n" + formatSupplyStation(player)
     };
   }
 
@@ -5551,6 +5766,13 @@ module.exports = {
   triggerCharge,
   travelToUndergroundCamp,
   rollWeighted,
+  buySupplyStationItem,
+  canOpenSupplyStation,
+  createSupplyStation,
+  formatSupplyStation,
+  getSupplyStationView,
+  leaveSupplyStation,
+  sellSupplyStationBuff,
   transferConsumable,
   transferCollectible,
   transferHealingPotion,

@@ -34,7 +34,8 @@ const {
   getRunModeOptions,
   getRunModeLabel,
   getShopConsumables,
-  getShopItems
+  getShopItems,
+  getSupplyStationView
 } = require("./game");
 const { describeMarket, normalizeGlobalState } = require("./globalState");
 
@@ -53,6 +54,9 @@ const CUSTOM_IDS = {
   buffGold: "mine_ui:buff_gold",
   buffBomb: "mine_ui:buff_bomb",
   buffPrefix: "mine_ui:buff",
+  supplyBuyPrefix: "mine_ui:supply_buy",
+  supplySellPrefix: "mine_ui:supply_sell",
+  supplyLeave: "mine_ui:supply_leave",
   bag: "mine_ui:bag",
   leaderboard: "mine_ui:leaderboard",
   bankOpen: "mine_ui:bank_open",
@@ -902,6 +906,34 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
       makeButton(CUSTOM_IDS.undergroundStorage, "倉庫", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );
+    return rows;
+  }
+
+  if (inMine && player.supplyStation) {
+    const station = getSupplyStationView(player);
+    const buyButtons = station && station.items
+      ? station.items.slice(0, 5).map((item) => (
+        makeButton(
+          `${CUSTOM_IDS.supplyBuyPrefix}:${item.id}`,
+          `${item.label} ${item.price}`,
+          item.type === "potion" ? ButtonStyle.Success : ButtonStyle.Primary,
+          item.emoji
+        ).setDisabled(item.disabled)
+      ))
+      : [];
+    if (buyButtons.length > 0) addRow(...buyButtons);
+    const sellButtons = station && station.sellOffers
+      ? station.sellOffers.slice(0, 5).map((offer) => (
+        makeButton(
+          `${CUSTOM_IDS.supplySellPrefix}:${offer.buff}`,
+          `賣${offer.label} ${offer.price}`,
+          ButtonStyle.Secondary,
+          "💰"
+        ).setDisabled(offer.disabled)
+      ))
+      : [];
+    if (sellButtons.length > 0) addRow(...sellButtons);
+    addRow(makeButton(CUSTOM_IDS.supplyLeave, "離開補給站", ButtonStyle.Danger, "🚪"));
     return rows;
   }
 

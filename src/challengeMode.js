@@ -8,6 +8,11 @@ const {
   StringSelectMenuBuilder
 } = require("discord.js");
 const { CONFIG } = require("./config");
+const {
+  EVENT_TYPE_KEYS,
+  createEventTypeMissCounter,
+  getEventTypePityWeight
+} = require("./eventSystem");
 const { getPlayer } = require("./playerState");
 
 const CHALLENGE_PREFIX = "challenge_ui";
@@ -136,6 +141,10 @@ function normalizeChallengeState(input) {
     merchant: input.merchant && typeof input.merchant === "object" ? input.merchant : null,
     items: Object.fromEntries(Object.keys(CHALLENGE_ITEM_LABELS).map((key) => [key, Math.max(0, Math.floor(items[key] || 0))])),
     miniTraits: Object.fromEntries(Object.keys(CONFIG.minorBuffs).map((key) => [key, Math.max(0, Math.floor(miniTraits[key] || 0))])),
+    eventTypeMissCounter: createEventTypeMissCounter(input.eventTypeMissCounter),
+    recentEventTypes: Array.isArray(input.recentEventTypes)
+      ? input.recentEventTypes.filter((type) => EVENT_TYPE_KEYS.includes(type)).slice(-8)
+      : [],
     stats: {
       crits: Math.max(0, Math.floor(input.stats && input.stats.crits || 0)),
       events: Math.max(0, Math.floor(input.stats && input.stats.events || 0)),
@@ -168,6 +177,8 @@ function createChallengeSetup(playerInput, random = Math.random) {
     merchant: null,
     items: Object.fromEntries(Object.keys(CHALLENGE_ITEM_LABELS).map((key) => [key, 0])),
     miniTraits: Object.fromEntries(Object.keys(CONFIG.minorBuffs).map((key) => [key, 0])),
+    eventTypeMissCounter: createEventTypeMissCounter(),
+    recentEventTypes: [],
     stats: { crits: 0, events: 0, merchants: 0 },
     lastMessage: "選一個大詞條後開始挑戰。"
   };
@@ -337,33 +348,96 @@ function applyRouteResult(challenge, route, random = Math.random) {
   return messages.join("\n");
 }
 
+function recordChallengeEventType(challenge, type) {
+  challenge.eventTypeMissCounter = createEventTypeMissCounter(challenge.eventTypeMissCounter);
+  EVENT_TYPE_KEYS.forEach((key) => {
+    challenge.eventTypeMissCounter[key] = Math.min(999, (challenge.eventTypeMissCounter[key] || 0) + 2);
+  });
+  if (EVENT_TYPE_KEYS.includes(type)) challenge.eventTypeMissCounter[type] = 0;
+  const recent = Array.isArray(challenge.recentEventTypes) ? challenge.recentEventTypes : [];
+  challenge.recentEventTypes = EVENT_TYPE_KEYS.includes(type) ? [...recent, type].slice(-8) : recent.slice(-8);
+}
+
+function pickChallengeEvent(events, challenge, random = Math.random) {
+  const pityEventId = {
+    qte: "qte_challenge_pressure",
+    chest: "treasure_chest_challenge",
+    highTier: "high_contract"
+  };
+  const pityEventShape = {
+    qte: { qte: { type: "challenge" } },
+    chest: {},
+    highTier: { highTier: true },
+    special: { traitSwapEvent: true }
+  };
+  const weighted = events.map((event) => ({
+    ...event,
+    weight: getEventTypePityWeight(event.weight || 1, pityEventId[event.type] || `challenge_${event.type}`, {
+      title: event.label,
+      ...(pityEventShape[event.type] || {})
+    }, {
+      eventTypeMissCounter: challenge.eventTypeMissCounter,
+      recentEventTypes: challenge.recentEventTypes
+    }, { challengeMode: true })
+  }));
+  const total = weighted.reduce((sum, event) => sum + event.weight, 0);
+  let roll = random() * total;
+  for (const event of weighted) {
+    roll -= event.weight;
+    if (roll <= 0) return event;
+  }
+  return weighted[weighted.length - 1] || events[0];
+}
+
 function applyChallengeEvent(challenge, random = Math.random) {
   const events = [
-    () => {
+    {
+      type: "special",
+      label: "高壓礦脈",
+      run: () => {
       const gain = Math.floor(60 + challenge.depth * 3);
       challenge.challengeGold += gain;
       return `✨ 高壓礦脈爆開，額外 +${gain}。`;
+      }
     },
-    () => {
+    {
+      type: "chest",
+      label: "補給箱",
+      run: () => {
       challenge.potions += 1;
       return "🧪 撿到治療藥水 x1。";
+      }
     },
-    () => {
+    {
+      type: "qte",
+      label: "拆彈",
+      run: () => {
       addChallengeItem(challenge, "bombItem", 1);
       return "💣 拆到完整炸彈 x1。";
+      }
     },
-    () => {
+    {
+      type: "special",
+      label: "臨時小詞條",
+      run: () => {
       const id = pick(Object.keys(CONFIG.minorBuffs), random);
       challenge.miniTraits[id] = (challenge.miniTraits[id] || 0) + 1;
       return `🔧 臨時小詞條：${CONFIG.minorBuffs[id].label} +1。`;
+      }
     },
-    () => {
+    {
+      type: "highTier",
+      label: "危險礦心",
+      run: () => {
       challenge.hp -= 1;
       addChallengeItem(challenge, "platinumOre", 2);
       return "⚠️ 硬挖危險礦心，受傷但得到鉑金礦石 x2。";
     }
+    }
   ];
-  return pick(events, random)();
+  const event = pickChallengeEvent(events, challenge, random);
+  recordChallengeEventType(challenge, event.type);
+  return event.run();
 }
 
 function createMerchant(challenge, random = Math.random) {

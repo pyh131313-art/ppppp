@@ -17,6 +17,7 @@ const { cleanEnvValue } = require("./env");
 const { registerApplicationCommands } = require("./register-app-commands");
 const {
   buyShopItem,
+  buySupplyStationItem,
   buyUndergroundInnItem,
   chooseMinorBuff,
   chooseRunMode,
@@ -52,6 +53,8 @@ const {
   triggerCharge,
   travelToUndergroundCamp,
   transferCollectible,
+  sellSupplyStationBuff,
+  leaveSupplyStation,
   withdrawUndergroundStorage,
   withdrawBank,
   awardCollectible,
@@ -2215,6 +2218,38 @@ async function handleMiningButton(interaction) {
       const result = chooseMinorBuff(player, buff);
       componentPlayer = result.player;
       embed = buildPanelEmbed(result.player, "小詞條", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.supplyBuyPrefix}:`)) {
+    const itemId = interaction.customId.split(":")[2];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = buySupplyStationItem(player, itemId);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "補給站", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId.startsWith(`${CUSTOM_IDS.supplySellPrefix}:`)) {
+    const buff = interaction.customId.split(":")[2];
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = sellSupplyStationBuff(player, buff);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "補給站", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return result.player;
+    });
+  }
+
+  if (interaction.customId === CUSTOM_IDS.supplyLeave) {
+    await updatePlayer(panelTargetUserId, (player) => {
+      const result = leaveSupplyStation(player);
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "補給站", result.message, interaction.user, hudPage);
       files = buildHudFiles(result.player);
       return result.player;
     });

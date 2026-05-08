@@ -1,5 +1,25 @@
 "use strict";
 
+const EVENT_TYPE_KEYS = [
+  "qte",
+  "puzzle",
+  "lockpick",
+  "wildChicken",
+  "race",
+  "chest",
+  "highTier",
+  "special",
+  "underground",
+  "sky"
+];
+
+function createEventTypeMissCounter(source = {}) {
+  return Object.fromEntries(EVENT_TYPE_KEYS.map((key) => [
+    key,
+    Math.max(0, Math.floor(source && source[key] || 0))
+  ]));
+}
+
 const RANDOM_EVENTS = {
   cracked_wall: {
     title: "裂開的礦牆",
@@ -859,12 +879,84 @@ function canEventAppear(event, player) {
   return (player.redGem || 0) + (player.blueGem || 0) + (player.greenGem || 0) > 0;
 }
 
+function getEventTypes(eventId, eventInput = null) {
+  const event = eventInput || getRandomEvent(eventId);
+  if (!event) return ["special"];
+  const types = new Set();
+  const qteType = event.qte && event.qte.type;
+  if (event.lockpick || eventId.startsWith("lockpick_")) types.add("lockpick");
+  else if (qteType === "puzzle" || eventId.startsWith("puzzle_")) types.add("puzzle");
+  else if (event.qte || eventId.startsWith("qte_")) types.add("qte");
+  if (eventId.includes("chicken")) {
+    types.add("wildChicken");
+    types.add("race");
+  }
+  if (eventId.includes("chest") || eventId.includes("vault") || eventId.includes("cache")) types.add("chest");
+  if (event.highTier) types.add("highTier");
+  if (event.reverseOnly) types.add("underground");
+  if (event.skyOnly) types.add("sky");
+  if (event.traitSwapEvent || event.forceEvacuation || event.requiresPathHistory || eventId === "gold_eater") types.add("special");
+  if (types.size === 0) types.add("special");
+  return [...types].filter((type) => EVENT_TYPE_KEYS.includes(type));
+}
+
+function getEventTypeBoost(count, challengeMode = false) {
+  const short = challengeMode;
+  if (count >= (short ? 20 : 40)) return 0.35;
+  if (count >= (short ? 10 : 20)) return 0.15;
+  if (count >= (short ? 5 : 10)) return 0.05;
+  return 0;
+}
+
+function getEventTypePityWeight(baseWeight, eventId, eventInput, playerInput = {}, options = {}) {
+  const event = eventInput || getRandomEvent(eventId);
+  const counter = createEventTypeMissCounter(playerInput.eventTypeMissCounter);
+  const recent = Array.isArray(playerInput.recentEventTypes) ? playerInput.recentEventTypes.slice(-5) : [];
+  const challengeMode = Boolean(options.challengeMode);
+  const types = getEventTypes(eventId, event);
+  let boost = types.reduce((max, type) => Math.max(max, getEventTypeBoost(counter[type] || 0, challengeMode)), 0);
+  if ((baseWeight || 0) <= 0.2 || event.forceEvacuation) boost *= 0.25;
+  if (event.highTier) boost *= 0.55;
+  let multiplier = 1 + boost;
+  const recentHitCount = types.filter((type) => recent.includes(type)).length;
+  if (recentHitCount > 0) multiplier *= Math.max(0.42, 0.72 - recentHitCount * 0.08);
+  if (recent.length && types.includes(recent[recent.length - 1])) multiplier *= 0.7;
+  return Math.max(0.01, baseWeight * multiplier);
+}
+
+function advanceEventTypeMissCounters(playerInput, amount = 1) {
+  if (!playerInput) return playerInput;
+  const counter = createEventTypeMissCounter(playerInput.eventTypeMissCounter);
+  const step = Math.max(0, Math.floor(amount || 1));
+  EVENT_TYPE_KEYS.forEach((type) => {
+    counter[type] = Math.min(999, (counter[type] || 0) + step);
+  });
+  playerInput.eventTypeMissCounter = counter;
+  return playerInput;
+}
+
+function recordEventTypeEncounter(playerInput, eventId) {
+  if (!playerInput || !eventId) return playerInput;
+  const counter = createEventTypeMissCounter(playerInput.eventTypeMissCounter);
+  const types = getEventTypes(eventId);
+  types.forEach((type) => {
+    counter[type] = 0;
+  });
+  const recent = Array.isArray(playerInput.recentEventTypes) ? playerInput.recentEventTypes : [];
+  playerInput.eventTypeMissCounter = counter;
+  playerInput.recentEventTypes = [...recent, ...types].slice(-8);
+  return playerInput;
+}
+
 function pickRandomEvent(player, random = Math.random, filter = null) {
   const eventIds = Object.keys(RANDOM_EVENTS).filter((id) => {
     if (filter && !filter(id, RANDOM_EVENTS[id])) return false;
     return canEventAppear(RANDOM_EVENTS[id], player);
   });
-  const weighted = eventIds.map((id) => ({ id, weight: Math.max(0, RANDOM_EVENTS[id].weight == null ? 1 : RANDOM_EVENTS[id].weight) }));
+  const weighted = eventIds.map((id) => {
+    const baseWeight = Math.max(0, RANDOM_EVENTS[id].weight == null ? 1 : RANDOM_EVENTS[id].weight);
+    return { id, weight: getEventTypePityWeight(baseWeight, id, RANDOM_EVENTS[id], player) };
+  });
   const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
   if (totalWeight <= 0) return eventIds[Math.floor(random() * eventIds.length)] || eventIds[0];
   let roll = random() * totalWeight;
@@ -900,12 +992,18 @@ function getEventButtonLabels(eventId) {
 
 module.exports = {
   RANDOM_EVENTS,
+  EVENT_TYPE_KEYS,
+  advanceEventTypeMissCounters,
+  createEventTypeMissCounter,
   getEventButtonLabels,
+  getEventTypes,
+  getEventTypePityWeight,
   getRandomEvent,
   getRandomEvents,
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
   pickSkyEvent,
-  pickRandomEvent
+  pickRandomEvent,
+  recordEventTypeEncounter
 };

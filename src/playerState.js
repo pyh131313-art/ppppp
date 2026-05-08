@@ -1,6 +1,7 @@
 "use strict";
 
 const { CONFIG } = require("./config");
+const { EVENT_TYPE_KEYS, createEventTypeMissCounter } = require("./eventSystem");
 const { createFunState, normalizeFunState } = require("./funSystem");
 const { createTraitState, normalizeTraitState } = require("./traitSystem");
 
@@ -110,9 +111,13 @@ function createPlayer() {
     minorBuffSelections: [],
     minorBuffBreakthroughMode: false,
     nextBuffDepth: 5,
+    nextSupplyDepth: 25,
+    supplyStation: null,
     pendingEvent: null,
     nextEventDepth: 4,
     eventMissCount: 0,
+    eventTypeMissCounter: createEventTypeMissCounter(),
+    recentEventTypes: [],
     eventChallenge: null,
     traitSwapEvent: null,
     traitMutation: null,
@@ -206,6 +211,41 @@ function getPlayer(player) {
     ? player.minorBuffSelections.filter((buff) => CONFIG.minorBuffs[buff]).slice(0, 1)
     : [];
   next.minorBuffBreakthroughMode = Boolean(player && player.minorBuffBreakthroughMode);
+  next.eventTypeMissCounter = createEventTypeMissCounter(player && player.eventTypeMissCounter);
+  next.recentEventTypes = Array.isArray(player && player.recentEventTypes)
+    ? player.recentEventTypes.filter((type) => EVENT_TYPE_KEYS.includes(type)).slice(-8)
+    : [];
+  next.nextSupplyDepth = Math.max(25, Math.floor(player && player.nextSupplyDepth || 25));
+  next.supplyStation = player && player.supplyStation && typeof player.supplyStation === "object"
+    ? {
+      id: typeof player.supplyStation.id === "string" ? player.supplyStation.id : "",
+      depth: Math.max(0, Math.floor(player.supplyStation.depth || 0)),
+      region: typeof player.supplyStation.region === "string" ? player.supplyStation.region : "normal",
+      variant: typeof player.supplyStation.variant === "string" ? player.supplyStation.variant : "normal",
+      items: Array.isArray(player.supplyStation.items)
+        ? player.supplyStation.items
+          .filter((item) => item && typeof item.id === "string")
+          .map((item) => ({
+            id: item.id,
+            type: item.type === "buff" ? "buff" : "potion",
+            buff: CONFIG.minorBuffs[item.buff] ? item.buff : "",
+            label: typeof item.label === "string" ? item.label.slice(0, 30) : "",
+            price: Math.max(0, Math.floor(item.price || 0)),
+            stock: Math.max(0, Math.floor(item.stock || 0))
+          }))
+          .slice(0, 5)
+        : [],
+      sellOffers: Array.isArray(player.supplyStation.sellOffers)
+        ? player.supplyStation.sellOffers
+          .filter((offer) => offer && CONFIG.minorBuffs[offer.buff])
+          .map((offer) => ({
+            buff: offer.buff,
+            price: Math.max(0, Math.floor(offer.price || 0))
+          }))
+          .slice(0, 5)
+        : []
+    }
+    : null;
   next.uiMode = player && player.uiMode === "compact" ? "compact" : "full";
   next.runModeOptions = Array.isArray(player && player.runModeOptions)
     ? player.runModeOptions.filter((mode) => CONFIG.runModes[mode]).slice(0, 2)

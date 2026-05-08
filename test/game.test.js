@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buyShopItem,
+  buySupplyStationItem,
   buyUndergroundInnItem,
   canChooseMinorBuff,
   chooseMinorBuff,
@@ -29,8 +30,10 @@ const {
   getMinorBuffOptions,
   getRandomEvents,
   getRunModeOptions,
+  getSupplyStationView,
   isMiniTraitBreakthroughMode,
   isSelectableMiniTrait,
+  leaveSupplyStation,
   mine,
   openUndergroundInn,
   drinkHealingPotion,
@@ -43,6 +46,7 @@ const {
   returnToSurface,
   revive,
   setUiMode,
+  sellSupplyStationBuff,
   shimmerCollectible,
   tradeSkyUnknownLife,
   transferHealingPotion,
@@ -64,6 +68,12 @@ const {
   updateEventState
 } = require("../src/eventPitySystem");
 const {
+  advanceEventTypeMissCounters,
+  getEventTypePityWeight,
+  pickRandomEvent,
+  recordEventTypeEncounter
+} = require("../src/eventSystem");
+const {
   buildBankComponents,
   buildPanelComponents,
   buildPanelEmbed,
@@ -71,7 +81,6 @@ const {
   buildShopComponents,
   CUSTOM_IDS
 } = require("../src/ui");
-const { pickRandomEvent } = require("../src/eventSystem");
 const {
   buildDeveloperPanelEmbed,
   getTaiwanDateKey,
@@ -528,26 +537,26 @@ test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
   const player = {
     ...createPlayer(),
     runMode: "eventBody",
-    depth: 19,
-    nextEventDepth: 20,
+    depth: 24,
+    nextEventDepth: 25,
     eventMissCount: 3,
-    nextBuffDepth: 20,
+    nextSupplyDepth: 25,
     forcedNextResult: "ore"
   };
   const result = mine(player, () => 0);
 
   assert.ok(result.player.pendingEvent);
-  assert.deepEqual(result.player.minorBuffOptions, []);
+  assert.equal(result.player.supplyStation, null);
   assert.equal(canChooseMinorBuff(result.player), false);
 
   const resolved = resolveRandomEvent({
     ...result.player,
     pendingEvent: "lost_backpack",
-    depth: 20,
-    nextBuffDepth: 20
+    depth: 25,
+    nextSupplyDepth: 25
   }, "safe");
   assert.equal(resolved.player.pendingEvent, null);
-  assert.equal(canChooseMinorBuff(resolved.player), true);
+  assert.equal(resolved.player.supplyStation, null);
 });
 
 test("QTE 炸彈拆除會建立限時互動並依答案結算", () => {
@@ -703,22 +712,34 @@ test("開鎖事件會依角度與耐久判定", () => {
   assert.equal(missed.player.bombs, 0.5);
 });
 
-test("等待小詞條時礦場面板只顯示小詞條避免按鈕列爆量", () => {
+test("補給站出現時礦場面板只顯示補給站操作避免按鈕列爆量", () => {
   const player = {
     ...createPlayer(),
     zone: "mine",
     caveType: "normal",
     runMode: "eventBody",
-    depth: 20,
-    nextBuffDepth: 20,
+    depth: 25,
+    nextSupplyDepth: 25,
     ore: 8,
-    chargeValue: 100
+    chargeValue: 100,
+    supplyStation: {
+      id: "station-test",
+      depth: 25,
+      region: "normal",
+      variant: "normal",
+      items: [
+        { id: "potion", type: "potion", label: "治療藥水", price: 120, stock: 1 },
+        { id: "buff_gold", type: "buff", buff: "gold", label: "小型淘金", price: 600, stock: 1 }
+      ],
+      sellOffers: []
+    }
   };
   const rows = buildPanelComponents("user-1", player, {}, "main").map((row) => row.toJSON());
   const customIds = rows.flatMap((row) => row.components.map((component) => component.custom_id));
 
   assert.equal(rows.length <= 3, true);
-  assert.equal(customIds.some((id) => id && id.startsWith(CUSTOM_IDS.buffPrefix)), true);
+  assert.equal(customIds.some((id) => id && id.startsWith(CUSTOM_IDS.supplyBuyPrefix)), true);
+  assert.equal(customIds.includes(CUSTOM_IDS.supplyLeave), true);
   assert.equal(customIds.includes(CUSTOM_IDS.discardItem), false);
   assert.equal(customIds.some((id) => id && id.startsWith(CUSTOM_IDS.chargePrefix)), false);
 });
@@ -1851,6 +1872,64 @@ test("事件保底連續未觸發後第四次必定觸發", () => {
   assert.equal(getEventTriggerChance(state), 1);
 });
 
+test("事件類型保底會提高久未出現類型並降低最近重複類型", () => {
+  const basePlayer = {
+    ...createPlayer(),
+    runMode: "safe",
+    eventTypeMissCounter: {
+      ...createPlayer().eventTypeMissCounter,
+      qte: 40,
+      chest: 0
+    },
+    recentEventTypes: []
+  };
+  const qteBoosted = getEventTypePityWeight(1, "qte_bomb_defuse", { qte: { type: "wire" } }, basePlayer);
+  const qteRecent = getEventTypePityWeight(1, "qte_bomb_defuse", { qte: { type: "wire" } }, {
+    ...basePlayer,
+    recentEventTypes: ["qte", "qte", "qte"]
+  });
+  const chestNormal = getEventTypePityWeight(1, "treasure_chest", {}, basePlayer);
+
+  assert.equal(qteBoosted > chestNormal, true);
+  assert.equal(qteRecent < qteBoosted, true);
+});
+
+test("事件類型保底遇到對應事件後只重置該類型", () => {
+  const player = {
+    ...createPlayer(),
+    eventTypeMissCounter: {
+      ...createPlayer().eventTypeMissCounter,
+      qte: 12,
+      chest: 18,
+      wildChicken: 22
+    }
+  };
+  advanceEventTypeMissCounters(player, 3);
+  assert.equal(player.eventTypeMissCounter.qte, 15);
+  recordEventTypeEncounter(player, "qte_bomb_defuse");
+
+  assert.equal(player.eventTypeMissCounter.qte, 0);
+  assert.equal(player.eventTypeMissCounter.chest, 21);
+  assert.equal(player.eventTypeMissCounter.wildChicken, 25);
+  assert.equal(player.recentEventTypes.includes("qte"), true);
+});
+
+test("事件池過大時保底類型有機會被權重拉出來但不是強制", () => {
+  const player = {
+    ...createPlayer(),
+    runMode: "safe",
+    depth: 50,
+    eventTypeMissCounter: {
+      ...createPlayer().eventTypeMissCounter,
+      wildChicken: 80
+    },
+    recentEventTypes: []
+  };
+  const eventId = pickRandomEvent(player, () => 0.9999, (id) => id === "wild_mine_chicken" || id === "cracked_wall");
+
+  assert.equal(["wild_mine_chicken", "cracked_wall"].includes(eventId), true);
+});
+
 test("新增事件池包含普通寶石上位與反轉事件", () => {
   const events = getRandomEvents();
   const normalIds = [
@@ -2201,20 +2280,22 @@ test("安全血量會讓生命增加二", () => {
   assert.equal(third.dead, false);
 });
 
-test("每五層可以三選一小詞條", () => {
+test("每二十五層會出現補給站並暫停挖礦", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    depth: 5,
-    minorBuffOptions: ["gold", "bomb", "bag"]
+    depth: 24,
+    nextSupplyDepth: 25,
+    nextEventDepth: 99,
+    forcedNextResult: "empty"
   };
-  const result = chooseMinorBuff(player, "gold");
-  const second = chooseMinorBuff(result.player, "bag");
+  const result = mine(player, () => 0.99);
+  const blocked = mine(result.player, () => 0.99);
+  const station = getSupplyStationView(result.player);
 
-  assert.equal(result.ok, true);
-  assert.equal(result.player.minorBuffs.gold, 1);
-  assert.equal(result.player.minorBuffs.bag, 0);
-  assert.equal(result.player.nextBuffDepth, 10);
-  assert.equal(second.ok, false);
+  assert.equal(Boolean(result.player.supplyStation), true);
+  assert.equal(station.items.some((item) => item.type === "potion"), true);
+  assert.equal(blocked.kind, "blocked");
+  assert.match(blocked.message, /補給站/);
 });
 
 test("小詞條選項會先排除已達上限的普通詞條", () => {
@@ -2233,18 +2314,17 @@ test("小詞條選項會先排除已達上限的普通詞條", () => {
       reverse: 0
     }
   };
-  const refreshed = mine({ ...player, forcedNextResult: "empty" }, () => 0.99).player;
-  const options = getMinorBuffOptions(refreshed).map((buff) => buff.id);
 
-  assert.equal(isSelectableMiniTrait(refreshed, "gold"), false);
-  assert.equal(options.includes("gold"), false);
-  assert.equal(options.every((id) => ["event", "reverse"].includes(id)), true);
+  assert.equal(isSelectableMiniTrait(player, "gold"), false);
+  assert.equal(isSelectableMiniTrait(player, "event"), true);
+  assert.equal(isSelectableMiniTrait(player, "reverse"), true);
 });
 
-test("所有小詞條達上限後會進入突破模式並套用遞減成長", () => {
+test("補給站可以買藥水、購買突破小詞條並出售既有小詞條", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
-    depth: 4,
+    depth: 25,
+    gold: 3000,
     minorBuffs: {
       gold: 5,
       bomb: 5,
@@ -2254,18 +2334,33 @@ test("所有小詞條達上限後會進入突破模式並套用遞減成長", ()
       luck: 5,
       event: 5,
       reverse: 5
+    },
+    supplyStation: {
+      id: "station-test",
+      depth: 25,
+      region: "normal",
+      variant: "normal",
+      items: [
+        { id: "potion", type: "potion", label: "治療藥水", price: 120, stock: 1 },
+        { id: "buff_gold", type: "buff", buff: "gold", label: "小型淘金", price: 800, stock: 1 }
+      ],
+      sellOffers: [
+        { buff: "bomb", price: 450 }
+      ]
     }
   };
-  const refreshed = mine({ ...player, forcedNextResult: "empty" }, () => 0.99).player;
-  const options = getMinorBuffOptions(refreshed);
-  const first = chooseMinorBuff(refreshed, options[0].id);
+  const potion = buySupplyStationItem(player, "potion");
+  const buff = buySupplyStationItem(potion.player, "buff_gold");
+  const sold = sellSupplyStationBuff(buff.player, "bomb");
+  const left = leaveSupplyStation(sold.player);
 
-  assert.equal(isMiniTraitBreakthroughMode(refreshed), true);
-  assert.equal(options.every((buff) => buff.breakthrough), true);
-  assert.equal(first.ok, true);
-  assert.match(first.message, /突破/);
-  assert.equal(first.player.minorBuffs[options[0].id], 6);
-  assert.ok(getMinorBuffEffectiveStacks(first.player, options[0].id) < 6);
+  assert.equal(isMiniTraitBreakthroughMode(player), true);
+  assert.equal(potion.player.healingPotion, 1);
+  assert.equal(buff.player.minorBuffs.gold, 6);
+  assert.ok(getMinorBuffEffectiveStacks(buff.player, "gold") < 6);
+  assert.equal(sold.player.minorBuffs.bomb, 4);
+  assert.equal(left.player.supplyStation, null);
+  assert.equal(left.player.nextSupplyDepth, 50);
 });
 
 test("金幣可以兌換收藏紀念幣", () => {
