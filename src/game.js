@@ -12,6 +12,7 @@ const {
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
+  pickSkyEvent,
   pickRandomEvent
 } = require("./eventSystem");
 const {
@@ -730,6 +731,11 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.pendingEvent = null;
     addFixed("清除卡住的互動事件");
   }
+  if (clearBlockingState && player.traitSwapEvent) {
+    player.traitSwapEvent = null;
+    player.pendingEvent = null;
+    addFixed("清除卡住的詞條交換事件");
+  }
   if (clearBlockingState && (player.minorBuffOptions.length > 0 || player.minorBuffSelections.length > 0)) {
     player.minorBuffOptions = [];
     player.minorBuffSelections = [];
@@ -1085,6 +1091,8 @@ function resetRunState(player, random = Math.random) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.eventChallenge = null;
+  player.traitSwapEvent = null;
+  player.traitMutation = null;
   player.wildChickenEncounter = null;
   player.digPathHistory = [];
   player.memoryChallenge = null;
@@ -1532,6 +1540,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.nextBuffDepth = 5;
   player.pendingEvent = null;
   player.eventChallenge = null;
+  player.traitSwapEvent = null;
   player.nextEventDepth = 4;
   player.eventMissCount = 0;
   player.bagBonusSlots = config.bagBonusSlots || 0;
@@ -2350,6 +2359,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
 
   let eventId = null;
   if (player.zone === "upward") eventId = pickReverseEvent(player, random);
+  else if (player.zone === "skyDown") eventId = pickSkyEvent(player, random);
   else if (player.caveType === "gem") eventId = pickGemEvent(player, random);
   else if (player.highTierEligible && random() < 0.18) eventId = pickHighTierEvent(player, random);
   else eventId = pickRandomEvent(player, random);
@@ -2357,7 +2367,29 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   const event = getRandomEvent(eventId);
   const challengeMessage = setupEventChallenge(player, event, eventId, random);
   const memoryMessage = setupMemoryChallenge(player, event, eventId, random);
-  return `\n\n事件出現：${event.title}。\n${event.description}${challengeMessage}${memoryMessage}`;
+  const traitSwapMessage = setupTraitSwapEvent(player, event, eventId, random);
+  return `\n\n事件出現：${event.title}。\n${event.description}${challengeMessage}${memoryMessage}${traitSwapMessage}`;
+}
+
+function setupTraitSwapEvent(player, event, eventId, random = Math.random) {
+  player.traitSwapEvent = null;
+  if (!event || !event.traitSwapEvent || !player.runMode) return "";
+  const pool = getRunModeIds(false).filter((id) => id !== player.runMode && CONFIG.runModes[id]);
+  if (pool.length === 0) return "";
+  const offeredTrait = pool[Math.floor(random() * pool.length)] || pool[0];
+  player.traitSwapEvent = {
+    eventId,
+    offeredTrait,
+    mutation: event.mutation || ""
+  };
+  const current = CONFIG.runModes[player.runMode] || {};
+  const offered = CONFIG.runModes[offeredTrait] || {};
+  return [
+    "",
+    `目前：${current.label || current.name || player.runMode}`,
+    `候選：${offered.label || offered.name || offeredTrait}`,
+    offered.shortDescription ? `效果：${offered.shortDescription}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function setupEventChallenge(player, event, eventId, random = Math.random, now = Date.now()) {
@@ -2496,6 +2528,26 @@ function applyChallengeSuccess(player, eventId, random = Math.random) {
     const reward = addOreReward(player, 3 + getDepthBonus(player.depth), "goldOre");
     return `✨ 金庫打開，獲得 ${reward.gained} 塊${getOreName(reward.target)}。`;
   }
+  if (eventId.startsWith("lockpick_lava") || eventId.startsWith("lockpick_inverted") || eventId.startsWith("lockpick_pollution")) {
+    const ore = addItemReward(player, "invertedOre", 2 + Math.floor(random() * 3));
+    const gem = random() < 0.35 ? addItemReward(player, "invertedGem", 1) : 0;
+    return `✨ 地下鎖箱打開，獲得顛倒礦石 x${ore}${gem ? `、顛倒寶石 x${gem}` : ""}。`;
+  }
+  if (eventId.startsWith("lockpick_thunder") || eventId.startsWith("lockpick_astral") || eventId.startsWith("lockpick_sky")) {
+    const steel = random() < 0.45 ? addItemReward(player, "orichalcum", 1) : 0;
+    const gem = addItemReward(player, "invertedGem", 1 + Math.floor(random() * 2));
+    return `✨ 天域封鎖解除，獲得顛倒寶石 x${gem}${steel ? "、奧利哈鋼 x1" : ""}。`;
+  }
+  if (eventId.startsWith("qte_lava") || eventId.startsWith("qte_inverted") || eventId.startsWith("qte_chain") || eventId.startsWith("qte_deep") || eventId.startsWith("puzzle_lava") || eventId.startsWith("puzzle_inverted") || eventId.startsWith("puzzle_underground")) {
+    const ore = addItemReward(player, "invertedOre", 2 + getDepthBonus(Math.abs(player.depth || 0)));
+    addTempEffect(player, { id: "underground_qte_focus", remaining: 2, rewardMultiplier: 1.25 });
+    return `✨ 地下機關被你破解，獲得顛倒礦石 x${ore}，接下來 2 層收益 +25%。`;
+  }
+  if (eventId.startsWith("qte_wind") || eventId.startsWith("qte_lightning") || eventId.startsWith("qte_cloud") || eventId.startsWith("qte_lightwing") || eventId.startsWith("puzzle_light") || eventId.startsWith("puzzle_floating") || eventId.startsWith("puzzle_sky")) {
+    const gem = addItemReward(player, "invertedGem", 1 + Math.floor(random() * 2));
+    player.chargeValue = Math.min(100, (player.chargeValue || 0) + 30);
+    return `✨ 天域節奏對上了，獲得顛倒寶石 x${gem}，能量 +30。`;
+  }
   const gold = 60 + getDepthBonus(player.depth) * 10;
   player.gold += gold;
   return `✨ 成功！獲得 ${gold} 金幣。`;
@@ -2517,6 +2569,37 @@ function applyChallengeFailure(player, eventId, now = Date.now()) {
   if (eventId === "puzzle_circuit_repair" || eventId === "puzzle_lava_valve") {
     const damage = addBombDamage(player, now);
     return `💥 拼圖失誤，陷阱啟動。${damage.message}`;
+  }
+  if (
+    eventId.startsWith("qte_lava")
+    || eventId.startsWith("qte_inverted")
+    || eventId.startsWith("qte_chain")
+    || eventId.startsWith("qte_deep")
+    || eventId.startsWith("puzzle_lava")
+    || eventId.startsWith("puzzle_inverted")
+    || eventId.startsWith("puzzle_underground")
+    || eventId.startsWith("lockpick_lava")
+    || eventId.startsWith("lockpick_inverted")
+    || eventId.startsWith("lockpick_pollution")
+  ) {
+    const damage = addBombDamage(player, now, 1.5);
+    return `💥 地下壓力爆開。${damage.message}`;
+  }
+  if (
+    eventId.startsWith("qte_wind")
+    || eventId.startsWith("qte_lightning")
+    || eventId.startsWith("qte_cloud")
+    || eventId.startsWith("qte_lightwing")
+    || eventId.startsWith("puzzle_light")
+    || eventId.startsWith("puzzle_floating")
+    || eventId.startsWith("puzzle_sky")
+    || eventId.startsWith("lockpick_thunder")
+    || eventId.startsWith("lockpick_astral")
+    || eventId.startsWith("lockpick_sky")
+  ) {
+    const damage = addBombDamage(player, now);
+    player.depth = Math.min(-1, (player.depth || -1) + 1);
+    return `💥 天風把你吹回一段高度。${damage.message}`;
   }
   const damage = addBombDamage(player, now);
   return `💥 BOOM！${damage.message}`;
@@ -3711,6 +3794,101 @@ function resolveMemoryEvent(player, eventId, event, choice, random = Math.random
   };
 }
 
+function applyRunModeSwap(player, nextMode) {
+  const config = CONFIG.runModes[nextMode];
+  if (!config) return false;
+  player.runMode = nextMode;
+  player.bagBonusSlots = config.bagBonusSlots || 0;
+  if (config.extraHp) {
+    player.tempMaxHp = Math.max(player.tempMaxHp || 0, config.extraHp);
+  }
+  return true;
+}
+
+function resolveTraitSwapEvent(player, eventId, event, choice, random = Math.random, now = Date.now()) {
+  const swap = player.traitSwapEvent;
+  const currentMode = player.runMode;
+  const offeredMode = swap && CONFIG.runModes[swap.offeredTrait] ? swap.offeredTrait : null;
+  const currentLabel = currentMode && CONFIG.runModes[currentMode] ? CONFIG.runModes[currentMode].label : "目前詞條";
+  const offeredLabel = offeredMode && CONFIG.runModes[offeredMode] ? CONFIG.runModes[offeredMode].label : "未知詞條";
+  player.traitSwapEvent = null;
+
+  if (choice === "safe" || !offeredMode) {
+    if (eventId === "trait_swap_deep_mirror" && random() < 0.25) {
+      const damage = addBombDamage(player, now);
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `你拒絕重組 build，但鏡像碎片割到你。\n${damage.message}`
+      };
+    }
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: "你保留目前詞條，事件的光慢慢散去。"
+    };
+  }
+
+  applyRunModeSwap(player, offeredMode);
+  const mutation = swap.mutation || event.mutation || "";
+  if (choice === "extreme") {
+    if (mutation === "polluted") {
+      player.traitMutation = { id: "polluted", label: "污染詞條", remaining: 6 };
+      addTempEffect(player, { id: "polluted_trait", remaining: 6, rewardMultiplier: 1.55, bombWeightMultiplier: 1.35 });
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `💀 ${currentLabel} 被污染重組成 ${offeredLabel}。\n接下來 6 層收益 +55%，炸彈 +35%。`
+      };
+    }
+    if (mutation === "inverted") {
+      player.traitMutation = { id: "inverted", label: "顛倒變異", remaining: 5 };
+      addTempEffect(player, { id: "inverted_trait", remaining: 5, rewardMultiplier: 1.2 });
+      player.invertedOre += 2;
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `🌀 ${currentLabel} 被顛倒成 ${offeredLabel}。\n獲得顛倒礦石 x2，接下來 5 層收益 +20%。`
+      };
+    }
+    if (mutation === "astral") {
+      player.traitMutation = { id: "astral", label: "星光變異", remaining: 5 };
+      player.orichalcum += 1;
+      player.chargeValue = Math.min(100, (player.chargeValue || 0) + 50);
+      return {
+        ok: true,
+        player,
+        title: event.title,
+        message: `✨ ${currentLabel} 被星光洗成 ${offeredLabel}。\n獲得奧利哈鋼 x1，能量 +50。`
+      };
+    }
+
+    player.traitMutation = { id: "fusion", label: "融合詞條", remaining: 4 };
+    player.minorBuffs.gold = Math.min(8, (player.minorBuffs.gold || 0) + 1);
+    player.minorBuffs.ore = Math.min(8, (player.minorBuffs.ore || 0) + 1);
+    return {
+      ok: true,
+      player,
+      title: event.title,
+      message: `✨ ${currentLabel} 融合重組成 ${offeredLabel}。\n金幣磁條 +1，礦脈磁條 +1。`
+    };
+  }
+
+  const penalty = random() < 0.25;
+  const penaltyText = penalty ? `\n交換震盪讓你掉了 ${Math.min(80, player.gold)} 金幣。` : "";
+  if (penalty) player.gold = Math.max(0, player.gold - Math.min(80, player.gold));
+  return {
+    ok: true,
+    player,
+    title: event.title,
+    message: `你放棄 ${currentLabel}，換成 ${offeredLabel}。${penaltyText}`
+  };
+}
+
 function resolveRandomEvent(playerInput, choice, random = Math.random, now = Date.now()) {
   const player = getPlayer(playerInput);
   const eventId = player.pendingEvent;
@@ -3727,9 +3905,14 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
 
   player.pendingEvent = null;
   player.eventChallenge = null;
+  if (!event.traitSwapEvent) player.traitSwapEvent = null;
 
   if (event.requiresPathHistory) {
     return resolveMemoryEvent(player, eventId, event, choice, random, now);
+  }
+
+  if (event.traitSwapEvent) {
+    return resolveTraitSwapEvent(player, eventId, event, choice, random, now);
   }
 
   if (eventId === "cracked_wall") {
@@ -4001,8 +4184,19 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     };
   }
 
-  if (eventId === "wild_mine_chicken") {
+  if (eventId === "wild_mine_chicken" || eventId.startsWith("underground_") && eventId.endsWith("_chicken") || eventId.startsWith("sky_") && eventId.endsWith("_chicken")) {
     const encounter = createWildChickenEncounter(player, random);
+    if (eventId.startsWith("underground_")) {
+      encounter.name = event.title.replace(/^[^\s]+ /, "");
+      encounter.icon = eventId.includes("lava") ? "🌋" : eventId.includes("pollution") ? "💀" : "🌀";
+      encounter.region = "underground";
+      encounter.trait = eventId.includes("pollution") ? "berserk" : eventId.includes("lava") ? "gem" : "speed";
+    } else if (eventId.startsWith("sky_")) {
+      encounter.name = event.title.replace(/^[^\s]+ /, "");
+      encounter.icon = eventId.includes("thunder") ? "⚡" : eventId.includes("cloud") ? "☁️" : "✨";
+      encounter.region = "sky";
+      encounter.trait = eventId.includes("starlight") ? "luminous" : "speed";
+    }
     if (choice === "safe") {
       addWildChickenInfluence(player, encounter, 1);
       player.wildChickenEncounter = null;

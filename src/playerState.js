@@ -114,6 +114,8 @@ function createPlayer() {
     nextEventDepth: 4,
     eventMissCount: 0,
     eventChallenge: null,
+    traitSwapEvent: null,
+    traitMutation: null,
     digPathHistory: [],
     memoryChallenge: null,
     tempEffects: [],
@@ -251,6 +253,20 @@ function getPlayer(player) {
       tolerance: Math.max(1, Math.min(90, Math.floor(player.eventChallenge.tolerance || 12))),
       attempts: Math.max(0, Math.min(9, Math.floor(player.eventChallenge.attempts || 0))),
       hint: typeof player.eventChallenge.hint === "string" ? player.eventChallenge.hint.slice(0, 120) : ""
+    }
+    : null;
+  next.traitSwapEvent = player && player.traitSwapEvent && typeof player.traitSwapEvent === "object"
+    ? {
+      eventId: typeof player.traitSwapEvent.eventId === "string" ? player.traitSwapEvent.eventId : "",
+      offeredTrait: CONFIG.runModes[player.traitSwapEvent.offeredTrait] ? player.traitSwapEvent.offeredTrait : "",
+      mutation: typeof player.traitSwapEvent.mutation === "string" ? player.traitSwapEvent.mutation : ""
+    }
+    : null;
+  next.traitMutation = player && player.traitMutation && typeof player.traitMutation === "object"
+    ? {
+      id: typeof player.traitMutation.id === "string" ? player.traitMutation.id : "",
+      label: typeof player.traitMutation.label === "string" ? player.traitMutation.label.slice(0, 20) : "",
+      remaining: Math.max(0, Math.min(99, Math.floor(player.traitMutation.remaining || 0)))
     }
     : null;
   next.goldBeast = player && player.goldBeast ? { ...player.goldBeast } : null;

@@ -969,6 +969,99 @@ test("強制撤離事件需要足夠深度才會進事件池", () => {
   assert.equal(deep, "mine_collapse_evacuation");
 });
 
+test("詞條交換事件可以重組目前 build", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "trait_swap_merchant",
+    traitSwapEvent: {
+      eventId: "trait_swap_merchant",
+      offeredTrait: "goldRush",
+      mutation: "fusion"
+    }
+  };
+  const swapped = resolveRandomEvent(player, "risk", () => 0.99);
+  const mutated = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "trait_swap_merchant",
+    traitSwapEvent: {
+      eventId: "trait_swap_merchant",
+      offeredTrait: "oreFocus",
+      mutation: "fusion"
+    }
+  }, "extreme", () => 0.99);
+
+  assert.equal(swapped.player.runMode, "goldRush");
+  assert.equal(swapped.player.traitSwapEvent, null);
+  assert.match(swapped.message, /換成 淘金熱/);
+  assert.equal(mutated.player.runMode, "oreFocus");
+  assert.equal(mutated.player.traitMutation.id, "fusion");
+  assert.equal(mutated.player.minorBuffs.gold, 1);
+});
+
+test("地下與天空事件池會抽各自專屬事件", () => {
+  const reverse = pickRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, zone: "upward", depth: -20 },
+    () => 0,
+    (id, event) => id === "qte_lava_jump" && event.reverseOnly
+  );
+  const sky = pickRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, zone: "skyDown", depth: -80 },
+    () => 0,
+    (id, event) => id === "qte_wind_balance" && event.skyOnly
+  );
+  const normalSkyLeak = pickRandomEvent(
+    { ...chooseRunMode(createPlayer(), "safe").player, zone: "skyDown", depth: -80 },
+    () => 0,
+    (id) => id === "cracked_wall"
+  );
+
+  assert.equal(reverse, "qte_lava_jump");
+  assert.equal(sky, "qte_wind_balance");
+  assert.equal(normalSkyLeak == null, true);
+});
+
+test("地下與天空 QTE 成功會給區域獎勵", () => {
+  const underground = resolveEventChallenge({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "upward",
+    depth: -40,
+    pendingEvent: "qte_lava_jump",
+    eventChallenge: {
+      eventId: "qte_lava_jump",
+      type: "underground",
+      correctChoice: "black",
+      choices: [
+        { id: "black", label: "黑岩" },
+        { id: "red", label: "紅岩" }
+      ],
+      startedAt: 1000,
+      expiresAt: 6000
+    }
+  }, "black", () => 0, 2000);
+  const sky = resolveEventChallenge({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    zone: "skyDown",
+    depth: -60,
+    pendingEvent: "qte_wind_balance",
+    eventChallenge: {
+      eventId: "qte_wind_balance",
+      type: "sky",
+      correctChoice: "crouch",
+      choices: [
+        { id: "lean_left", label: "左傾" },
+        { id: "crouch", label: "壓低" }
+      ],
+      startedAt: 1000,
+      expiresAt: 5000
+    }
+  }, "crouch", () => 0, 2000);
+
+  assert.equal(underground.player.invertedOre > 0, true);
+  assert.match(underground.message, /地下機關/);
+  assert.equal(sky.player.invertedGem > 0, true);
+  assert.match(sky.message, /天域節奏/);
+});
+
 test("遺失的背包可以本次擴大包包容量", () => {
   const result = resolveRandomEvent(
     { ...chooseRunMode(createPlayer(), "safe").player, pendingEvent: "lost_backpack" },
@@ -1728,11 +1821,13 @@ test("新增事件池包含普通寶石上位與反轉事件", () => {
   const gemCount = Object.values(events).filter((event) => event.caveType === "gem").length;
   const highCount = Object.values(events).filter((event) => event.highTier).length;
   const reverseCount = Object.values(events).filter((event) => event.reverseOnly).length;
+  const skyCount = Object.values(events).filter((event) => event.skyOnly).length;
 
   assert.equal(normalIds.every((id) => events[id]), true);
   assert.equal(gemCount, 20);
   assert.equal(highCount, 20);
-  assert.equal(reverseCount, 10);
+  assert.equal(reverseCount >= 24, true);
+  assert.equal(skyCount >= 14, true);
 });
 
 test("反轉事件極端選項會顯示各自事件文案", () => {

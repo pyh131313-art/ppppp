@@ -126,6 +126,23 @@ const RANDOM_EVENTS = {
     weight: 0.65,
     buttons: { safe: "檢查陷阱", risk: "打開寶箱", extreme: "強行砸開" }
   },
+  trait_swap_merchant: {
+    title: "神秘詞條商人",
+    description: "披斗篷的商人攤開兩張發光契約，像是在招攬你改變挖法。",
+    weight: 0.45,
+    traitSwapEvent: true,
+    mutation: "fusion",
+    buttons: { safe: "拒絕交易", risk: "交換詞條", extreme: "融合詞條" }
+  },
+  trait_swap_deep_mirror: {
+    title: "深層鏡像",
+    description: "鏡面裡的你拿著另一種工具，笑得有點不自然。",
+    weight: 0.32,
+    minDepth: 55,
+    traitSwapEvent: true,
+    mutation: "polluted",
+    buttons: { safe: "打碎鏡像", risk: "接受替換", extreme: "污染詞條" }
+  },
   qte_bomb_defuse: {
     title: "💣 炸彈拆除",
     description: "倒數聲貼著耳膜。三條線，只能剪一條。",
@@ -215,6 +232,252 @@ const RANDOM_EVENTS = {
     title: "🔓 古代金庫",
     description: "鎖芯很老，但還活著。鐵絲撐不了太久。",
     lockpick: { seconds: 12, durability: 3, tolerance: 18, lockType: "ancient" }
+  },
+  qte_lava_jump: {
+    title: "🌋 岩漿跳躍",
+    description: "腳下石板一片片沉進岩漿，只剩幾個落點。",
+    reverseOnly: true,
+    qte: {
+      type: "underground",
+      seconds: 5,
+      choices: [
+        { id: "black", label: "黑岩" },
+        { id: "red", label: "紅岩" },
+        { id: "steam", label: "蒸氣石" }
+      ],
+      hints: ["紅岩邊緣正在融化。", "黑岩還有裂縫但沒發亮。", "蒸氣石底下是空的。"]
+    }
+  },
+  qte_inverted_keys: {
+    title: "🌀 顛倒按鍵",
+    description: "左右方向突然反過來，石門正在快速關閉。",
+    reverseOnly: true,
+    qte: {
+      type: "underground",
+      seconds: 4,
+      choices: [
+        { id: "left", label: "按左" },
+        { id: "right", label: "按右" },
+        { id: "center", label: "按中" }
+      ],
+      hints: ["牆上的箭頭是倒影。", "你看到的左邊其實在右邊。"]
+    }
+  },
+  qte_chain_release: {
+    title: "⛓️ 地底鎖鏈",
+    description: "鎖鏈纏住礦袋，拉錯會把你拖回深處。",
+    reverseOnly: true,
+    qte: {
+      type: "underground",
+      seconds: 6,
+      choices: [
+        { id: "pull", label: "拉主鏈" },
+        { id: "cut", label: "敲扣環" },
+        { id: "loosen", label: "鬆副鏈" }
+      ],
+      hints: ["主鏈太緊。", "扣環上有新裂痕。", "副鏈沒有承重。"]
+    }
+  },
+  qte_deep_suffocation: {
+    title: "💀 深層窒息",
+    description: "空氣突然變薄，視線開始發黑。",
+    reverseOnly: true,
+    qte: {
+      type: "underground",
+      seconds: 5,
+      choices: [
+        { id: "vent", label: "找風口" },
+        { id: "cloth", label: "摀布" },
+        { id: "run", label: "衝刺" }
+      ],
+      hints: ["有一股很冷的風。", "粉塵不是最大問題。", "亂跑會更喘。"]
+    }
+  },
+  qte_wind_balance: {
+    title: "🌪️ 強風平衡",
+    description: "天空礦道被強風吹歪，腳下只剩浮石。",
+    skyOnly: true,
+    qte: {
+      type: "sky",
+      seconds: 4,
+      choices: [
+        { id: "lean_left", label: "左傾" },
+        { id: "lean_right", label: "右傾" },
+        { id: "crouch", label: "壓低" }
+      ],
+      hints: ["風從右側切過來。", "浮石中央最穩。", "抬頭會被吹翻。"]
+    }
+  },
+  qte_lightning_dodge: {
+    title: "⚡ 雷電閃避",
+    description: "白雷在雲層裡跳動，下一秒就會劈下。",
+    skyOnly: true,
+    qte: {
+      type: "sky",
+      seconds: 4,
+      choices: [
+        { id: "cloud", label: "躲雲影" },
+        { id: "spire", label: "靠尖塔" },
+        { id: "open", label: "站空地" }
+      ],
+      hints: ["尖塔正在導電。", "雲影短暫變暗。", "空地太亮了。"]
+    }
+  },
+  qte_cloud_bridge: {
+    title: "☁️ 雲橋跳躍",
+    description: "三段雲橋閃一下就消失，你得記住安全落點。",
+    skyOnly: true,
+    qte: {
+      type: "sky",
+      seconds: 6,
+      choices: [
+        { id: "soft_hard_soft", label: "軟硬軟" },
+        { id: "hard_soft_hard", label: "硬軟硬" },
+        { id: "soft_soft_hard", label: "軟軟硬" }
+      ],
+      hints: ["中間那塊雲最亮。", "第一步別踩太重。"]
+    }
+  },
+  qte_lightwing_resonance: {
+    title: "✨ 光翼共鳴",
+    description: "透明光翼貼到你的背上，節拍只亮一瞬。",
+    skyOnly: true,
+    qte: {
+      type: "sky",
+      seconds: 5,
+      choices: [
+        { id: "early", label: "早拍" },
+        { id: "sync", label: "同步" },
+        { id: "late", label: "晚拍" }
+      ],
+      hints: ["光點快碰到中心。", "下一次脈動最完整。"]
+    }
+  },
+  lockpick_lava_lock: {
+    title: "🌋 熔岩鎖",
+    description: "鎖芯像燒紅的岩漿，停太久鐵絲會軟掉。",
+    reverseOnly: true,
+    lockpick: { seconds: 8, durability: 2, tolerance: 16 }
+  },
+  lockpick_inverted_lock: {
+    title: "🌀 顛倒鎖",
+    description: "鎖孔倒映著你的手，左右轉動感完全相反。",
+    reverseOnly: true,
+    lockpick: { seconds: 10, durability: 3, tolerance: 14 }
+  },
+  lockpick_pollution_lock: {
+    title: "💀 污染鎖",
+    description: "黑粉黏住鎖孔，每一次失誤都會腐蝕鐵絲。",
+    reverseOnly: true,
+    lockpick: { seconds: 9, durability: 2, tolerance: 18 }
+  },
+  lockpick_thunder_lock: {
+    title: "⚡ 雷電鎖",
+    description: "電弧沿著鎖芯亂跳，角度感一直被干擾。",
+    skyOnly: true,
+    lockpick: { seconds: 8, durability: 3, tolerance: 15 }
+  },
+  lockpick_astral_lock: {
+    title: "✨ 星界鎖",
+    description: "鎖孔像星圖一樣旋轉，正確區域忽遠忽近。",
+    skyOnly: true,
+    lockpick: { seconds: 11, durability: 3, tolerance: 12 }
+  },
+  lockpick_sky_seal: {
+    title: "☁️ 天域封印",
+    description: "雲紋封印需要連續穩住，錯一次就會散開。",
+    skyOnly: true,
+    lockpick: { seconds: 12, durability: 4, tolerance: 10 }
+  },
+  puzzle_lava_pipe: {
+    title: "🌋 熔岩管線",
+    description: "熔岩在管線裡翻湧，導錯方向就會噴出來。",
+    reverseOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 8,
+      choices: [
+        { id: "valve_a", label: "轉 A 閥" },
+        { id: "valve_b", label: "轉 B 閥" },
+        { id: "valve_c", label: "轉 C 閥" }
+      ],
+      hints: ["B 閥有新鮮灼痕。", "A 閥下方已經凝固。", "C 閥傳出空響。"]
+    }
+  },
+  puzzle_inverted_path: {
+    title: "🌀 顛倒路徑",
+    description: "路線圖上下反轉，真正的出口藏在倒影裡。",
+    reverseOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 9,
+      choices: [
+        { id: "mirror_top", label: "選倒影上路" },
+        { id: "mirror_mid", label: "選倒影中路" },
+        { id: "mirror_low", label: "選倒影下路" }
+      ],
+      hints: ["現實的下方對應倒影出口。", "中路一直重複。"]
+    }
+  },
+  puzzle_underground_seal: {
+    title: "⛓️ 地底封印",
+    description: "三枚封印輪流發亮，壓力越來越重。",
+    reverseOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 8,
+      choices: [
+        { id: "iron", label: "鐵印" },
+        { id: "bone", label: "骨印" },
+        { id: "ash", label: "灰印" }
+      ],
+      hints: ["灰印沒有影子。", "骨印亮得太慢。", "鐵印震動最穩。"]
+    }
+  },
+  puzzle_light_refraction: {
+    title: "☀️ 光線折射",
+    description: "天光穿過浮晶，只有一個角度能打開路。",
+    skyOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 7,
+      choices: [
+        { id: "prism_left", label: "左稜鏡" },
+        { id: "prism_mid", label: "中稜鏡" },
+        { id: "prism_right", label: "右稜鏡" }
+      ],
+      hints: ["中稜鏡的影子最短。", "右側光線太散。"]
+    }
+  },
+  puzzle_floating_bridge: {
+    title: "☁️ 浮空橋",
+    description: "橋板漂在雲上，重量分配錯就會翻面。",
+    skyOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 8,
+      choices: [
+        { id: "feather", label: "羽紋板" },
+        { id: "stone", label: "石紋板" },
+        { id: "glass", label: "玻璃板" }
+      ],
+      hints: ["玻璃板裡沒有倒影。", "羽紋板跟風同向。"]
+    }
+  },
+  puzzle_sky_circuit: {
+    title: "⚡ 天域電路",
+    description: "雲端電路閃爍，接錯會引來白雷。",
+    skyOnly: true,
+    qte: {
+      type: "puzzle",
+      seconds: 7,
+      choices: [
+        { id: "silver", label: "接銀線" },
+        { id: "gold", label: "接金線" },
+        { id: "blue", label: "接藍線" }
+      ],
+      hints: ["藍線沒有焦痕。", "金線正在發燙。", "銀線閃得太快。"]
+    }
   },
   lost_miner: {
     title: "迷路礦工",
@@ -508,10 +771,65 @@ const REVERSE_EVENTS = {
     description: "一個黑色口袋漂在半空，裡面比外面還大。",
     reverseOnly: true,
     buttons: { safe: "摸邊緣", risk: "塞進背包", extreme: "整個背上" }
+  },
+  trait_swap_inverted_stele: {
+    title: "顛倒石碑",
+    description: "石碑把你的詞條倒著念出來，並浮出另一條路。",
+    reverseOnly: true,
+    traitSwapEvent: true,
+    mutation: "inverted",
+    buttons: { safe: "不碰石碑", risk: "交換詞條", extreme: "顛倒變異" }
+  },
+  underground_lava_chicken: {
+    title: "🌋 熔岩爆衝雞",
+    description: "地底賽雞踏著熱風衝出岩縫，尾羽冒著火星。",
+    reverseOnly: true,
+    buttons: { safe: "放牠衝過", risk: "短跑挑戰", extreme: "餵食挑釁" }
+  },
+  underground_pollution_chicken: {
+    title: "💀 污染失控雞",
+    description: "牠的腳步忽快忽慢，像被深層污染推著跑。",
+    reverseOnly: true,
+    buttons: { safe: "保持距離", risk: "短跑挑戰", extreme: "餵食互動" }
+  },
+  underground_inverted_chicken: {
+    title: "🌀 顛倒衝刺雞",
+    description: "牠倒著跑，卻比正常跑還快。",
+    reverseOnly: true,
+    buttons: { safe: "看牠離開", risk: "短跑挑戰", extreme: "餵食互動" }
   }
 };
 
-Object.assign(RANDOM_EVENTS, GEM_EVENTS, HIGH_EVENTS, REVERSE_EVENTS);
+const SKY_EVENTS = {
+  trait_swap_sky_messenger: {
+    title: "天域使者",
+    description: "發光的人影遞出一枚羽狀契約，要你把現在的詞條交出去。",
+    skyOnly: true,
+    traitSwapEvent: true,
+    mutation: "astral",
+    buttons: { safe: "收回手", risk: "交換詞條", extreme: "星光變異" }
+  },
+  sky_thunder_chicken: {
+    title: "⚡ 雷鳴加速雞",
+    description: "一隻賽雞踏著雷光滑過雲道。",
+    skyOnly: true,
+    buttons: { safe: "讓牠通過", risk: "短跑挑戰", extreme: "餵食引雷" }
+  },
+  sky_cloud_glider_chicken: {
+    title: "☁️ 雲層滑翔雞",
+    description: "牠張開羽毛滑過雲橋，速度不快但路線很漂亮。",
+    skyOnly: true,
+    buttons: { safe: "揮手道別", risk: "短跑挑戰", extreme: "餵食互動" }
+  },
+  sky_starlight_reversal_chicken: {
+    title: "✨ 星光逆轉雞",
+    description: "牠落後時身上星光反而更亮。",
+    skyOnly: true,
+    buttons: { safe: "觀察星光", risk: "短跑挑戰", extreme: "餵食互動" }
+  }
+};
+
+Object.assign(RANDOM_EVENTS, GEM_EVENTS, HIGH_EVENTS, REVERSE_EVENTS, SKY_EVENTS);
 
 function getRandomEvent(eventId) {
   return RANDOM_EVENTS[eventId] || null;
@@ -529,12 +847,14 @@ function canEventAppear(event, player) {
   }
   if (event.caveType && player.caveType !== event.caveType) return false;
   if (event.reverseOnly && player.zone !== "upward") return false;
+  if (event.skyOnly && player.zone !== "skyDown") return false;
   if (event.highTier && !player.highTierEligible) return false;
   if (event.minDepth && Math.abs(player.depth || 0) < event.minDepth) return false;
   if (event.forceEvacuation && !["mine", "upward", "skyDown"].includes(player.zone)) return false;
   if (event.requiresPathHistory && (!Array.isArray(player.digPathHistory) || player.digPathHistory.length < event.requiresPathHistory)) return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.caveType === "gem") return false;
   if (!event.caveType && !event.reverseOnly && !event.highTier && player.zone === "upward") return false;
+  if (!event.caveType && !event.reverseOnly && !event.skyOnly && !event.highTier && player.zone === "skyDown") return false;
   if (!event.requiresGem) return true;
   return (player.redGem || 0) + (player.blueGem || 0) + (player.greenGem || 0) > 0;
 }
@@ -567,6 +887,10 @@ function pickReverseEvent(player, random = Math.random) {
   return pickRandomEvent(player, random, (id, event) => Boolean(event.reverseOnly));
 }
 
+function pickSkyEvent(player, random = Math.random) {
+  return pickRandomEvent(player, random, (id, event) => Boolean(event.skyOnly));
+}
+
 function getEventButtonLabels(eventId) {
   const event = getRandomEvent(eventId);
   return event && event.buttons
@@ -582,5 +906,6 @@ module.exports = {
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
+  pickSkyEvent,
   pickRandomEvent
 };
