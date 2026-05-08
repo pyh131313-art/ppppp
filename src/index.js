@@ -2796,6 +2796,8 @@ async function handleMiningButton(interaction) {
   });
 }
 
-startWebServer();
+if (process.env.DISABLE_WEB_SERVER !== "true") {
+  startWebServer();
+}
 
 client.login(token);
