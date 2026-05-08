@@ -385,7 +385,8 @@ function getPlayer(player) {
       region: typeof player.wildChickenEncounter.region === "string" ? player.wildChickenEncounter.region : "shallow",
       trait: typeof player.wildChickenEncounter.trait === "string" ? player.wildChickenEncounter.trait : "normal",
       rare: Boolean(player.wildChickenEncounter.rare),
-      power: Math.max(1, Math.floor(player.wildChickenEncounter.power || 1))
+      power: Math.max(1, Math.floor(player.wildChickenEncounter.power || 1)),
+      captureConfirm: Boolean(player.wildChickenEncounter.captureConfirm)
     }
     : null;
   next.chickenBoosterUseLog = Array.isArray(player && player.chickenBoosterUseLog)

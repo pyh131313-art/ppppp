@@ -58,6 +58,7 @@ const {
   addChickenExp,
   CHICKEN_RESEARCH_NOTES,
   getChickenRequiredExp,
+  makeWildMineChicken,
   normalizeOwnedChicken
 } = require("./chickenCare");
 
@@ -2256,6 +2257,70 @@ function awardWildChickenDrop(player, encounter, random = Math.random) {
   return lines;
 }
 
+function attemptCaptureWildChicken(player, encounter, random = Math.random, eventId = "wild_mine_chicken") {
+  const oldChicken = player.ownedChicken ? normalizeOwnedChicken(player.ownedChicken) : null;
+  const captureChance = encounter.rare ? 0.45 : encounter.region === "sky" || encounter.region === "underground" ? 0.38 : 0.3;
+  if (oldChicken && !encounter.captureConfirm) {
+    encounter.captureConfirm = true;
+    player.wildChickenEncounter = encounter;
+    player.pendingEvent = eventId;
+    return {
+      ok: true,
+      player,
+      title: "野生賽雞",
+      message: [
+        `⚠️ 你準備烤掉「${oldChicken.name}」，空出位置捕捉 ${encounter.icon} ${encounter.name}。`,
+        "這個動作會失去目前的雞，而且捕捉仍有機率失敗。",
+        "",
+        "再按一次「餵食互動」才會確認。"
+      ].join("\n")
+    };
+  }
+
+  if (oldChicken) {
+    player.chickenRoastHpBonus = (player.chickenRoastHpBonus || 0) + 1;
+    player.ownedChicken = null;
+  }
+
+  const success = random() < captureChance;
+  if (!success) {
+    addWildChickenInfluence(player, encounter, 1);
+    player.wildChickenEncounter = null;
+    return {
+      ok: true,
+      player,
+      title: "野生賽雞",
+      message: [
+        oldChicken ? `🍗 你烤掉了「${oldChicken.name}」，下一場下礦最大生命 +1。` : "",
+        `${encounter.icon} ${encounter.name} 受驚逃走，捕捉失敗。`
+      ].filter(Boolean).join("\n")
+    };
+  }
+
+  const caught = makeWildMineChicken(Math.abs(player.depth || 1), random);
+  caught.name = encounter.name || caught.name;
+  caught.icon = encounter.icon || caught.icon;
+  caught.origin = "mine";
+  caught.entryEffect = encounter.rare
+    ? "🌌 牠是在礦坑裡捕捉到的稀有野生賽雞。"
+    : "⛏️ 牠是在礦洞裡被你抓到的特殊雞。";
+  caught.titles = [...new Set([...(caught.titles || []), encounter.rare ? "稀有野生雞" : "礦坑邂逅"])];
+  player.ownedChicken = normalizeOwnedChicken(caught);
+  addWildChickenInfluence(player, encounter, encounter.rare ? 3 : 2);
+  player.wildChickenEncounter = null;
+  return {
+    ok: true,
+    player,
+    title: "野生賽雞",
+    announcement: encounter.rare ? `🌌 <@PLAYER> 捕捉到了稀有野生賽雞「${encounter.name}」！` : "",
+    message: [
+      oldChicken ? `🍗 你烤掉了「${oldChicken.name}」，下一場下礦最大生命 +1。` : "",
+      `🎉 捕捉成功！${encounter.icon} ${encounter.name} 成為你的新雞。`,
+      "礦坑雞可能擁有特殊進化方向。"
+    ].filter(Boolean).join("\n")
+  };
+}
+
 function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now()) {
   if (!player.ownedChicken) {
     player.wildChickenEncounter = null;
@@ -4209,6 +4274,10 @@ function resolveRandomEvent(playerInput, choice, random = Math.random, now = Dat
     }
 
     if (choice === "risk") return resolveWildChickenRace(player, encounter, random, now);
+
+    if (choice === "extreme" && (player.ownedChicken || encounter.captureConfirm)) {
+      return attemptCaptureWildChicken(player, encounter, random, eventId);
+    }
 
     const feedKey = player.gourmetFeed > 0 ? "gourmetFeed" : player.normalFeed > 0 ? "normalFeed" : "";
     if (!feedKey) {

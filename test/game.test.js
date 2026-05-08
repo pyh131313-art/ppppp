@@ -936,6 +936,46 @@ test("野生賽雞餵食可能留下雞蛋與稀有公告", () => {
   assert.match(result.announcement, /傳說中的/);
 });
 
+test("礦坑抓雞烤掉自己的雞需要二次確認", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    pendingEvent: "wild_mine_chicken",
+    wildChickenEncounter: {
+      id: "wild-1",
+      name: "深層黑羽雞",
+      icon: "🐓",
+      region: "underground",
+      trait: "thief",
+      rare: false,
+      power: 23
+    },
+    ownedChicken: {
+      name: "阿咕霸王",
+      icon: "🐔",
+      level: 4,
+      exp: 0,
+      speed: 8,
+      sprint: 8,
+      stability: 8,
+      stamina: 8,
+      wins: 3,
+      races: 5
+    }
+  };
+
+  const warning = resolveRandomEvent(player, "extreme", () => 0.99);
+  const captured = resolveRandomEvent(warning.player, "extreme", () => 0);
+
+  assert.equal(warning.player.ownedChicken.name, "阿咕霸王");
+  assert.equal(warning.player.pendingEvent, "wild_mine_chicken");
+  assert.equal(warning.player.wildChickenEncounter.captureConfirm, true);
+  assert.match(warning.message, /再按一次/);
+  assert.equal(captured.player.ownedChicken.name, "深層黑羽雞");
+  assert.equal(captured.player.chickenRoastHpBonus, 1);
+  assert.equal(captured.player.pendingEvent, null);
+  assert.match(captured.message, /捕捉成功/);
+});
+
 test("強制撤離事件只在普通挖礦流程中把玩家送回營地", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
