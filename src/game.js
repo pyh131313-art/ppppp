@@ -3782,15 +3782,24 @@ function mineUpward(player, random = Math.random, now = Date.now()) {
   const roll = random();
   if (player.depth <= -1 && roll < 0.08) {
     const gained = addItemReward(player, "orichalcum", 1);
+    if (gained <= 0) {
+      return buildOutcome("full", player, "包包滿了", `${boundaryMessage}你挖到奧利哈鋼，但包包已經放不下。`, recordMessage, random);
+    }
     return buildOutcome("orichalcum", player, "奧利哈鋼", `${boundaryMessage}你挖到 ${gained} 塊奧利哈鋼。用途：敬請期待。`, recordMessage, random);
   }
   if (roll < 0.45) {
     const gained = addItemReward(player, "invertedOre", Math.max(1, Math.floor((1 + random() * 3) * reverseMultiplier)));
+    if (gained <= 0) {
+      return buildOutcome("full", player, "包包滿了", `${boundaryMessage}你挖到顛倒礦石，但包包已經放不下。`, recordMessage, random);
+    }
     player.lastReward = makeReward("invertedOre", gained);
     return buildOutcome("invertedOre", player, "顛倒礦石", `${boundaryMessage}你往上挖出 ${gained} 塊顛倒礦石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
   if (roll < 0.75) {
     const gained = addItemReward(player, "invertedGem", Math.max(1, Math.floor((1 + random() * 2) * reverseMultiplier)));
+    if (gained <= 0) {
+      return buildOutcome("full", player, "包包滿了", `${boundaryMessage}你挖到顛倒寶石，但包包已經放不下。`, recordMessage, random);
+    }
     player.lastReward = makeReward("invertedGem", gained);
     return buildOutcome("invertedGem", player, "顛倒寶石", `${boundaryMessage}你往上挖出 ${gained} 顆顛倒寶石。只能在地底客棧兌換，敬請期待。`, recordMessage, random);
   }
