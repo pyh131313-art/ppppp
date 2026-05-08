@@ -40,6 +40,32 @@ DATABASE_FILE: /var/data/players.sqlite
 
 網頁面板部署後可直接打開 Render 網址，玩家用 Discord 登入即可查看自己的礦場資料、包包、雞舍與集幣冊。
 
+## PostgreSQL 即時同步
+
+如果 Discord bot 和 Web 面板分成不同 Render 服務，SQLite / Render Disk 不會同步。要讓兩邊即時讀同一份資料，請改用 PostgreSQL。
+
+1. 建立 Render PostgreSQL、Supabase 或 Neon 資料庫。
+2. 在所有會讀寫玩家資料的服務都設定同一組：
+
+```text
+DATABASE_URL=postgresql://...
+STORAGE_BACKEND=postgres
+POSTGRES_SSL=true
+```
+
+如果 `DATABASE_URL` 已存在但沒有設定 `STORAGE_BACKEND`，程式也會自動優先使用 PostgreSQL。
+
+3. 先在舊服務使用 `/匯出玩家資料` 下載 `players-export-xxxx.json.gz`。
+4. 將新服務部署到 PostgreSQL 後，使用 `/匯入玩家資料` 上傳該檔案，確認文字輸入：
+
+```text
+覆蓋玩家資料
+```
+
+5. 匯入成功後，Discord bot 和 Web 面板會讀寫同一個 PostgreSQL 資料庫。
+
+注意：明確使用 `STORAGE_BACKEND=postgres` 時，如果 PostgreSQL 連不上，程式會停止讀寫玩家資料，不會偷偷改用本機檔案，避免再次產生不同步資料。
+
 ## 指令註冊
 
 如果之後新增或修改 slash commands，先在本機跑：

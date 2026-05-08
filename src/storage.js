@@ -9,11 +9,15 @@ const BACKUP_FILE = `${DATA_FILE}.backup`;
 const DATABASE_FILE = process.env.DATABASE_FILE || path.join(path.dirname(DATA_FILE), "players.sqlite");
 const FALLBACK_DATA_FILE = path.join(__dirname, "..", "data", "players.json");
 const FALLBACK_BACKUP_FILE = `${FALLBACK_DATA_FILE}.backup`;
-const STORAGE_BACKEND = process.env.STORAGE_BACKEND || "sqlite";
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+const STORAGE_BACKEND = process.env.STORAGE_BACKEND || (DATABASE_URL ? "postgres" : "sqlite");
 
 let storageQueue = Promise.resolve();
 let database = null;
 let sqliteLoadError = null;
+let postgresPool = null;
+let postgresReady = false;
+let postgresLoadError = null;
 
 async function readJsonFile(file) {
   const raw = await fs.readFile(file, "utf8");
@@ -91,7 +95,7 @@ async function saveJsonPlayers(players) {
 }
 
 function getSqliteDatabase() {
-  if (STORAGE_BACKEND === "json") return null;
+  if (STORAGE_BACKEND !== "sqlite") return null;
   if (database) return database;
   if (sqliteLoadError) return null;
 
@@ -119,6 +123,103 @@ function getSqliteDatabase() {
     console.error("SQLite 載入失敗，暫時改用 JSON 儲存。");
     console.error(error);
     return null;
+  }
+}
+
+function getPostgresSslConfig() {
+  const value = String(process.env.POSTGRES_SSL || process.env.PGSSLMODE || "").toLowerCase();
+  if (value === "false" || value === "disable") return false;
+  if (value === "true" || value === "require" || DATABASE_URL.includes("sslmode=require")) {
+    return { rejectUnauthorized: false };
+  }
+  return false;
+}
+
+async function getPostgresPool() {
+  if (STORAGE_BACKEND !== "postgres") return null;
+  if (!DATABASE_URL) {
+    if (!postgresLoadError) {
+      postgresLoadError = new Error("STORAGE_BACKEND=postgres 但缺少 DATABASE_URL。");
+      console.error(postgresLoadError.message);
+    }
+    return null;
+  }
+  if (postgresPool) return postgresPool;
+  if (postgresLoadError) return null;
+
+  try {
+    const { Pool } = require("pg");
+    postgresPool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: getPostgresSslConfig(),
+      max: Number(process.env.POSTGRES_POOL_SIZE || 5),
+      connectionTimeoutMillis: Number(process.env.POSTGRES_CONNECT_TIMEOUT_MS || 10_000),
+      idleTimeoutMillis: Number(process.env.POSTGRES_IDLE_TIMEOUT_MS || 30_000)
+    });
+    await ensurePostgresSchema(postgresPool);
+    return postgresPool;
+  } catch (error) {
+    postgresLoadError = error;
+    postgresPool = null;
+    console.error("PostgreSQL 載入失敗。");
+    console.error(error);
+    return null;
+  }
+}
+
+async function ensurePostgresSchema(pool) {
+  if (postgresReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS players (
+      user_id TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+  postgresReady = true;
+}
+
+async function loadPostgresPlayers(pool) {
+  const result = await pool.query("SELECT user_id, data FROM players");
+  const players = {};
+  for (const row of result.rows) {
+    players[row.user_id] = row.data;
+  }
+  return players;
+}
+
+async function savePostgresPlayers(pool, players) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existingRows = await client.query("SELECT user_id FROM players");
+    const existing = new Set(existingRows.rows.map((row) => row.user_id));
+    const nextIds = new Set(Object.keys(players || {}));
+    const now = Date.now();
+    for (const [userId, player] of Object.entries(players || {})) {
+      await client.query(`
+        INSERT INTO players (user_id, data, updated_at)
+        VALUES ($1, $2::jsonb, $3)
+        ON CONFLICT (user_id) DO UPDATE SET
+          data = EXCLUDED.data,
+          updated_at = EXCLUDED.updated_at
+      `, [userId, JSON.stringify(player), now]);
+    }
+    for (const userId of existing) {
+      if (!nextIds.has(userId)) {
+        await client.query("DELETE FROM players WHERE user_id = $1", [userId]);
+      }
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -193,12 +294,25 @@ function saveSqlitePlayers(db, players) {
 }
 
 async function loadPlayers() {
+  const pool = await getPostgresPool();
+  if (pool) return loadPostgresPlayers(pool);
+  if (STORAGE_BACKEND === "postgres") {
+    throw postgresLoadError || new Error("PostgreSQL 尚未連線，已停止讀取玩家資料以避免資料分裂。");
+  }
   const db = getSqliteDatabase();
   if (db) return loadSqlitePlayers(db);
   return loadJsonPlayers();
 }
 
 async function savePlayers(players) {
+  const pool = await getPostgresPool();
+  if (pool) {
+    await savePostgresPlayers(pool, players);
+    return;
+  }
+  if (STORAGE_BACKEND === "postgres") {
+    throw postgresLoadError || new Error("PostgreSQL 尚未連線，已停止寫入玩家資料以避免資料分裂。");
+  }
   const db = getSqliteDatabase();
   if (db) {
     saveSqlitePlayers(db, players);
