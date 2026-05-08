@@ -70,6 +70,7 @@ const {
 const {
   advanceEventTypeMissCounters,
   getEventTypePityWeight,
+  pickRaptorEvent,
   pickRandomEvent,
   recordEventTypeEncounter
 } = require("../src/eventSystem");
@@ -407,6 +408,24 @@ test("地下客棧寶石洞入場券會讓下次下礦必進寶石洞", () => {
   assert.equal(bought.player.guaranteedGemCaveTicket, 1);
   assert.equal(next.player.caveType, "gem");
   assert.equal(next.player.guaranteedGemCaveTicket, 0);
+});
+
+test("地下客棧猛禽洞窟入場券會讓下次下礦必進猛禽洞窟", () => {
+  const now = Date.parse("2026-05-08T04:00:00.000Z");
+  const player = {
+    ...createPlayer(),
+    zone: "undergroundCamp",
+    invertedGem: 999,
+    runModeOptions: ["safe", "double"]
+  };
+  const bought = buyUndergroundInnItem(player, "raptorTicket", createGlobalState(now), now);
+  const next = chooseRunMode({ ...bought.player, zone: "surface" }, "safe", () => 0.99);
+
+  assert.equal(bought.ok, true);
+  assert.equal(bought.player.guaranteedRaptorCaveTicket, 1);
+  assert.equal(next.player.caveType, "raptor");
+  assert.equal(next.player.guaranteedRaptorCaveTicket, 0);
+  assert.match(next.message, /猛禽洞窟/);
 });
 
 test("可以丟棄多種可攜帶物品並阻擋破爛", () => {
@@ -2109,6 +2128,20 @@ test("事件類型保底會提高久未出現類型並降低最近重複類型",
   assert.equal(qteRecent < qteBoosted, true);
 });
 
+test("近期遇過的同一事件本體會被額外降權", () => {
+  const player = {
+    ...createPlayer(),
+    runMode: "safe",
+    recentEventIds: ["cracked_wall", "cracked_wall", "treasure_chest"]
+  };
+  const normal = getEventTypePityWeight(1, "cracked_wall", {}, { ...createPlayer(), runMode: "safe" });
+  const repeated = getEventTypePityWeight(1, "cracked_wall", {}, player);
+  recordEventTypeEncounter(player, "cracked_wall");
+
+  assert.equal(repeated < normal, true);
+  assert.equal(player.recentEventIds[player.recentEventIds.length - 1], "cracked_wall");
+});
+
 test("事件類型保底遇到對應事件後只重置該類型", () => {
   const player = {
     ...createPlayer(),
@@ -2143,6 +2176,109 @@ test("事件池過大時保底類型有機會被權重拉出來但不是強制",
   const eventId = pickRandomEvent(player, () => 0.9999, (id) => id === "wild_mine_chicken" || id === "cracked_wall");
 
   assert.equal(["wild_mine_chicken", "cracked_wall"].includes(eventId), true);
+});
+
+test("猛禽洞窟事件池會優先抽野生雞事件", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    caveType: "raptor",
+    depth: 70,
+    ownedChicken: {
+      name: "測試雞",
+      icon: "🐔",
+      level: 8,
+      exp: 0,
+      speed: 20,
+      sprint: 20,
+      stability: 20,
+      stamina: 20,
+      wins: 0,
+      races: 0
+    }
+  };
+  const eventId = pickRaptorEvent(player, () => 0.5);
+  const race = resolveRandomEvent({
+    ...player,
+    pendingEvent: eventId
+  }, "risk", () => 0.99);
+
+  assert.equal(eventId.includes("chicken"), true);
+  assert.match(race.message, /野生雞數值：Lv\./);
+});
+
+test("猛禽洞窟會使用全區域野雞池且第 50 層可遇到鳳凰", () => {
+  const baseChicken = {
+    name: "測試雞",
+    icon: "🐔",
+    level: 20,
+    exp: 0,
+    speed: 60,
+    sprint: 60,
+    stability: 60,
+    stamina: 60,
+    wins: 0,
+    races: 0
+  };
+  const mixed = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    caveType: "raptor",
+    depth: 20,
+    pendingEvent: "wild_mine_chicken",
+    ownedChicken: baseChicken
+  }, "risk", () => 0.99);
+  const phoenix = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    caveType: "raptor",
+    depth: 50,
+    pendingEvent: "wild_mine_chicken",
+    ownedChicken: baseChicken
+  }, "risk", () => 0);
+
+  assert.match(mixed.message, /星羽雞|發光雞|反轉雞|異常雞|污染雞|深層黑羽雞|普通野雞|小黃雞/);
+  assert.match(phoenix.message, /鳳凰/);
+  assert.match(phoenix.message, /野生雞數值：Lv\.(2[0-9]|[3-9][0-9])/);
+});
+
+test("猛禽洞窟第 50 層是底層並阻擋繼續深入", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    caveType: "raptor",
+    depth: 49,
+    runDepthProgress: 49,
+    nextSupplyDepth: 999,
+    nextEventDepth: 999
+  };
+  const bottom = mine(player, () => 0.99);
+  const blocked = mine(bottom.player, () => 0.99);
+
+  assert.equal(bottom.player.depth, 50);
+  assert.equal(bottom.player.runDepthProgress, 50);
+  assert.equal(blocked.kind, "blocked");
+  assert.equal(blocked.player.depth, 50);
+  assert.match(blocked.message, /只能返回地面/);
+});
+
+test("猛禽洞窟沒打贏野雞會被送回地面", () => {
+  const result = resolveRandomEvent({
+    ...chooseRunMode(createPlayer(), "safe").player,
+    caveType: "raptor",
+    depth: 18,
+    pendingEvent: "wild_mine_chicken",
+    wildChickenEncounter: {
+      id: "raptor-no-chicken",
+      name: "鳳凰",
+      icon: "🪽🔥",
+      region: "sky",
+      trait: "phoenix",
+      rare: true,
+      power: 72
+    }
+  }, "risk", () => 0.99);
+
+  assert.equal(result.player.zone, "surface");
+  assert.equal(result.player.caveType, null);
+  assert.equal(result.player.depth, 0);
+  assert.match(result.message, /送回地面/);
 });
 
 test("新增事件池包含普通寶石上位與反轉事件", () => {

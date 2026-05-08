@@ -80,6 +80,7 @@ function createPlayer() {
     invertedGem: 0,
     orichalcum: 0,
     guaranteedGemCaveTicket: 0,
+    guaranteedRaptorCaveTicket: 0,
     thickSoleShoes: 0,
     quickChickenBall: 0,
     activeMarketBlessings: {},
@@ -119,6 +120,7 @@ function createPlayer() {
     eventMissCount: 0,
     eventTypeMissCounter: createEventTypeMissCounter(),
     recentEventTypes: [],
+    recentEventIds: [],
     eventChallenge: null,
     traitSwapEvent: null,
     traitMutation: null,
@@ -216,6 +218,9 @@ function getPlayer(player) {
   next.eventTypeMissCounter = createEventTypeMissCounter(player && player.eventTypeMissCounter);
   next.recentEventTypes = Array.isArray(player && player.recentEventTypes)
     ? player.recentEventTypes.filter((type) => EVENT_TYPE_KEYS.includes(type)).slice(-8)
+    : [];
+  next.recentEventIds = Array.isArray(player && player.recentEventIds)
+    ? player.recentEventIds.filter((id) => typeof id === "string" && id.length > 0).slice(-12)
     : [];
   next.nextSupplyDepth = Math.max(25, Math.floor(player && player.nextSupplyDepth || 25));
   next.supplyStation = player && player.supplyStation && typeof player.supplyStation === "object"
@@ -408,6 +413,7 @@ function getPlayer(player) {
   next.chickenEggs = Math.max(0, Math.floor(player && player.chickenEggs || 0));
   next.rareEvolutionMaterial = Math.max(0, Math.floor(player && player.rareEvolutionMaterial || 0));
   next.guaranteedGemCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedGemCaveTicket || 0)));
+  next.guaranteedRaptorCaveTicket = Math.max(0, Math.min(1, Math.floor(player && player.guaranteedRaptorCaveTicket || 0)));
   next.thickSoleShoes = Math.max(0, Math.floor(player && player.thickSoleShoes || 0));
   next.quickChickenBall = Math.max(0, Math.floor(player && player.quickChickenBall || 0));
   next.activeMarketBlessings = player && player.activeMarketBlessings && typeof player.activeMarketBlessings === "object"

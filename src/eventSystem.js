@@ -1062,6 +1062,7 @@ function getEventTypePityWeight(baseWeight, eventId, eventInput, playerInput = {
   const event = eventInput || getRandomEvent(eventId);
   const counter = createEventTypeMissCounter(playerInput.eventTypeMissCounter);
   const recent = Array.isArray(playerInput.recentEventTypes) ? playerInput.recentEventTypes.slice(-5) : [];
+  const recentIds = Array.isArray(playerInput.recentEventIds) ? playerInput.recentEventIds.slice(-10) : [];
   const challengeMode = Boolean(options.challengeMode);
   const types = getEventTypes(eventId, event);
   let boost = types.reduce((max, type) => Math.max(max, getEventTypeBoost(counter[type] || 0, challengeMode)), 0);
@@ -1071,6 +1072,9 @@ function getEventTypePityWeight(baseWeight, eventId, eventInput, playerInput = {
   const recentHitCount = types.filter((type) => recent.includes(type)).length;
   if (recentHitCount > 0) multiplier *= Math.max(0.42, 0.72 - recentHitCount * 0.08);
   if (recent.length && types.includes(recent[recent.length - 1])) multiplier *= 0.7;
+  const sameEventCount = recentIds.filter((id) => id === eventId).length;
+  if (sameEventCount > 0) multiplier *= Math.max(0.08, 0.42 - sameEventCount * 0.1);
+  if (recentIds[recentIds.length - 1] === eventId) multiplier *= 0.28;
   return Math.max(0.01, baseWeight * multiplier);
 }
 
@@ -1093,8 +1097,10 @@ function recordEventTypeEncounter(playerInput, eventId) {
     counter[type] = 0;
   });
   const recent = Array.isArray(playerInput.recentEventTypes) ? playerInput.recentEventTypes : [];
+  const recentIds = Array.isArray(playerInput.recentEventIds) ? playerInput.recentEventIds : [];
   playerInput.eventTypeMissCounter = counter;
   playerInput.recentEventTypes = [...recent, ...types].slice(-8);
+  playerInput.recentEventIds = [...recentIds, eventId].slice(-12);
   return playerInput;
 }
 
@@ -1133,6 +1139,10 @@ function pickSkyEvent(player, random = Math.random) {
   return pickRandomEvent(player, random, (id, event) => Boolean(event.skyOnly));
 }
 
+function pickRaptorEvent(player, random = Math.random) {
+  return pickRandomEvent(player, random, (id) => id.includes("chicken"));
+}
+
 function getEventButtonLabels(eventId) {
   const event = getRandomEvent(eventId);
   return event && event.buttons
@@ -1153,6 +1163,7 @@ module.exports = {
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
+  pickRaptorEvent,
   pickSkyEvent,
   pickRandomEvent,
   recordEventTypeEncounter

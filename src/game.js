@@ -13,6 +13,7 @@ const {
   pickGemEvent,
   pickHighTierEvent,
   pickReverseEvent,
+  pickRaptorEvent,
   pickSkyEvent,
   pickRandomEvent,
   recordEventTypeEncounter
@@ -124,6 +125,7 @@ function addItemReward(player, key, amount) {
 const getTotalAsset = economySystem.getTotalAsset;
 const PLAYER_VALUE_CAP = 1_000_000_000_000;
 const SUPPLY_STATION_INTERVAL = 25;
+const RAPTOR_CAVE_MAX_DEPTH = 50;
 const UNDERGROUND_INN_CYCLE_MS = 6 * 60 * 60 * 1000;
 const UNDERGROUND_INN_ITEMS = {
   gemTicket: {
@@ -132,6 +134,13 @@ const UNDERGROUND_INN_ITEMS = {
     basePrice: 34,
     priceSpread: 20,
     description: "下次從地表下礦必定進入寶石洞窟。"
+  },
+  raptorTicket: {
+    label: "🐓 猛禽洞窟入場券",
+    resource: "invertedGem",
+    basePrice: 28,
+    priceSpread: 18,
+    description: "下次從地表下礦必定進入猛禽洞窟，野雞出現率大幅提高。"
   },
   goldOreBlessing: {
     label: "📈 金礦收購祝福",
@@ -888,7 +897,7 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     player.lavaProgress = Math.max(0, Math.min(5, player.lavaProgress));
     addFixed("修正岩漿進度");
   }
-  if (!["normal", "gem"].includes(player.caveType) && player.caveType !== null) {
+  if (!["normal", "gem", "raptor"].includes(player.caveType) && player.caveType !== null) {
     player.caveType = null;
     addFixed("修正洞窟類型");
   }
@@ -1156,6 +1165,7 @@ function setUiMode(playerInput, mode) {
 function getCaveLabel(playerInput) {
   const player = getPlayer(playerInput);
   if (player.caveType === "gem") return "寶石礦洞";
+  if (player.caveType === "raptor") return "猛禽洞窟";
   if (player.zone === "lavaPool") return "岩漿池";
   if (player.zone === "undergroundCamp") return "地底營地";
   if (player.zone === "upward") return "反轉上挖層";
@@ -1277,6 +1287,9 @@ function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now
   if (itemId === "gemTicket" && player.guaranteedGemCaveTicket > 0) {
     return { ok: false, player, globalState: snapshot.globalState, message: "你已經有寶石洞入場券，不能堆疊攜帶。" };
   }
+  if (itemId === "raptorTicket" && player.guaranteedRaptorCaveTicket > 0) {
+    return { ok: false, player, globalState: snapshot.globalState, message: "你已經有猛禽洞窟入場券，不能堆疊攜帶。" };
+  }
   if (itemId === "thickSoleShoes" && (player.healingPotion || 0) > 0) {
     return { ok: false, player, globalState: snapshot.globalState, message: "❌ 你無法同時攜帶藥水與厚底鞋。" };
   }
@@ -1287,6 +1300,7 @@ function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now
   player[item.resource] -= price;
   snapshot.globalState.undergroundInnInventory.purchases[itemId] = (snapshot.globalState.undergroundInnInventory.purchases[itemId] || 0) + 1;
   if (itemId === "gemTicket") player.guaranteedGemCaveTicket = 1;
+  else if (itemId === "raptorTicket") player.guaranteedRaptorCaveTicket = 1;
   else if (itemId === "thickSoleShoes") player.thickSoleShoes = (player.thickSoleShoes || 0) + 1;
   else if (itemId === "quickChickenBall") player.quickChickenBall = (player.quickChickenBall || 0) + 1;
   else if (item.blessing) player.activeMarketBlessings[item.blessing] = now + 30 * 60 * 1000;
@@ -1551,6 +1565,9 @@ function chooseRunMode(playerInput, mode, random = null) {
     if (player.guaranteedGemCaveTicket > 0) {
       player.guaranteedGemCaveTicket -= 1;
       player.caveType = "gem";
+    } else if (player.guaranteedRaptorCaveTicket > 0) {
+      player.guaranteedRaptorCaveTicket -= 1;
+      player.caveType = "raptor";
     } else {
       player.caveType = random && random() < gemChance ? "gem" : "normal";
     }
@@ -1604,6 +1621,8 @@ function chooseRunMode(playerInput, mode, random = null) {
       ? `已選擇 ${config.label}。可以從地底營地開始往上挖。`
       : player.caveType === "gem"
       ? `已選擇 ${config.label}。你腳下一空，掉進了寶石礦洞。這裡只會挖到寶石、鐘乳石和白金破爛。`
+      : player.caveType === "raptor"
+      ? `已選擇 ${config.label}。你推開猛禽洞窟的石門，礦道深處到處都是雞叫聲。越深的野雞越強。`
       : `已選擇 ${config.label}。可以開始深入挖礦。`
   };
 }
@@ -1618,6 +1637,7 @@ function getSupplyStationRegion(playerInput) {
   if (player.zone === "skyDown") return "sky";
   if (player.zone === "upward") return player.depth < 0 ? "inverted" : "underground";
   if (player.caveType === "gem") return "gem";
+  if (player.caveType === "raptor") return "underground";
   return "normal";
 }
 
@@ -2360,6 +2380,7 @@ function addRunDepthProgress(player, amount) {
 }
 
 function getWildChickenRegion(player) {
+  if (player.caveType === "raptor") return Math.abs(player.depth || 0) >= 55 ? "underground" : "shallow";
   if (player.zone === "skyCamp" || player.zone === "skyDown") return "sky";
   if (player.zone === "upward" && (player.depth || 0) < 0) return "inverted";
   if (player.zone === "upward" || player.zone === "undergroundCamp" || (player.depth || 0) >= 60) return "underground";
@@ -2391,14 +2412,49 @@ const RARE_WILD_CHICKENS = [
   { name: "雷鳴雞", icon: "⚡", trait: "thunder", region: "inverted", power: 37 }
 ];
 
+const RAPTOR_PHOENIX = { name: "鳳凰", icon: "🪽🔥", trait: "phoenix", region: "sky", power: 64 };
+
+function pickRaptorWildChickenTemplate(player, random = Math.random) {
+  const depth = Math.abs(player.depth || 0);
+  const phoenixChance = depth >= 50 ? Math.min(0.28, 0.12 + (depth - 50) * 0.004) : 0;
+  if (phoenixChance > 0 && random() < phoenixChance) {
+    return { template: RAPTOR_PHOENIX, rare: true };
+  }
+  const rareChance = Math.min(0.16, 0.04 + depth * 0.0015);
+  if (random() < rareChance) {
+    return {
+      template: RARE_WILD_CHICKENS[Math.floor(random() * RARE_WILD_CHICKENS.length)] || RARE_WILD_CHICKENS[0],
+      rare: true
+    };
+  }
+  const regionalPool = Object.entries(WILD_CHICKEN_POOLS).flatMap(([region, list]) => (
+    list.map((chicken) => ({ ...chicken, region }))
+  ));
+  const index = Math.floor(random() * regionalPool.length);
+  return {
+    template: regionalPool[index] || regionalPool[0] || WILD_CHICKEN_POOLS.shallow[0],
+    rare: false
+  };
+}
+
 function createWildChickenEncounter(player, random = Math.random) {
   if (player.wildChickenEncounter && player.wildChickenEncounter.name) return player.wildChickenEncounter;
-  const rare = random() < 0.03;
   const region = getWildChickenRegion(player);
-  const template = rare
-    ? RARE_WILD_CHICKENS[Math.floor(random() * RARE_WILD_CHICKENS.length)] || RARE_WILD_CHICKENS[0]
-    : (WILD_CHICKEN_POOLS[region] || WILD_CHICKEN_POOLS.shallow)[Math.floor(random() * (WILD_CHICKEN_POOLS[region] || WILD_CHICKEN_POOLS.shallow).length)];
-  const depthPower = Math.min(12, Math.floor(Math.abs(player.depth || 0) / 12));
+  const picked = player.caveType === "raptor"
+    ? pickRaptorWildChickenTemplate(player, random)
+    : (() => {
+      const rare = random() < 0.03;
+      const pool = WILD_CHICKEN_POOLS[region] || WILD_CHICKEN_POOLS.shallow;
+      return {
+        rare,
+        template: rare
+          ? RARE_WILD_CHICKENS[Math.floor(random() * RARE_WILD_CHICKENS.length)] || RARE_WILD_CHICKENS[0]
+          : pool[Math.floor(random() * pool.length)]
+      };
+    })();
+  const template = picked.template;
+  const rare = Boolean(picked.rare);
+  const depthPower = Math.min(player.caveType === "raptor" ? 24 : 12, Math.floor(Math.abs(player.depth || 0) / (player.caveType === "raptor" ? 8 : 12)));
   const encounter = {
     id: `${Date.now()}-${Math.floor(random() * 100000)}`,
     name: template.name,
@@ -2406,7 +2462,7 @@ function createWildChickenEncounter(player, random = Math.random) {
     region: template.region || region,
     trait: template.trait,
     rare,
-    power: template.power + depthPower
+    power: template.power + depthPower + (player.caveType === "raptor" ? 4 : 0)
   };
   player.wildChickenEncounter = encounter;
   return encounter;
@@ -2598,6 +2654,7 @@ function makeWildChickenRaceOpponent(encounter) {
     reverse: { speed: 1, sprint: 2, stability: 1, stamina: 1 },
     glow: { speed: 1, sprint: 1, stability: 2, stamina: 2 },
     thunder: { speed: 2, sprint: 3, stability: -1, stamina: 1 },
+    phoenix: { speed: 4, sprint: 5, stability: 3, stamina: 5 },
     speed: { speed: 3, sprint: 2, stability: 0, stamina: 0 },
     gem: { speed: 0, sprint: 1, stability: 2, stamina: 1 }
   }[encounter.trait] || { speed: 1, sprint: 1, stability: 1, stamina: 1 };
@@ -2607,15 +2664,15 @@ function makeWildChickenRaceOpponent(encounter) {
     icon: encounter.icon || "🐓",
     level,
     exp: 0,
-    personality: encounter.trait === "berserk" ? "madDog" : encounter.trait === "thief" ? "sneaky" : "chosen",
+    personality: encounter.trait === "berserk" ? "madDog" : encounter.trait === "thief" ? "sneaky" : encounter.trait === "phoenix" ? "chosen" : "chosen",
     speed: Math.max(1, base + traitBias.speed),
     sprint: Math.max(1, base + traitBias.sprint),
     stability: Math.max(1, base + traitBias.stability),
     stamina: Math.max(1, base + traitBias.stamina),
-    activeSkill: encounter.trait === "berserk" ? "blazeDash" : encounter.trait === "thief" ? "interfereCrow" : "miracleComeback",
-    passiveSkill: encounter.trait === "glow" ? "winnerAura" : "steadyStep",
-    chickenCounterType: encounter.trait === "berserk" ? "risk" : encounter.trait === "thief" ? "disrupt" : "balanced",
-    skillTriggerTiming: encounter.trait === "berserk" ? "start" : "finish",
+    activeSkill: encounter.trait === "berserk" || encounter.trait === "phoenix" ? "blazeDash" : encounter.trait === "thief" ? "interfereCrow" : "miracleComeback",
+    passiveSkill: encounter.trait === "glow" || encounter.trait === "phoenix" ? "winnerAura" : "steadyStep",
+    chickenCounterType: encounter.trait === "berserk" || encounter.trait === "phoenix" ? "risk" : encounter.trait === "thief" ? "disrupt" : "balanced",
+    skillTriggerTiming: encounter.trait === "berserk" || encounter.trait === "phoenix" ? "finish" : "finish",
     entryEffect: encounter.rare ? `🌌 ${encounter.name} 的羽光照亮整條礦道。` : `${encounter.icon || "🐓"} ${encounter.name} 從礦縫衝上賽道。`,
     races: 0,
     wins: 0,
@@ -2686,6 +2743,15 @@ function buildWildChickenAnimationFrames(chicken, encounter, race, finalLines) {
 
 function resolveWildChickenRace(player, encounter, random = Math.random, now = Date.now(), eventId = "wild_mine_chicken") {
   if (!player.ownedChicken) {
+    if (player.caveType === "raptor") {
+      const result = returnToSurface(player, random, null, now);
+      return {
+        ok: true,
+        player: result.player,
+        title: "猛禽洞窟敗退",
+        message: `${encounter.icon} ${encounter.name} 抬頭看了你一眼。\n你沒有自己的雞可以出賽，被猛禽洞窟的風壓送回地面。\n\n${result.message}`
+      };
+    }
     player.wildChickenEncounter = null;
     return {
       ok: true,
@@ -2744,6 +2810,22 @@ function resolveWildChickenRace(player, encounter, random = Math.random, now = D
     expMessage
   ].filter(Boolean);
   const animationFrames = buildWildChickenAnimationFrames(chicken, encounter, race, finalLines);
+  if (player.caveType === "raptor") {
+    const result = returnToSurface(player, random, null, now);
+    const message = [
+      animationFrames[animationFrames.length - 1],
+      "",
+      "猛禽洞窟只承認勝者。你被送回地面。",
+      result.message
+    ].join("\n");
+    return {
+      ok: true,
+      player: result.player,
+      title: "猛禽洞窟敗退",
+      message,
+      animationFrames: [...animationFrames.slice(0, -1), message]
+    };
+  }
   return {
     ok: true,
     player,
@@ -2783,7 +2865,8 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   const mode = getMode(player);
   player.eventChanceBonus = (mode && mode.eventChanceBonus ? mode.eventChanceBonus : 0)
     + getMinorBuffEffectiveStacks(player, "event") * CONFIG.minorBuffs.event.eventChanceBonus
-    + getChickenMiningBonus(player).eventChanceBonus;
+    + getChickenMiningBonus(player).eventChanceBonus
+    + (player.caveType === "raptor" ? 0.35 : 0);
   const triggered = rollEventTrigger(player, random);
   const nextState = updateEventState(triggered, player);
   player.eventMissCount = nextState.eventMissCount;
@@ -2793,6 +2876,7 @@ function maybeTriggerRandomEvent(player, random = Math.random) {
   let eventId = null;
   if (player.zone === "upward") eventId = pickReverseEvent(player, random);
   else if (player.zone === "skyDown") eventId = pickSkyEvent(player, random);
+  else if (player.caveType === "raptor") eventId = pickRaptorEvent(player, random);
   else if (player.caveType === "gem") eventId = pickGemEvent(player, random);
   else if (player.highTierEligible && random() < 0.18) eventId = pickHighTierEvent(player, random);
   else eventId = pickRandomEvent(player, random);
@@ -3784,14 +3868,24 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
   player.stats.totalMines += 1;
   if (player.zone === "lavaPool") return crossLavaPool(player, random, now);
   if (player.zone === "upward") return mineUpward(player, random, now);
+  if (player.caveType === "raptor" && (player.depth || 0) >= RAPTOR_CAVE_MAX_DEPTH) {
+    return {
+      kind: "blocked",
+      player,
+      title: "猛禽洞窟底層",
+      message: "你已經抵達猛禽洞窟第 50 層。下面只剩灼熱羽灰與鳳凰爪痕，不能再繼續往下，只能返回地面。"
+    };
+  }
   recordDigPathVisit(player, digPath);
   const mode = getMode(player);
   const depthStep = mode && mode.depthStep ? mode.depthStep : 1;
   const repeatLayer = player.tempEffects.some((effect) => effect.id === "repeat_layer");
   let recordMessage = "";
   if (!repeatLayer) {
+    const beforeDepth = player.depth || 0;
     player.depth += depthStep;
-    recordMessage = addRunDepthProgress(player, depthStep);
+    if (player.caveType === "raptor") player.depth = Math.min(RAPTOR_CAVE_MAX_DEPTH, player.depth);
+    recordMessage = addRunDepthProgress(player, Math.max(0, player.depth - beforeDepth));
   }
   if (player.depth >= CONFIG.mining.lavaDepth) {
     player.depth = CONFIG.mining.lavaDepth;
