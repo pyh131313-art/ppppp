@@ -320,6 +320,66 @@ const SECOND_STAGE_EVOLUTIONS = {
     perfect: { id: "thunderCrown", title: "雷鳴衝線皇", icon: "🐓⚡👑", branch: "thunderCrown", frame: "雷鳴衝線皇" },
     bad: { id: "shortCircuit", title: "短路雷雞", icon: "🐔⚡💫", branch: "shortCircuit", frame: "短路雷羽" },
     abnormal: { id: "stormBerserker", title: "暴雷失控雞", icon: "🐓⚡💀", branch: "stormBerserker", frame: "暴雷失控" }
+  },
+  gale: {
+    normal: { id: "galeBlade", title: "疾風刃雞", icon: "🐓💨", branch: "galeBlade", frame: "疾風刃" },
+    perfect: { id: "skyGale", title: "天翔疾風雞", icon: "🐓💨👑", branch: "skyGale", frame: "天翔疾風" },
+    bad: { id: "windTired", title: "喘風雞", icon: "🐔💨💫", branch: "windTired", frame: "喘風完全體" },
+    abnormal: { id: "tornadoLost", title: "亂流迷走雞", icon: "🐓🌪️", branch: "tornadoLost", frame: "亂流完全體" }
+  },
+  crown: {
+    normal: { id: "goldFeather", title: "金羽勝者雞", icon: "🐔👑", branch: "goldFeather", frame: "金羽勝者" },
+    perfect: { id: "royalCrown", title: "賽雞王冠雞", icon: "🐔👑✨", branch: "royalCrown", frame: "賽雞王冠" },
+    bad: { id: "fakeCrown", title: "假冠雞", icon: "🐔👑💫", branch: "fakeCrown", frame: "假冠完全體" },
+    abnormal: { id: "greedyCrown", title: "貪冠雞", icon: "🐔👑💀", branch: "greedyCrown", frame: "貪冠完全體" }
+  },
+  shadow: {
+    normal: { id: "nightRunner", title: "夜影疾行雞", icon: "🐔🌑", branch: "nightRunner", frame: "夜影疾行" },
+    perfect: { id: "phantomKing", title: "幻影王雞", icon: "🐔🌑👑", branch: "phantomKing", frame: "幻影王" },
+    bad: { id: "lostShadow", title: "迷影雞", icon: "🐔🌑❓", branch: "lostShadow", frame: "迷影完全體" },
+    abnormal: { id: "voidShadow", title: "虛影雞", icon: "🐔🌑💀", branch: "voidShadow", frame: "虛影完全體" }
+  },
+  crystal: {
+    normal: { id: "gemOracle", title: "寶晶預言雞", icon: "🐤💎", branch: "gemOracle", frame: "寶晶預言" },
+    perfect: { id: "rainbowCrystal", title: "虹晶神諭雞", icon: "🐤💎👑", branch: "rainbowCrystal", frame: "虹晶神諭" },
+    bad: { id: "crackedGem", title: "裂晶雞", icon: "🐤💎💫", branch: "crackedGem", frame: "裂晶完全體" },
+    abnormal: { id: "cursedCrystal", title: "咒晶雞", icon: "🐤💎💀", branch: "cursedCrystal", frame: "咒晶完全體" }
+  },
+  mud: {
+    normal: { id: "mudWall", title: "泥牆雞", icon: "🐔🟫", branch: "mudWall", frame: "泥牆完全體" },
+    perfect: { id: "swampKing", title: "沼澤王雞", icon: "🐔🟫👑", branch: "swampKing", frame: "沼澤王" },
+    bad: { id: "mudPile", title: "爛泥雞", icon: "🐔🟫💫", branch: "mudPile", frame: "爛泥完全體" },
+    abnormal: { id: "mudMonster", title: "泥怪雞", icon: "🐔🟫💀", branch: "mudMonster", frame: "泥怪完全體" }
+  },
+  paper: {
+    normal: { id: "boxHero", title: "紙箱英雄雞", icon: "🐤📦", branch: "boxHero", frame: "紙箱英雄" },
+    perfect: { id: "cardboardKing", title: "紙箱王雞", icon: "🐤📦👑", branch: "cardboardKing", frame: "紙箱王" },
+    bad: { id: "wetPaper", title: "濕紙雞", icon: "🐤📦💧", branch: "wetPaper", frame: "濕紙完全體" },
+    abnormal: { id: "mysteryBox", title: "怪箱雞", icon: "🐤📦💀", branch: "mysteryBox", frame: "怪箱完全體" }
+  },
+  lost: {
+    normal: { id: "routeFinder", title: "尋路雞", icon: "🐔❓", branch: "routeFinder", frame: "尋路完全體" },
+    perfect: { id: "mazeLegend", title: "迷宮傳說雞", icon: "🐔❓👑", branch: "mazeLegend", frame: "迷宮傳說" },
+    bad: { id: "wrongWayKing", title: "反方向雞", icon: "🐔❓💫", branch: "wrongWayKing", frame: "反方向完全體" },
+    abnormal: { id: "spaceLost", title: "異空迷路雞", icon: "🐔❓💀", branch: "spaceLost", frame: "異空迷路" }
+  },
+  mineCrystal: {
+    normal: { id: "mineGem", title: "礦晶羽雞", icon: "🐔💎", branch: "mineGem", frame: "礦晶羽" },
+    perfect: { id: "deepGemKing", title: "深礦晶王雞", icon: "🐔💎👑", branch: "deepGemKing", frame: "深礦晶王" },
+    bad: { id: "dullGem", title: "暗晶雞", icon: "🐔💎💫", branch: "dullGem", frame: "暗晶完全體" },
+    abnormal: { id: "mutantGem", title: "異變礦晶雞", icon: "🐔💎💀", branch: "mutantGem", frame: "異變礦晶" }
+  },
+  rustFeather: {
+    normal: { id: "rustBlade", title: "鏽刃羽雞", icon: "🐓🟧", branch: "rustBlade", frame: "鏽刃羽" },
+    perfect: { id: "ancientRust", title: "古鏽王雞", icon: "🐓🟧👑", branch: "ancientRust", frame: "古鏽王" },
+    bad: { id: "crumblyRust", title: "脆鏽雞", icon: "🐓🟧💫", branch: "crumblyRust", frame: "脆鏽完全體" },
+    abnormal: { id: "toxicRust", title: "毒鏽雞", icon: "🐓🟧💀", branch: "toxicRust", frame: "毒鏽完全體" }
+  },
+  abyssEcho: {
+    normal: { id: "echoWing", title: "回音羽雞", icon: "🐓🌌", branch: "echoWing", frame: "回音羽" },
+    perfect: { id: "abyssKing", title: "深淵鳴王雞", icon: "🐓🌌👑", branch: "abyssKing", frame: "深淵鳴王" },
+    bad: { id: "hollowEcho", title: "空鳴雞", icon: "🐓🌌💫", branch: "hollowEcho", frame: "空鳴完全體" },
+    abnormal: { id: "voidEcho", title: "虛無回音雞", icon: "🐓🌌💀", branch: "voidEcho", frame: "虛無回音" }
   }
 };
 

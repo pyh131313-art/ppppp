@@ -159,6 +159,53 @@ test("雷鳴衝線王階段也會進入雷鳴系二階分支", () => {
   assert.match(formatOwnedChicken(player), /二階分支：雷鳴衝線皇/);
 });
 
+test("剩餘進化類型也會使用專屬二階分支", () => {
+  const cases = [
+    ["gale", "天翔疾風雞"],
+    ["crown", "賽雞王冠雞"],
+    ["shadow", "幻影王雞"],
+    ["crystal", "虹晶神諭雞"],
+    ["mineCrystal", "深礦晶王雞"],
+    ["rustFeather", "古鏽王雞"],
+    ["abyssEcho", "深淵鳴王雞"]
+  ];
+  for (const [type, expectedTitle] of cases) {
+    const player = ensureOwnedChicken(createPlayer(), () => 0);
+    player.ownedChicken.level = 15;
+    player.ownedChicken.wins = 30;
+    player.ownedChicken.evolutionType = type;
+    player.ownedChicken.evolutionPoints = { [type === "mineCrystal" || type === "rustFeather" || type === "abyssEcho" ? "mine" : type]: 30 };
+    player.ownedChicken.hiddenEvolutionValue = 35;
+    player.ownedChicken.chickenMood = 95;
+    player.ownedChicken.chickenHealth = 95;
+
+    addChickenExp(player, getChickenRequiredExp(player.ownedChicken), () => 0);
+
+    assert.equal(player.ownedChicken.secondEvolution.title, expectedTitle);
+  }
+});
+
+test("爛雞路線也會使用專屬二階分支", () => {
+  const cases = [
+    ["mud", "爛泥雞"],
+    ["paper", "濕紙雞"],
+    ["lost", "反方向雞"]
+  ];
+  for (const [type, expectedTitle] of cases) {
+    const player = ensureOwnedChicken(createPlayer(), () => 0);
+    player.ownedChicken.level = 15;
+    player.ownedChicken.wins = 10;
+    player.ownedChicken.evolutionType = type;
+    player.ownedChicken.evolutionPoints = { clumsy: 30 };
+    player.ownedChicken.hiddenEvolutionValue = 0;
+    player.ownedChicken.chickenHealth = 20;
+
+    addChickenExp(player, getChickenRequiredExp(player.ownedChicken), () => 0);
+
+    assert.equal(player.ownedChicken.secondEvolution.title, expectedTitle);
+  }
+});
+
 test("賽雞可以依不同傾向進化成更多路線", () => {
   const player = ensureOwnedChicken(createPlayer(), () => 0);
   player.ownedChicken.evolutionPoints = { gale: 12, crown: 0, thunder: 0, shadow: 0, crystal: 0, clumsy: 0 };
