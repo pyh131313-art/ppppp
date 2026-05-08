@@ -33,3 +33,10 @@ test("管理員可以註冊檢查玩家指令", () => {
   assert.equal(command.options[0].name, "玩家");
   assert.equal(command.options[0].required, true);
 });
+
+test("開發者可以註冊普發入場券指令", () => {
+  const command = commandJson.find((item) => item.name === "普發入場券");
+
+  assert.ok(command);
+  assert.equal(command.description.includes("猛禽洞窟入場券"), true);
+});

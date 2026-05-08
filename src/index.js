@@ -173,8 +173,9 @@ const activeTrades = new Map();
 const TRADE_CUSTOM_PREFIX = "trade:potion";
 const ADMIN_RESET_PREFIX = "admin_reset";
 const DEV_PANEL_PREFIX = "devpanel";
+const OWNER_USER_ID = "712287814192201790";
 const ADMIN_USER_IDS = new Set([
-  "712287814192201790",
+  OWNER_USER_ID,
   ...String(process.env.ADMIN_USER_IDS || process.env.BOT_OWNER_IDS || "")
     .split(",")
     .map((id) => id.trim())
@@ -196,6 +197,10 @@ function parseAmountInput(input) {
 
 function canUseAdminCommand(userId) {
   return ADMIN_USER_IDS.has(String(userId || ""));
+}
+
+function canUseOwnerCommand(userId) {
+  return String(userId || "") === OWNER_USER_ID;
 }
 
 function buildPlayerCheckReport(target, rawPlayer) {
@@ -1163,6 +1168,33 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }, {});
       await interaction.reply({
         content: `已給 ${target} 隨機紀念幣 x${amount}：${Object.entries(summary).map(([coin, count]) => `${coin} x${count}`).join("、") || "無"}`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    if (name === "普發入場券") {
+      if (!canUseOwnerCommand(interaction.user.id)) {
+        await interaction.reply({ content: "只有機器人擁有者可以使用這個指令。", ephemeral: true });
+        return;
+      }
+      const result = await updatePlayers((players) => {
+        let issued = 0;
+        let alreadyHad = 0;
+        for (const userId of Object.keys(players)) {
+          const next = getPlayer(players[userId]);
+          if ((next.guaranteedRaptorCaveTicket || 0) > 0) {
+            alreadyHad += 1;
+          } else {
+            next.guaranteedRaptorCaveTicket = 1;
+            issued += 1;
+          }
+          players[userId] = next;
+        }
+        return { issued, alreadyHad, total: Object.keys(players).length };
+      });
+      await interaction.reply({
+        content: `已普發猛禽洞窟入場券。\n新增：${result.issued} 人｜原本已有：${result.alreadyHad} 人｜玩家資料總數：${result.total}`,
         ephemeral: true
       });
       return;

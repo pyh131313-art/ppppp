@@ -58,6 +58,9 @@ const commands = [
       .setMinValue(1)
       .setMaxValue(100)),
   new SlashCommandBuilder()
+    .setName("普發入場券")
+    .setDescription("開發者專用：發給所有玩家猛禽洞窟入場券。"),
+  new SlashCommandBuilder()
     .setName("檢查玩家")
     .setDescription("管理用：檢查指定玩家的挖礦狀態。")
     .addUserOption((option) => option
