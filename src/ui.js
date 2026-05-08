@@ -840,6 +840,8 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
     return rows;
   }
 
+  if (player.pendingEvent) return rows;
+
   if (player.zone === "undergroundCamp") {
     addRow(
       ...getRunModeOptions(player).map((mode, index) => (
