@@ -18,6 +18,7 @@ let sqliteLoadError = null;
 let postgresPool = null;
 let postgresReady = false;
 let postgresLoadError = null;
+let postgresMigrationChecked = false;
 
 async function readJsonFile(file) {
   const raw = await fs.readFile(file, "utf8");
@@ -157,6 +158,7 @@ async function getPostgresPool() {
       idleTimeoutMillis: Number(process.env.POSTGRES_IDLE_TIMEOUT_MS || 30_000)
     });
     await ensurePostgresSchema(postgresPool);
+    await maybeMigrateSqliteToPostgres(postgresPool);
     return postgresPool;
   } catch (error) {
     postgresLoadError = error;
@@ -181,6 +183,83 @@ async function ensurePostgresSchema(pool) {
     );
   `);
   postgresReady = true;
+}
+
+function isEnabled(value) {
+  return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+}
+
+async function maybeMigrateSqliteToPostgres(pool) {
+  if (postgresMigrationChecked) return;
+  postgresMigrationChecked = true;
+  if (!isEnabled(process.env.POSTGRES_MIGRATE_FROM_SQLITE)) return;
+
+  const migrated = await pool.query("SELECT value FROM meta WHERE key = $1", ["sqlite_migrated"]);
+  if (migrated.rowCount > 0) return;
+
+  const existing = await pool.query("SELECT COUNT(*)::int AS count FROM players");
+  const existingCount = Number(existing.rows[0]?.count || 0);
+  if (existingCount > 0) {
+    console.log(`PostgreSQL 已有 ${existingCount} 筆玩家資料，略過 SQLite 自動搬家。`);
+    return;
+  }
+
+  if (!fsSync.existsSync(DATABASE_FILE)) {
+    console.log(`找不到 SQLite 檔案 ${DATABASE_FILE}，略過 PostgreSQL 自動搬家。`);
+    return;
+  }
+
+  let rows = [];
+  let sourceDb = null;
+  try {
+    const Database = require("better-sqlite3");
+    sourceDb = new Database(DATABASE_FILE, { readonly: true, fileMustExist: true });
+    rows = sourceDb.prepare("SELECT user_id, data FROM players").all();
+  } catch (error) {
+    console.error("SQLite 玩家資料無法搬到 PostgreSQL，已略過自動搬家。");
+    console.error(error);
+    return;
+  } finally {
+    if (sourceDb) sourceDb.close();
+  }
+
+  if (rows.length === 0) {
+    console.log("SQLite 沒有玩家資料，略過 PostgreSQL 自動搬家。");
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const now = Date.now();
+    let imported = 0;
+    for (const row of rows) {
+      try {
+        const player = JSON.parse(row.data);
+        await client.query(`
+          INSERT INTO players (user_id, data, updated_at)
+          VALUES ($1, $2::jsonb, $3)
+          ON CONFLICT (user_id) DO NOTHING
+        `, [row.user_id, JSON.stringify(player), now]);
+        imported += 1;
+      } catch (error) {
+        console.error(`玩家 ${row.user_id} 的 SQLite 資料損壞，搬家時已略過。`);
+        console.error(error);
+      }
+    }
+    await client.query(`
+      INSERT INTO meta (key, value)
+      VALUES ($1, $2)
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `, ["sqlite_migrated", JSON.stringify({ at: now, source: DATABASE_FILE, imported })]);
+    await client.query("COMMIT");
+    console.log(`已從 SQLite 搬家 ${imported} 筆玩家資料到 PostgreSQL。`);
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function loadPostgresPlayers(pool) {

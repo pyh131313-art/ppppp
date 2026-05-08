@@ -6,7 +6,7 @@
 
 1. 把專案推到 GitHub。
 2. 到 Render 建立 Blueprint，選這個 GitHub repo。
-3. Render 會讀取 `render.yaml` 建立 web service。Discord bot 會和網頁面板在同一個服務內一起運作，資料共用同一份 SQLite。
+3. Render 會讀取 `render.yaml` 建立 web service。若要同時跑 Discord bot，建議另外建立 Background Worker，兩個服務共用同一個 PostgreSQL。
 4. 在 Render 填入環境變數：
 
 ```text
@@ -34,7 +34,7 @@ DATA_FILE: /var/data/players.json
 DATABASE_FILE: /var/data/players.sqlite
 ```
 
-6. 部署完成後，服務 log 看到 `Web 面板已啟動`、`已登入：傳送器#0051` 和 slash commands 註冊完成就成功。
+6. 部署完成後，web 服務 log 看到 `Web 面板已啟動` 就成功。Background Worker 看到 `已登入：傳送器#0051` 和 slash commands 註冊完成就成功。
 
 玩家資料會優先存到 SQLite：`/var/data/players.sqlite`。第一次啟動時會自動把舊的 `/var/data/players.json` 匯入 SQLite。
 
@@ -55,14 +55,22 @@ POSTGRES_SSL=true
 
 如果 `DATABASE_URL` 已存在但沒有設定 `STORAGE_BACKEND`，程式也會自動優先使用 PostgreSQL。
 
-3. 先在舊服務使用 `/匯出玩家資料` 下載 `players-export-xxxx.json.gz`。
-4. 將新服務部署到 PostgreSQL 後，使用 `/匯入玩家資料` 上傳該檔案，確認文字輸入：
+3. 如果舊資料在 Background Worker 的 SQLite / Render Disk，第一次切換該 worker 到 PostgreSQL 時，可以只在 worker 加上：
+
+```text
+POSTGRES_MIGRATE_FROM_SQLITE=true
+```
+
+程式會在 PostgreSQL 還是空資料庫時，把 `/var/data/players.sqlite` 自動搬進 PostgreSQL。看到 log 顯示搬家完成後，建議移除這個環境變數，避免之後誤會。
+
+4. 若不使用自動搬家，也可以先在舊服務使用 `/匯出玩家資料` 下載 `players-export-xxxx.json.gz`。
+5. 將新服務部署到 PostgreSQL 後，使用 `/匯入玩家資料` 上傳該檔案，確認文字輸入：
 
 ```text
 覆蓋玩家資料
 ```
 
-5. 匯入成功後，Discord bot 和 Web 面板會讀寫同一個 PostgreSQL 資料庫。
+6. 匯入成功後，Discord bot 和 Web 面板會讀寫同一個 PostgreSQL 資料庫。
 
 注意：明確使用 `STORAGE_BACKEND=postgres` 時，如果 PostgreSQL 連不上，程式會停止讀寫玩家資料，不會偷偷改用本機檔案，避免再次產生不同步資料。
 
