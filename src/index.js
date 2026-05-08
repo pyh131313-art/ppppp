@@ -148,6 +148,7 @@ const {
   buildDeveloperPanelEmbed,
   recordAnalyticsOnPlayers
 } = require("./analyticsSystem");
+const { startWebServer } = require("./webServer");
 
 const token = cleanEnvValue(process.env.DISCORD_TOKEN);
 
@@ -2710,5 +2711,7 @@ async function handleMiningButton(interaction) {
     components
   });
 }
+
+startWebServer();
 
 client.login(token);

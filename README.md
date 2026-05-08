@@ -48,6 +48,14 @@ pnpm run register
 pnpm start
 ```
 
+啟動後也會開啟 Web 面板，預設網址是：
+
+```text
+http://localhost:3000
+```
+
+若要使用 Discord 登入，需在 `.env` 填入 `DISCORD_CLIENT_SECRET`、`DISCORD_REDIRECT_URI`、`WEB_SESSION_SECRET`，並到 Discord Developer Portal 的 OAuth2 Redirects 加入相同的 callback URL。
+
 ## 遊戲數值
 
 目前機率與價格都在 `src/config.js`。

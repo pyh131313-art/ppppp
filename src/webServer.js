@@ -1,0 +1,437 @@
+"use strict";
+
+const crypto = require("node:crypto");
+const fs = require("node:fs/promises");
+const http = require("node:http");
+const path = require("node:path");
+const { URLSearchParams } = require("node:url");
+
+require("dotenv").config();
+
+const { CONFIG } = require("./config");
+const { cleanEnvValue } = require("./env");
+const {
+  getAreaLabel,
+  getBagCapacity,
+  getBagUsedSlots,
+  getCaveLabel,
+  getCollectionTotal,
+  getCollectionUniqueCount,
+  getDepthLabel,
+  getMaxBombs,
+  getPlayer,
+  getRunModeLabel,
+  getTotalAsset
+} = require("./game");
+const {
+  getChickenRequiredExp,
+  getChickenStage,
+  normalizeOwnedChicken
+} = require("./chickenCare");
+const { loadPlayers } = require("./storage");
+
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const ASSET_DIR = path.join(__dirname, "..");
+const DEFAULT_PORT = 3000;
+const SESSION_COOKIE = "mine_web_session";
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const serverState = { server: null };
+
+function getSessionSecret() {
+  return cleanEnvValue(process.env.WEB_SESSION_SECRET)
+    || cleanEnvValue(process.env.DISCORD_CLIENT_SECRET)
+    || cleanEnvValue(process.env.DISCORD_TOKEN)
+    || "local-dev-session-secret";
+}
+
+function base64UrlEncode(input) {
+  return Buffer.from(input).toString("base64url");
+}
+
+function base64UrlDecode(input) {
+  return Buffer.from(input, "base64url").toString("utf8");
+}
+
+function signPayload(payload) {
+  return crypto
+    .createHmac("sha256", getSessionSecret())
+    .update(payload)
+    .digest("base64url");
+}
+
+function createSession(user) {
+  const payload = base64UrlEncode(JSON.stringify({
+    id: String(user.id),
+    username: String(user.username || ""),
+    globalName: String(user.global_name || user.globalName || ""),
+    avatar: user.avatar ? String(user.avatar) : "",
+    exp: Date.now() + SESSION_TTL_MS
+  }));
+  return `${payload}.${signPayload(payload)}`;
+}
+
+function readCookies(request) {
+  const raw = request.headers.cookie || "";
+  return Object.fromEntries(raw
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const index = item.indexOf("=");
+      if (index < 0) return [item, ""];
+      return [decodeURIComponent(item.slice(0, index)), decodeURIComponent(item.slice(index + 1))];
+    }));
+}
+
+function getSessionUser(request) {
+  const cookie = readCookies(request)[SESSION_COOKIE];
+  if (!cookie || !cookie.includes(".")) return null;
+  const [payload, signature] = cookie.split(".");
+  if (!payload || !signature || signPayload(payload) !== signature) return null;
+  try {
+    const session = JSON.parse(base64UrlDecode(payload));
+    if (!session.id || session.exp < Date.now()) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function send(response, statusCode, body, headers = {}) {
+  response.writeHead(statusCode, {
+    "Cache-Control": "no-store",
+    ...headers
+  });
+  response.end(body);
+}
+
+function sendJson(response, statusCode, body) {
+  send(response, statusCode, JSON.stringify(body), {
+    "Content-Type": "application/json; charset=utf-8"
+  });
+}
+
+function redirect(response, location, headers = {}) {
+  send(response, 302, "", {
+    Location: location,
+    ...headers
+  });
+}
+
+function getRequestUrl(request) {
+  const host = request.headers["x-forwarded-host"] || request.headers.host || `localhost:${getPort()}`;
+  const protocol = request.headers["x-forwarded-proto"] || "http";
+  return new URL(request.url, `${protocol}://${host}`);
+}
+
+function getPublicBaseUrl(request) {
+  const configured = cleanEnvValue(process.env.WEB_PUBLIC_BASE_URL);
+  if (configured) return configured.replace(/\/+$/g, "");
+  const url = getRequestUrl(request);
+  return `${url.protocol}//${url.host}`;
+}
+
+function getRedirectUri(request) {
+  return cleanEnvValue(process.env.DISCORD_REDIRECT_URI)
+    || `${getPublicBaseUrl(request)}/auth/discord/callback`;
+}
+
+function getDiscordAvatarUrl(user) {
+  if (!user || !user.id || !user.avatar) return "";
+  return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
+}
+
+function getHpText(player) {
+  const maxHp = getMaxBombs(player);
+  const damage = Number(player.bombs || 0);
+  const current = Math.max(0, maxHp - damage);
+  return `${current}/${maxHp}`;
+}
+
+function getRunModeText(player) {
+  if (!player.runMode) return "未選擇";
+  return getRunModeLabel(player.runMode);
+}
+
+function getChickenSummary(player) {
+  if (!player.ownedChicken) return null;
+  const chicken = normalizeOwnedChicken(player.ownedChicken);
+  return {
+    name: chicken.name,
+    icon: chicken.icon || "🐔",
+    level: chicken.level || 1,
+    exp: chicken.exp || 0,
+    requiredExp: getChickenRequiredExp(chicken),
+    stage: getChickenStage(chicken).label,
+    personalityId: chicken.personalityId,
+    speed: chicken.speed || 0,
+    sprint: chicken.sprint || 0,
+    stability: chicken.stability || 0,
+    stamina: chicken.stamina || 0,
+    wins: chicken.wins || 0,
+    races: chicken.races || 0,
+    mood: chicken.chickenMood,
+    health: chicken.chickenHealth,
+    hunger: chicken.chickenHunger,
+    poop: chicken.chickenPoop,
+    evolution: chicken.evolutionType || "未定",
+    secondEvolution: chicken.secondEvolution && chicken.secondEvolution.title ? chicken.secondEvolution.title : "未定",
+    skill: [chicken.activeSkill, chicken.passiveSkill].filter(Boolean).join("｜") || "無"
+  };
+}
+
+function getInventoryItems(player) {
+  const labels = {
+    ore: "普通礦石",
+    goldOre: "金礦石",
+    platinumOre: "鉑金礦石",
+    oreIngot: "礦錠",
+    goldOreIngot: "金錠",
+    platinumOreIngot: "鉑金錠",
+    redGem: "紅寶石",
+    blueGem: "藍寶石",
+    greenGem: "綠寶石",
+    invertedOre: "顛倒礦石",
+    invertedGem: "顛倒寶石",
+    orichalcum: "奧利哈鋼",
+    bombItem: "完整炸彈",
+    minerHelmetCount: "礦工帽",
+    healingPotion: "治療藥水",
+    magicCandy: "神奇糖果",
+    quickChickenBall: "先雞球",
+    thickSoleShoes: "厚底鞋",
+    guaranteedGemCaveTicket: "寶石洞券",
+    guaranteedRaptorCaveTicket: "猛禽洞券",
+    undyingTotem: "不死圖騰",
+    junk: "破爛",
+    platinumJunk: "白金破爛"
+  };
+  return Object.entries(labels)
+    .map(([key, label]) => ({ key, label, count: Math.max(0, Math.floor(player[key] || 0)) }))
+    .filter((item) => item.count > 0);
+}
+
+function getCollectionItems(player) {
+  return CONFIG.collectibles.map((item) => ({
+    id: item.id,
+    name: item.name,
+    rarity: item.rarity,
+    count: Math.max(0, Math.floor(player.collection[item.id] || 0)),
+    image: item.image ? `/${item.image}` : ""
+  }));
+}
+
+function buildPlayerPayload(user, playerInput) {
+  const player = getPlayer(playerInput);
+  return {
+    user: {
+      id: user.id,
+      username: user.username,
+      globalName: user.globalName || user.global_name || "",
+      avatarUrl: getDiscordAvatarUrl(user)
+    },
+    summary: {
+      gold: player.gold,
+      bankGold: player.bankGold,
+      totalAsset: getTotalAsset(player),
+      hp: getHpText(player),
+      dead: player.dead,
+      depth: player.depth,
+      runDepthProgress: player.runDepthProgress,
+      bestDepth: player.stats.bestDepth,
+      area: getAreaLabel(player),
+      cave: getCaveLabel(player),
+      depthLabel: getDepthLabel(player),
+      runMode: getRunModeText(player),
+      bagUsed: getBagUsedSlots(player),
+      bagCapacity: getBagCapacity(player),
+      mines: player.stats.totalMines,
+      deaths: player.stats.deaths,
+      collectionTotal: getCollectionTotal(player),
+      collectionUnique: getCollectionUniqueCount(player),
+      challengeBestDepth: player.challengeBestDepth || 0
+    },
+    inventory: getInventoryItems(player),
+    collection: getCollectionItems(player),
+    chicken: getChickenSummary(player)
+  };
+}
+
+async function handleApiMe(request, response) {
+  const sessionUser = getSessionUser(request);
+  if (!sessionUser) {
+    sendJson(response, 401, { ok: false, message: "not_logged_in" });
+    return;
+  }
+  const players = await loadPlayers();
+  sendJson(response, 200, {
+    ok: true,
+    data: buildPlayerPayload(sessionUser, players[sessionUser.id])
+  });
+}
+
+async function handleDiscordCallback(request, response) {
+  const url = getRequestUrl(request);
+  const code = url.searchParams.get("code");
+  const error = url.searchParams.get("error");
+  if (error) {
+    redirect(response, `/?login=failed&reason=${encodeURIComponent(error)}`);
+    return;
+  }
+  if (!code) {
+    redirect(response, "/?login=missing_code");
+    return;
+  }
+
+  const clientId = cleanEnvValue(process.env.DISCORD_CLIENT_ID);
+  const clientSecret = cleanEnvValue(process.env.DISCORD_CLIENT_SECRET);
+  if (!clientId || !clientSecret) {
+    redirect(response, "/?login=oauth_not_configured");
+    return;
+  }
+
+  try {
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: getRedirectUri(request)
+      })
+    });
+    if (!tokenResponse.ok) throw new Error(`Discord token exchange failed: ${tokenResponse.status}`);
+    const tokenBody = await tokenResponse.json();
+    const userResponse = await fetch("https://discord.com/api/users/@me", {
+      headers: { Authorization: `Bearer ${tokenBody.access_token}` }
+    });
+    if (!userResponse.ok) throw new Error(`Discord user fetch failed: ${userResponse.status}`);
+    const discordUser = await userResponse.json();
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(createSession(discordUser))}; HttpOnly; Path=/; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; SameSite=Lax`;
+    redirect(response, "/", { "Set-Cookie": cookie });
+  } catch (error) {
+    console.error("[web] Discord OAuth failed");
+    console.error(error);
+    redirect(response, "/?login=failed");
+  }
+}
+
+function handleLogin(request, response) {
+  const clientId = cleanEnvValue(process.env.DISCORD_CLIENT_ID);
+  if (!clientId) {
+    redirect(response, "/?login=client_id_missing");
+    return;
+  }
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: getRedirectUri(request),
+    response_type: "code",
+    scope: "identify",
+    prompt: "none"
+  });
+  redirect(response, `https://discord.com/api/oauth2/authorize?${params.toString()}`);
+}
+
+function handleLogout(_request, response) {
+  redirect(response, "/", {
+    "Set-Cookie": `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`
+  });
+}
+
+function getContentType(filePath) {
+  if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
+  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (filePath.endsWith(".png")) return "image/png";
+  if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
+  if (filePath.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
+}
+
+async function serveFile(response, filePath, cache = "public, max-age=300") {
+  try {
+    const body = await fs.readFile(filePath);
+    send(response, 200, body, {
+      "Content-Type": getContentType(filePath),
+      "Cache-Control": cache
+    });
+  } catch {
+    send(response, 404, "Not found", { "Content-Type": "text/plain; charset=utf-8" });
+  }
+}
+
+async function handleStatic(url, response) {
+  const pathname = decodeURIComponent(url.pathname);
+  if (pathname.startsWith("/assets/collectibles/")) {
+    const safeName = path.basename(pathname);
+    await serveFile(response, path.join(ASSET_DIR, "assets", "collectibles", safeName), "public, max-age=86400");
+    return true;
+  }
+  const fileName = pathname === "/" ? "index.html" : path.basename(pathname);
+  const allowed = new Set(["index.html", "app.js", "styles.css"]);
+  if (!allowed.has(fileName)) return false;
+  await serveFile(response, path.join(PUBLIC_DIR, fileName));
+  return true;
+}
+
+async function handleRequest(request, response) {
+  const url = getRequestUrl(request);
+  try {
+    if (url.pathname === "/health") {
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+    if (url.pathname === "/login") {
+      handleLogin(request, response);
+      return;
+    }
+    if (url.pathname === "/logout") {
+      handleLogout(request, response);
+      return;
+    }
+    if (url.pathname === "/auth/discord/callback") {
+      await handleDiscordCallback(request, response);
+      return;
+    }
+    if (url.pathname === "/api/me") {
+      await handleApiMe(request, response);
+      return;
+    }
+    if (await handleStatic(url, response)) return;
+    send(response, 404, "Not found", { "Content-Type": "text/plain; charset=utf-8" });
+  } catch (error) {
+    console.error("[web] request failed");
+    console.error(error);
+    sendJson(response, 500, { ok: false, message: "server_error" });
+  }
+}
+
+function getPort() {
+  return Number(process.env.PORT || process.env.WEB_PORT || DEFAULT_PORT);
+}
+
+function startWebServer() {
+  if (serverState.server) return serverState.server;
+  const port = getPort();
+  const server = http.createServer((request, response) => {
+    handleRequest(request, response);
+  });
+  server.listen(port, () => {
+    console.log(`Web 面板已啟動：http://localhost:${port}`);
+  });
+  serverState.server = server;
+  return server;
+}
+
+if (require.main === module) {
+  startWebServer();
+}
+
+module.exports = {
+  buildPlayerPayload,
+  createSession,
+  getSessionUser,
+  startWebServer
+};

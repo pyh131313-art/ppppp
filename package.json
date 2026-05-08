@@ -7,6 +7,7 @@
   "packageManager": "pnpm@10.24.0",
   "scripts": {
     "start": "node src/index.js",
+    "web": "node src/webServer.js",
     "register": "node src/register-commands.js",
     "test": "node --test"
   },

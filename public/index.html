@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>礦井探險 Web 面板</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Discord 共用資料</p>
+          <h1>礦井探險</h1>
+          <p class="sub">用 Discord 登入後查看自己的礦場、包包、集幣冊與雞舍。</p>
+        </div>
+        <div class="hero-actions">
+          <a class="button primary" href="/login" id="loginButton">Discord 登入</a>
+          <button class="button ghost hidden" id="logoutButton">登出</button>
+        </div>
+      </section>
+
+      <section class="notice hidden" id="notice"></section>
+
+      <section class="dashboard hidden" id="dashboard">
+        <aside class="profile panel">
+          <div class="user-row">
+            <img class="avatar" id="avatar" alt="">
+            <div>
+              <p class="muted">玩家</p>
+              <h2 id="playerName">-</h2>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div><span>金幣</span><strong id="gold">0</strong></div>
+            <div><span>銀行</span><strong id="bankGold">0</strong></div>
+            <div><span>總資產</span><strong id="totalAsset">0</strong></div>
+            <div><span>生命</span><strong id="hp">0/0</strong></div>
+          </div>
+        </aside>
+
+        <section class="panel status-panel">
+          <div class="section-title">
+            <span>⛏️</span>
+            <h2>礦場狀態</h2>
+          </div>
+          <div class="status-list">
+            <div><span>區域</span><strong id="area">-</strong></div>
+            <div><span>洞窟</span><strong id="cave">-</strong></div>
+            <div><span>深度</span><strong id="depth">-</strong></div>
+            <div><span>最深</span><strong id="bestDepth">-</strong></div>
+            <div><span>詞條</span><strong id="runMode">-</strong></div>
+            <div><span>挑戰紀錄</span><strong id="challengeBest">-</strong></div>
+          </div>
+        </section>
+
+        <section class="panel bag-panel">
+          <div class="section-title">
+            <span>🎒</span>
+            <h2>包包</h2>
+            <small id="bagCount">0/0</small>
+          </div>
+          <div class="inventory-grid" id="inventoryGrid"></div>
+        </section>
+
+        <section class="panel chicken-panel">
+          <div class="section-title">
+            <span>🐔</span>
+            <h2>雞舍</h2>
+          </div>
+          <div id="chickenCard" class="chicken-card"></div>
+        </section>
+
+        <section class="panel collection-panel">
+          <div class="section-title">
+            <span>🪙</span>
+            <h2>集幣冊</h2>
+            <small id="collectionCount">0</small>
+          </div>
+          <div class="coin-grid" id="coinGrid"></div>
+        </section>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
