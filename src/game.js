@@ -771,6 +771,21 @@ function repairPlayerState(playerInput, random = Math.random, options = {}) {
     addFixed("清除卡住的小詞條選擇");
   }
 
+  if (clearBlockingState && !player.runMode && !player.dead && player.runModeOptions.length > 0) {
+    if (player.zone === "surface" && player.depth === 0 && player.runDepthProgress === 0 && !player.caveType) {
+      player.runModeOptions = refreshRunModeOptions(player, random).runModeOptions;
+      addFixed("重建卡住的初始詞條選項");
+    } else {
+      player.runModeOptions = [];
+      addFixed("清除卡住的初始詞條選擇");
+    }
+  }
+
+  if (clearBlockingState && player.runMode && player.runModeOptions.length > 0) {
+    player.runModeOptions = [];
+    addFixed("清除多餘的初始詞條候選");
+  }
+
   if (player.runMode && !CONFIG.runModes[player.runMode]) {
     addFixed(`清除不存在的詞條：${player.runMode}`);
     player.runMode = null;

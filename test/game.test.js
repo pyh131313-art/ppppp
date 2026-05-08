@@ -546,6 +546,33 @@ test("管理員修復會清除卡住的小詞條選擇", () => {
   assert.match(adminRepair.message, /清除卡住的小詞條選擇/);
 });
 
+test("管理員修復會重建地表卡住的初始詞條選項", () => {
+  const stuck = {
+    ...createPlayer(),
+    zone: "surface",
+    runMode: null,
+    runModeOptions: ["safe", "double"]
+  };
+  const result = repairPlayerState(stuck, () => 0.99, { clearBlockingState: true });
+
+  assert.equal(result.player.runModeOptions.length, 2);
+  assert.match(result.message, /重建卡住的初始詞條選項/);
+});
+
+test("管理員修復會清除礦坑內殘留的初始詞條候選", () => {
+  const stuck = {
+    ...createPlayer(),
+    zone: "mine",
+    depth: 12,
+    runMode: "safe",
+    runModeOptions: ["safe", "double"]
+  };
+  const result = repairPlayerState(stuck, () => 0, { clearBlockingState: true });
+
+  assert.deepEqual(result.player.runModeOptions, []);
+  assert.match(result.message, /清除多餘的初始詞條候選/);
+});
+
 test("玩家修復會把地表但仍在挖礦的狀態修回礦坑", () => {
   const result = repairPlayerState({
     ...createPlayer(),
