@@ -2806,19 +2806,14 @@ async function loginWithRetry(attempt = 1) {
     await Promise.race([
       client.login(token),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Discord 登入逾時")), 45_000);
+        setTimeout(() => reject(new Error("Discord 登入逾時")), 120_000);
       })
     ]);
   } catch (error) {
     if (!client.isReady()) {
       client.destroy();
     }
-    if (attempt >= 3) {
-      console.error("Discord 登入連續失敗，交給 Render 重新啟動。");
-      console.error(error);
-      process.exit(1);
-    }
-    const retryMs = Math.min(60_000, 5_000 * attempt);
+    const retryMs = Math.min(120_000, 10_000 * attempt);
     console.error(`Discord 登入失敗，${Math.round(retryMs / 1000)} 秒後重試。`);
     console.error(error);
     setTimeout(() => {
