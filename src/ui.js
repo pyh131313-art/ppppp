@@ -81,6 +81,7 @@ const CUSTOM_IDS = {
   undergroundInn: "mine_ui:underground_inn",
   undergroundInnBuyPrefix: "mine_ui:underground_inn_buy",
   undergroundInnBlessings: "mine_ui:underground_inn_blessings",
+  skyUnknownLife: "mine_ui:sky_unknown_life",
   undergroundStorage: "mine_ui:underground_storage",
   storageDeposit: "mine_ui:storage_deposit",
   storageWithdraw: "mine_ui:storage_withdraw",
@@ -897,6 +898,7 @@ function buildPanelComponents(targetUserId = null, playerInput = null, progressI
   if (player.zone === "skyCamp") {
     addRow(
       makeButton(CUSTOM_IDS.mine, "往下挖", ButtonStyle.Primary, "⬇️"),
+      makeButton(CUSTOM_IDS.skyUnknownLife, "未知生命", ButtonStyle.Secondary, "👁️"),
       makeButton(CUSTOM_IDS.undergroundStorage, "倉庫", ButtonStyle.Secondary, "📦"),
       makeButton(CUSTOM_IDS.returnSurface, `付費電梯回地表 (${getElevatorCost(player)})`, ButtonStyle.Success, "🛗")
     );

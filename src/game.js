@@ -1268,6 +1268,50 @@ function buyUndergroundInnItem(playerInput, itemId, globalStateInput = null, now
   };
 }
 
+const SKY_UNKNOWN_LIFE_PRICES = {
+  invertedOre: 120,
+  invertedGem: 350
+};
+
+function tradeSkyUnknownLife(playerInput, now = Date.now()) {
+  const player = pruneMarketBlessings(getPlayer(playerInput), now);
+  if (player.zone !== "skyCamp") {
+    return { ok: false, player, message: "未知生命只會在天域營地附近現身。" };
+  }
+
+  const invertedOre = Math.max(0, Math.floor(player.invertedOre || 0));
+  const invertedGem = Math.max(0, Math.floor(player.invertedGem || 0));
+  if (invertedOre + invertedGem <= 0) {
+    return {
+      ok: false,
+      player,
+      message: "半透明的未知生命靠近你的包包，又安靜地退開。牠只收顛倒礦物與顛倒寶石。"
+    };
+  }
+
+  const blessingMultiplier = getMarketBlessingMultiplier(player, "inverted", now);
+  const oreGold = Math.floor(invertedOre * SKY_UNKNOWN_LIFE_PRICES.invertedOre * blessingMultiplier);
+  const gemGold = Math.floor(invertedGem * SKY_UNKNOWN_LIFE_PRICES.invertedGem * blessingMultiplier);
+  const totalGold = oreGold + gemGold;
+  player.invertedOre = 0;
+  player.invertedGem = 0;
+  player.gold += totalGold;
+
+  return {
+    ok: true,
+    player,
+    message: [
+      "【天界未知生命】",
+      "透明的生命體伸出光絲，收走顛倒礦物與寶石。",
+      "",
+      `顛倒礦石 x${invertedOre}：${oreGold} 金幣`,
+      `顛倒寶石 x${invertedGem}：${gemGold} 金幣`,
+      "",
+      `總獲得：${totalGold} 金幣`
+    ].join("\n")
+  };
+}
+
 const STORAGE_ITEMS = [
   ["ore", "普通礦石"],
   ["goldOre", "金礦石"],
@@ -5220,6 +5264,7 @@ module.exports = {
   transferConsumable,
   transferCollectible,
   transferHealingPotion,
+  tradeSkyUnknownLife,
   withdrawUndergroundStorage,
   withdrawBank
 };

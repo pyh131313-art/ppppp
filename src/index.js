@@ -47,6 +47,7 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  tradeSkyUnknownLife,
   transferHealingPotion,
   triggerCharge,
   travelToUndergroundCamp,
@@ -2526,6 +2527,20 @@ async function handleMiningButton(interaction) {
       components: buildUndergroundInnComponents(getUndergroundInnSnapshot(progress.globalState, Date.now()))
     });
     return;
+  }
+
+  if (interaction.customId === CUSTOM_IDS.skyUnknownLife) {
+    await updatePlayers((players) => {
+      const before = getPlayer(players[panelTargetUserId]);
+      const result = tradeSkyUnknownLife(before, Date.now());
+      players[panelTargetUserId] = result.player;
+      const earnedGold = Math.max(0, (result.player.gold || 0) - (before.gold || 0));
+      if (earnedGold > 0) recordAnalyticsOnPlayers(players, panelTargetUserId, "goldEarned", { amount: earnedGold });
+      componentPlayer = result.player;
+      embed = buildPanelEmbed(result.player, "天界未知生命", result.message, interaction.user, hudPage);
+      files = buildHudFiles(result.player);
+      return players;
+    });
   }
 
   if (interaction.customId === CUSTOM_IDS.undergroundStorage) {

@@ -44,6 +44,7 @@ const {
   revive,
   setUiMode,
   shimmerCollectible,
+  tradeSkyUnknownLife,
   transferHealingPotion,
   transferConsumable,
   triggerCharge,
@@ -1336,6 +1337,33 @@ test("地底客棧會顯示高價顛倒資源交易商品", () => {
   assert.match(result.message, /寶石洞入場券/);
   assert.match(result.message, /顛倒礦石：52/);
   assert.equal(snapshot.items.some((item) => item.id === "gemTicket" && item.price >= 34), true);
+});
+
+test("天界未知生命會收購顛倒礦物與寶石", () => {
+  const result = tradeSkyUnknownLife({
+    ...createPlayer(),
+    zone: "skyCamp",
+    gold: 50,
+    invertedOre: 3,
+    invertedGem: 2
+  }, Date.parse("2026-05-08T04:00:00.000Z"));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.player.invertedOre, 0);
+  assert.equal(result.player.invertedGem, 0);
+  assert.equal(result.player.gold, 1110);
+  assert.match(result.message, /天界未知生命/);
+  assert.match(result.message, /總獲得：1060/);
+});
+
+test("天域營地面板會顯示未知生命按鈕", () => {
+  const rows = buildPanelComponents(null, {
+    ...createPlayer(),
+    zone: "skyCamp"
+  });
+  const customIds = rows.flatMap((row) => row.components.map((component) => component.data.custom_id));
+
+  assert.equal(customIds.includes(CUSTOM_IDS.skyUnknownLife), true);
 });
 
 test("地下客棧祝福會限時提高收購價且同類不可重複", () => {
