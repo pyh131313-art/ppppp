@@ -157,7 +157,7 @@ function makeActionButton(label, action, options = {}) {
 }
 
 function renderActions(payload) {
-  const { stateFlags, runModeOptions } = payload;
+  const { stateFlags, runModeOptions, digPathOptions } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
   traitPicker.innerHTML = "";
@@ -177,10 +177,22 @@ function renderActions(payload) {
     traitPicker.classList.add("hidden");
   }
 
-  actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
-    kind: "primary",
-    disabled: !stateFlags.canMine
-  }));
+  if (stateFlags.canMine && digPathOptions && digPathOptions.length) {
+    const sideIcon = { left: "⬅️", middle: "⬇️", right: "➡️" };
+    const sideName = { left: "左", middle: "中", right: "右" };
+    for (const path of digPathOptions) {
+      const button = makeActionButton(`${sideIcon[path.side] || "⛏️"} ${sideName[path.side] || "路"}：${path.label}`, "mine", {
+        kind: path.side === "right" ? "danger" : "primary"
+      });
+      button.dataset.path = path.side;
+      actionGrid.appendChild(button);
+    }
+  } else {
+    actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
+      kind: "primary",
+      disabled: !stateFlags.canMine
+    }));
+  }
   actionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
     disabled: !stateFlags.canReturn
   }));
@@ -389,6 +401,10 @@ $("dashboard").addEventListener("click", (event) => {
   }
   if (action === "feedChicken") {
     postAction(action, { feedType: button.dataset.feedType || "normalFeed" });
+    return;
+  }
+  if (action === "mine") {
+    postAction(action, { path: button.dataset.path || null });
     return;
   }
   postAction(action);

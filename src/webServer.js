@@ -20,6 +20,7 @@ const {
   getCollectionTotal,
   getCollectionUniqueCount,
   getDepthLabel,
+  getDigPathOptions,
   getMaxBombs,
   getPlayer,
   getRunModeOptions,
@@ -277,6 +278,13 @@ function buildPlayerPayload(user, playerInput) {
       name: mode.label || mode.name || mode.id,
       description: mode.shortDescription || ""
     })),
+    digPathOptions: player.runMode && player.zone !== "upward"
+      ? getDigPathOptions(player).map((path) => ({
+        side: path.side,
+        id: path.id,
+        label: path.label
+      }))
+      : [],
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
