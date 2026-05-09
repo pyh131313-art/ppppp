@@ -99,7 +99,17 @@
           </div>
           <div class="action-message hidden" id="actionMessage"></div>
           <div class="trait-picker hidden" id="traitPicker"></div>
-          <div class="action-grid" id="actionGrid"></div>
+          <div class="action-group">
+            <div class="action-group-title">
+              <strong>主要行動</strong>
+              <span>挖礦 / 事件 / 路線</span>
+            </div>
+            <div class="action-grid" id="actionGrid"></div>
+          </div>
+          <details class="support-actions" id="supportActions" open>
+            <summary>輔助操作</summary>
+            <div class="action-grid support-grid" id="supportActionGrid"></div>
+          </details>
           <div class="utility-tabs" aria-label="操作附屬功能">
             <button class="utility-tab active" data-utility-tab="bag" type="button">包包</button>
             <button class="utility-tab" data-utility-tab="shop" type="button">商店</button>

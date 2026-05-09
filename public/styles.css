@@ -521,10 +521,67 @@ h2 {
   font-weight: 700;
 }
 
+.action-group,
+.support-actions {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+  padding: 10px;
+}
+
+.action-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #fef3c7;
+}
+
+.action-group-title span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.support-actions {
+  margin-top: 10px;
+}
+
+.support-actions summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.support-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.support-actions summary::after {
+  content: "展開";
+  float: right;
+  color: var(--gold);
+}
+
+.support-actions[open] summary {
+  margin-bottom: 8px;
+}
+
+.support-actions[open] summary::after {
+  content: "收合";
+}
+
 .action-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.support-grid {
+  gap: 6px;
 }
 
 .web-event-card {
@@ -1258,6 +1315,11 @@ h2 {
   .trait-picker,
   .action-grid {
     gap: 7px;
+  }
+
+  .action-group,
+  .support-actions {
+    padding: 8px;
   }
 
   .trait-option,

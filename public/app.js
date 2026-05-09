@@ -384,14 +384,19 @@ function renderActions(payload) {
   const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
+  const supportActions = $("supportActions");
+  const supportActionGrid = $("supportActionGrid");
   clearEventCountdown();
   traitPicker.innerHTML = "";
   actionGrid.innerHTML = "";
+  supportActionGrid.innerHTML = "";
+  supportActions.classList.remove("hidden");
 
   $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
 
   if (pendingEvent) {
     traitPicker.classList.add("hidden");
+    supportActions.classList.add("hidden");
     const eventBox = document.createElement("div");
     eventBox.className = `web-event-card ${pendingEvent.challengeType ? "challenge-card" : ""}`;
     const countdown = pendingEvent.expiresAt
@@ -431,6 +436,7 @@ function renderActions(payload) {
 
   if (supplyStation) {
     traitPicker.classList.add("hidden");
+    supportActions.classList.add("hidden");
     const stationBox = document.createElement("div");
     stationBox.className = "web-event-card supply-card";
     stationBox.innerHTML = `
@@ -490,25 +496,25 @@ function renderActions(payload) {
       disabled: !stateFlags.canMine
     }));
   }
-  actionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
+  supportActionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
     kind: "secondary",
     disabled: !stateFlags.canReturn
   }));
-  actionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
+  supportActionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
     kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
   }));
-  actionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
+  supportActionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
     kind: "secondary",
     feedType: "normalFeed",
     disabled: !stateFlags.canFeedChicken || getInventoryCount("normalFeed") <= 0
   }));
-  actionGrid.appendChild(makeActionButton(`✨ 餵好吃 x${formatNumber(getInventoryCount("gourmetFeed"))}`, "feedChicken", {
+  supportActionGrid.appendChild(makeActionButton(`✨ 餵好吃 x${formatNumber(getInventoryCount("gourmetFeed"))}`, "feedChicken", {
     kind: "secondary",
     feedType: "gourmetFeed",
     disabled: !stateFlags.canFeedChicken || getInventoryCount("gourmetFeed") <= 0
   }));
-  actionGrid.appendChild(makeActionButton("🧹 掃大便", "cleanCoop", {
+  supportActionGrid.appendChild(makeActionButton("🧹 掃大便", "cleanCoop", {
     kind: "secondary",
     disabled: !stateFlags.canCleanCoop
   }));
