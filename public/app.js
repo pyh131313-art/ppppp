@@ -80,7 +80,7 @@ function renderInventory(items, used, capacity) {
   for (const item of items) {
     const card = document.createElement("div");
     card.className = "item-card";
-    card.innerHTML = `<span class="item-icon">${getItemIcon(item.key)}</span><strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
+    card.innerHTML = `${getItemIconHtml(item.key)}<strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
     grid.appendChild(card);
   }
 }
@@ -92,7 +92,7 @@ function renderQuickBag(items, used, capacity) {
   const slots = [];
   for (const item of items) {
     slots.push({
-      icon: getItemIcon(item.key),
+      icon: getItemIconHtml(item.key, "quick-item-icon"),
       label: item.label,
       count: item.count
     });
@@ -104,7 +104,7 @@ function renderQuickBag(items, used, capacity) {
     cell.className = `quick-slot${item ? "" : " empty-slot"}`;
     if (item) {
       cell.title = `${item.label} x${formatNumber(item.count)}`;
-      cell.innerHTML = `<span>${item.icon}</span><small>x${formatNumber(item.count)}</small>`;
+      cell.innerHTML = `${item.icon}<small>x${formatNumber(item.count)}</small>`;
     }
     grid.appendChild(cell);
   }
@@ -173,7 +173,7 @@ function renderStorage(storage) {
 
     const card = document.createElement("div");
     card.className = "storage-card";
-    card.innerHTML = `<strong>${getItemIcon(item.id)} ${item.label}</strong><span>身上 ${formatNumber(item.carried)}｜倉庫 ${formatNumber(item.stored)}</span>`;
+    card.innerHTML = `<strong>${getItemIconHtml(item.id, "storage-item-icon")} ${item.label}</strong><span>身上 ${formatNumber(item.carried)}｜倉庫 ${formatNumber(item.stored)}</span>`;
     grid.appendChild(card);
   }
 }
@@ -234,6 +234,45 @@ function getItemIcon(key) {
     platinumJunk: "⬛"
   };
   return icons[key] || "📦";
+}
+
+function getItemSpritePosition(key) {
+  const positions = {
+    ore: [0, 0],
+    goldOre: [1, 0],
+    platinumOre: [2, 0],
+    oreIngot: [3, 0],
+    goldOreIngot: [4, 0],
+    goldBlock: [4, 0],
+    platinumOreIngot: [5, 0],
+    redGem: [0, 1],
+    blueGem: [1, 1],
+    greenGem: [2, 1],
+    invertedOre: [3, 1],
+    invertedGem: [4, 1],
+    orichalcum: [5, 1],
+    bombItem: [0, 2],
+    minerHelmetCount: [1, 2],
+    healingPotion: [2, 2],
+    magicCandy: [3, 2],
+    normalFeed: [4, 2],
+    gourmetFeed: [5, 2],
+    quickChickenBall: [0, 3],
+    thickSoleShoes: [1, 3],
+    guaranteedGemCaveTicket: [2, 3],
+    guaranteedRaptorCaveTicket: [3, 3],
+    undyingTotem: [4, 3],
+    rusty: [5, 3],
+    rustyCoin: [5, 3],
+    rustyCollectible: [5, 3]
+  };
+  return positions[key] || null;
+}
+
+function getItemIconHtml(key, className = "item-icon") {
+  const position = getItemSpritePosition(key);
+  if (!position) return `<span class="${className} emoji-icon">${getItemIcon(key)}</span>`;
+  return `<span class="${className} item-sprite" style="--sprite-x:${position[0]};--sprite-y:${position[1]}" aria-hidden="true"></span>`;
 }
 
 function getAreaIcon(area = "", cave = "") {

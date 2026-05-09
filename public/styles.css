@@ -1004,6 +1004,11 @@ h2 {
   line-height: 1;
 }
 
+.quick-item-icon {
+  width: 34px;
+  height: 34px;
+}
+
 .quick-slot small {
   position: absolute;
   right: 5px;
@@ -1038,8 +1043,33 @@ h2 {
 }
 
 .item-icon {
+  width: 42px;
+  height: 42px;
+}
+
+.emoji-icon {
+  display: inline-grid;
+  place-items: center;
   font-size: 24px;
   line-height: 1;
+}
+
+.item-sprite {
+  display: inline-block;
+  background-image: url("/assets/inventory-items.png");
+  background-size: 600% 400%;
+  background-position:
+    calc(var(--sprite-x) * 20%)
+    calc(var(--sprite-y) * 33.333333%);
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.4));
+}
+
+.storage-item-icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 .item-card strong {
