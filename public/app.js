@@ -71,6 +71,31 @@ function renderInventory(items, used, capacity) {
   }
 }
 
+function renderQuickBag(items, used, capacity) {
+  setText("quickBagCount", `${used}/${capacity}`);
+  const grid = $("quickBagGrid");
+  grid.innerHTML = "";
+  const slots = [];
+  for (const item of items) {
+    slots.push({
+      icon: getItemIcon(item.key),
+      label: item.label,
+      count: item.count
+    });
+  }
+  const visibleSlots = Math.max(12, Math.min(18, capacity || 12));
+  for (let index = 0; index < visibleSlots; index += 1) {
+    const item = slots[index];
+    const cell = document.createElement("div");
+    cell.className = `quick-slot${item ? "" : " empty-slot"}`;
+    if (item) {
+      cell.title = `${item.label} x${formatNumber(item.count)}`;
+      cell.innerHTML = `<span>${item.icon}</span><small>x${formatNumber(item.count)}</small>`;
+    }
+    grid.appendChild(cell);
+  }
+}
+
 function getItemIcon(key) {
   const icons = {
     ore: "🪨",
@@ -346,6 +371,7 @@ function renderDashboard(payload) {
 
   renderMineScene(payload);
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
+  renderQuickBag(inventory, summary.bagUsed, summary.bagCapacity);
   renderChicken(chicken);
   renderActions(payload);
   renderCollection(collection, summary);
