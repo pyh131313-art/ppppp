@@ -20,7 +20,7 @@ let postgresReady = false;
 let postgresLoadError = null;
 let postgresMigrationChecked = false;
 
-const POSTGRES_SQLITE_MERGE_META_KEY = "sqlite_merged_v2";
+const POSTGRES_LEGACY_MERGE_META_KEY = "legacy_data_merged_v3";
 
 async function readJsonFile(file) {
   const raw = await fs.readFile(file, "utf8");
@@ -191,6 +191,10 @@ function isEnabled(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
+function isDisabled(value) {
+  return ["0", "false", "no", "off"].includes(String(value || "").toLowerCase());
+}
+
 function getMigrationScore(player) {
   if (!player || typeof player !== "object") return -1;
   let score = 0;
@@ -237,40 +241,73 @@ function getMigrationScore(player) {
   return score;
 }
 
-function shouldImportSqlitePlayer(existingPlayer, sqlitePlayer) {
+function shouldImportLegacyPlayer(existingPlayer, legacyPlayer) {
   if (!existingPlayer) return true;
-  return getMigrationScore(sqlitePlayer) > getMigrationScore(existingPlayer);
+  return getMigrationScore(legacyPlayer) > getMigrationScore(existingPlayer);
+}
+
+function readLegacySqliteRows() {
+  if (!fsSync.existsSync(DATABASE_FILE)) return null;
+  let sourceDb = null;
+  try {
+    const Database = require("better-sqlite3");
+    sourceDb = new Database(DATABASE_FILE, { readonly: true, fileMustExist: true });
+    return {
+      source: DATABASE_FILE,
+      type: "SQLite",
+      rows: sourceDb.prepare("SELECT user_id, data FROM players").all()
+    };
+  } catch (error) {
+    console.error("SQLite 玩家資料無法讀取，會嘗試其他舊資料來源。");
+    console.error(error);
+    return null;
+  } finally {
+    if (sourceDb) sourceDb.close();
+  }
+}
+
+function readLegacyJsonRows() {
+  const source = fsSync.existsSync(DATA_FILE)
+    ? DATA_FILE
+    : fsSync.existsSync(BACKUP_FILE)
+      ? BACKUP_FILE
+      : null;
+  if (!source) return null;
+  try {
+    const players = JSON.parse(fsSync.readFileSync(source, "utf8") || "{}");
+    return {
+      source,
+      type: "JSON",
+      rows: Object.entries(players || {}).map(([user_id, data]) => ({
+        user_id,
+        data: JSON.stringify(data)
+      }))
+    };
+  } catch (error) {
+    console.error("JSON 玩家資料無法讀取，已略過。");
+    console.error(error);
+    return null;
+  }
 }
 
 async function maybeMigrateSqliteToPostgres(pool) {
   if (postgresMigrationChecked) return;
   postgresMigrationChecked = true;
-  if (!isEnabled(process.env.POSTGRES_MIGRATE_FROM_SQLITE)) return;
+  if (isDisabled(process.env.POSTGRES_MIGRATE_FROM_SQLITE)) return;
 
-  const migrated = await pool.query("SELECT value FROM meta WHERE key = $1", [POSTGRES_SQLITE_MERGE_META_KEY]);
+  const migrated = await pool.query("SELECT value FROM meta WHERE key = $1", [POSTGRES_LEGACY_MERGE_META_KEY]);
   if (migrated.rowCount > 0) return;
 
-  if (!fsSync.existsSync(DATABASE_FILE)) {
-    console.log(`找不到 SQLite 檔案 ${DATABASE_FILE}，略過 PostgreSQL 自動搬家。`);
+  const legacy = readLegacySqliteRows() || readLegacyJsonRows();
+  if (!legacy) {
+    console.log(`找不到舊玩家資料檔 ${DATABASE_FILE} 或 ${DATA_FILE}，略過 PostgreSQL 自動搬家。`);
     return;
   }
 
-  let rows = [];
-  let sourceDb = null;
-  try {
-    const Database = require("better-sqlite3");
-    sourceDb = new Database(DATABASE_FILE, { readonly: true, fileMustExist: true });
-    rows = sourceDb.prepare("SELECT user_id, data FROM players").all();
-  } catch (error) {
-    console.error("SQLite 玩家資料無法搬到 PostgreSQL，已略過自動搬家。");
-    console.error(error);
-    return;
-  } finally {
-    if (sourceDb) sourceDb.close();
-  }
+  const rows = legacy.rows;
 
   if (rows.length === 0) {
-    console.log("SQLite 沒有玩家資料，略過 PostgreSQL 自動搬家。");
+    console.log(`${legacy.type} 沒有玩家資料，略過 PostgreSQL 自動搬家。`);
     return;
   }
 
@@ -286,7 +323,7 @@ async function maybeMigrateSqliteToPostgres(pool) {
         const player = JSON.parse(row.data);
         const existing = await client.query("SELECT data FROM players WHERE user_id = $1", [row.user_id]);
         const existingPlayer = existing.rows[0]?.data || null;
-        if (!shouldImportSqlitePlayer(existingPlayer, player)) {
+        if (!shouldImportLegacyPlayer(existingPlayer, player)) {
           kept += 1;
           continue;
         }
@@ -300,7 +337,7 @@ async function maybeMigrateSqliteToPostgres(pool) {
         if (existingPlayer) replaced += 1;
         imported += 1;
       } catch (error) {
-        console.error(`玩家 ${row.user_id} 的 SQLite 資料損壞，搬家時已略過。`);
+        console.error(`玩家 ${row.user_id} 的舊資料損壞，搬家時已略過。`);
         console.error(error);
       }
     }
@@ -308,9 +345,9 @@ async function maybeMigrateSqliteToPostgres(pool) {
       INSERT INTO meta (key, value)
       VALUES ($1, $2)
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-    `, [POSTGRES_SQLITE_MERGE_META_KEY, JSON.stringify({ at: now, source: DATABASE_FILE, imported, replaced, kept })]);
+    `, [POSTGRES_LEGACY_MERGE_META_KEY, JSON.stringify({ at: now, source: legacy.source, type: legacy.type, imported, replaced, kept })]);
     await client.query("COMMIT");
-    console.log(`已從 SQLite 合併 ${imported} 筆玩家資料到 PostgreSQL（覆蓋 ${replaced}，保留 ${kept}）。`);
+    console.log(`已從 ${legacy.type} 合併 ${imported} 筆玩家資料到 PostgreSQL（覆蓋 ${replaced}，保留 ${kept}）。`);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
