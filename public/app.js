@@ -7,6 +7,7 @@ const state = {
   collectionFilter: "all",
   loading: false,
   autoSyncTimer: null,
+  eventCountdownTimer: null,
   lastSyncAt: null
 };
 
@@ -329,10 +330,50 @@ function makeActionButton(label, action, options = {}) {
   return button;
 }
 
+function clearEventCountdown() {
+  if (state.eventCountdownTimer) {
+    clearInterval(state.eventCountdownTimer);
+    state.eventCountdownTimer = null;
+  }
+}
+
+function getChallengeLabel(type) {
+  const labels = {
+    qte: "QTE",
+    memory: "記憶",
+    timing: "時機",
+    lockpick: "開鎖",
+    escape: "逃跑",
+    puzzle: "拼圖"
+  };
+  return labels[type] || (type ? "限時" : "事件");
+}
+
+function startEventCountdown(eventData) {
+  clearEventCountdown();
+  if (!eventData || !eventData.expiresAt) return;
+  const fill = $("eventCountdownFill");
+  const text = $("eventCountdownText");
+  const total = Math.max(1000, Number(eventData.durationMs || eventData.expiresAt - (eventData.startedAt || Date.now())));
+  const tick = () => {
+    const left = Math.max(0, Number(eventData.expiresAt) - Date.now());
+    const ratio = Math.max(0, Math.min(1, left / total));
+    if (fill) {
+      fill.style.width = `${Math.round(ratio * 100)}%`;
+      fill.classList.toggle("danger", ratio <= 0.35);
+    }
+    if (text) text.textContent = left > 0 ? `${Math.ceil(left / 1000)} 秒` : "超時";
+    if (left <= 0) clearEventCountdown();
+  };
+  tick();
+  state.eventCountdownTimer = setInterval(tick, 250);
+}
+
 function renderActions(payload) {
   const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
+  clearEventCountdown();
   traitPicker.innerHTML = "";
   actionGrid.innerHTML = "";
 
@@ -341,9 +382,20 @@ function renderActions(payload) {
   if (pendingEvent) {
     traitPicker.classList.add("hidden");
     const eventBox = document.createElement("div");
-    eventBox.className = "web-event-card";
+    eventBox.className = `web-event-card ${pendingEvent.challengeType ? "challenge-card" : ""}`;
     const countdown = pendingEvent.expiresAt
-      ? `<span>限時互動</span>`
+      ? `<span id="eventCountdownText">限時</span>`
+      : "";
+    const challengeInfo = pendingEvent.challengeType
+      ? `
+        <div class="challenge-panel">
+          <div class="challenge-meter"><i id="eventCountdownFill"></i></div>
+          <div class="challenge-meta">
+            <b>${getChallengeLabel(pendingEvent.challengeType)}</b>
+            ${pendingEvent.durability ? `<span>鐵絲 ${formatNumber(pendingEvent.durability)}｜嘗試 ${formatNumber(pendingEvent.attempts || 0)}</span>` : "<span>快速判斷</span>"}
+          </div>
+        </div>
+      `
       : "";
     eventBox.innerHTML = `
       <div class="web-event-head">
@@ -352,8 +404,10 @@ function renderActions(payload) {
       </div>
       <p>${pendingEvent.description || "事件發生中。"}</p>
       ${pendingEvent.hint ? `<small>${pendingEvent.hint}</small>` : ""}
+      ${challengeInfo}
     `;
     actionGrid.appendChild(eventBox);
+    startEventCountdown(pendingEvent);
     for (const choice of pendingEvent.choices || []) {
       const button = makeActionButton(choice.label, "eventChoice", {
         kind: choice.kind || (pendingEvent.challengeType ? "primary" : "")

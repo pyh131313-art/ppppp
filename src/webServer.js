@@ -469,7 +469,13 @@ function getWebPendingEvent(player) {
     description: event.description || "",
     challengeType: player.eventChallenge ? player.eventChallenge.type : "",
     hint: player.eventChallenge ? player.eventChallenge.hint || "" : "",
+    startedAt: player.eventChallenge ? player.eventChallenge.startedAt || 0 : 0,
     expiresAt: player.eventChallenge ? player.eventChallenge.expiresAt || 0 : 0,
+    durationMs: player.eventChallenge && player.eventChallenge.expiresAt && player.eventChallenge.startedAt
+      ? Math.max(1000, player.eventChallenge.expiresAt - player.eventChallenge.startedAt)
+      : 0,
+    durability: player.eventChallenge ? player.eventChallenge.durability || 0 : 0,
+    attempts: player.eventChallenge ? player.eventChallenge.attempts || 0 : 0,
     choices
   };
 }
