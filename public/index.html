@@ -109,6 +109,27 @@
             <input id="shopAmount" type="number" min="1" step="1" placeholder="藥水/圖騰數量，空白=1">
             <div class="web-shop-grid" id="webShopGrid"></div>
           </div>
+          <div class="web-storage" id="webStorage">
+            <div class="quick-bag-title">
+              <strong>📦 倉庫</strong>
+              <span id="storageState">營地可用</span>
+            </div>
+            <select id="storageItem"></select>
+            <input id="storageAmount" type="number" min="1" step="1" placeholder="數量，空白=全部">
+            <div class="bank-actions">
+              <button class="mini-button" data-action="storageDeposit">存入</button>
+              <button class="mini-button" data-action="storageWithdraw">取出</button>
+            </div>
+            <div class="storage-grid" id="storageGrid"></div>
+          </div>
+          <div class="web-inn" id="webInn">
+            <div class="quick-bag-title">
+              <strong>🍺 地底客棧</strong>
+              <span id="innState">地底可用</span>
+            </div>
+            <div class="inn-resource" id="innResource">顛倒礦石 0｜顛倒寶石 0</div>
+            <div class="web-shop-grid" id="innGrid"></div>
+          </div>
         </section>
 
         <section class="panel bag-panel tab-page" data-page="bag">

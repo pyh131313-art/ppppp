@@ -137,6 +137,60 @@ function renderShop(shop) {
   }
 }
 
+function renderStorage(storage) {
+  const panel = $("webStorage");
+  const select = $("storageItem");
+  const grid = $("storageGrid");
+  panel.classList.toggle("disabled-panel", !storage || !storage.enabled);
+  setText("storageState", storage && storage.enabled ? "可使用" : "營地可用");
+  select.innerHTML = "";
+  grid.innerHTML = "";
+  const items = storage && storage.items ? storage.items : [];
+  if (!items.length) {
+    select.innerHTML = `<option value="">沒有可存取物品</option>`;
+    grid.innerHTML = `<div class="empty">倉庫目前沒有可顯示物品</div>`;
+    return;
+  }
+  for (const item of items) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.label}｜身上 ${formatNumber(item.carried)}｜倉庫 ${formatNumber(item.stored)}`;
+    select.appendChild(option);
+
+    const card = document.createElement("div");
+    card.className = "storage-card";
+    card.innerHTML = `<strong>${getItemIcon(item.id)} ${item.label}</strong><span>身上 ${formatNumber(item.carried)}｜倉庫 ${formatNumber(item.stored)}</span>`;
+    grid.appendChild(card);
+  }
+}
+
+function renderUndergroundInn(inn) {
+  const panel = $("webInn");
+  const grid = $("innGrid");
+  panel.classList.toggle("disabled-panel", !inn || !inn.enabled);
+  setText("innState", inn && inn.enabled ? "地底可用" : "地底可用");
+  setText("innResource", `顛倒礦石 ${formatNumber(inn && inn.invertedOre)}｜顛倒寶石 ${formatNumber(inn && inn.invertedGem)}`);
+  grid.innerHTML = "";
+  if (!inn || !inn.items || !inn.items.length) {
+    grid.innerHTML = `<div class="empty">客棧今日沒有商品</div>`;
+    return;
+  }
+  for (const item of inn.items) {
+    const button = document.createElement("button");
+    button.className = "shop-item-button";
+    button.dataset.action = "innBuy";
+    button.dataset.itemId = item.id;
+    button.disabled = item.disabled;
+    const resourceLabel = item.resource === "invertedOre" ? "顛倒礦石" : "顛倒寶石";
+    button.innerHTML = `
+      <span>${item.resource === "invertedOre" ? "🌀" : "💠"}</span>
+      <strong>${item.label}</strong>
+      <small>${formatNumber(item.price)} ${resourceLabel}｜${item.description || ""}</small>
+    `;
+    grid.appendChild(button);
+  }
+}
+
 function getItemIcon(key) {
   const icons = {
     ore: "🪨",
@@ -473,6 +527,8 @@ function renderDashboard(payload) {
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderQuickBag(inventory, summary.bagUsed, summary.bagCapacity);
   renderShop(payload.shop);
+  renderStorage(payload.storage);
+  renderUndergroundInn(payload.undergroundInn);
   renderChicken(chicken);
   renderActions(payload);
   renderCollection(collection, summary);
@@ -610,6 +666,17 @@ $("dashboard").addEventListener("click", (event) => {
     const amount = $("shopAmount").value || 1;
     postAction(action, { itemId: button.dataset.itemId || "", amount });
     $("shopAmount").value = "";
+    return;
+  }
+  if (action === "storageDeposit" || action === "storageWithdraw") {
+    const itemId = $("storageItem").value || "";
+    const amount = $("storageAmount").value || null;
+    postAction(action, { itemId, amount });
+    $("storageAmount").value = "";
+    return;
+  }
+  if (action === "innBuy") {
+    postAction(action, { itemId: button.dataset.itemId || "" });
     return;
   }
   postAction(action);

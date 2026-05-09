@@ -556,13 +556,17 @@ h2 {
   border-top: 1px solid rgba(255, 255, 255, 0.09);
 }
 
-.web-shop {
+.web-shop,
+.web-storage,
+.web-inn {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
 }
 
-.web-shop input {
+.web-shop input,
+.web-storage input,
+.web-storage select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
@@ -572,6 +576,10 @@ h2 {
   font: inherit;
   font-weight: 800;
   margin-bottom: 8px;
+}
+
+.web-storage select {
+  appearance: none;
 }
 
 .web-shop-grid {
@@ -617,6 +625,38 @@ h2 {
 .shop-item-button:disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.storage-grid {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.storage-card {
+  display: grid;
+  gap: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 8px;
+}
+
+.storage-card strong {
+  font-size: 12px;
+}
+
+.storage-card span,
+.inn-resource {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inn-resource {
+  margin-bottom: 8px;
 }
 
 .quick-bag-title {

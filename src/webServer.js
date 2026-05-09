@@ -15,6 +15,7 @@ const {
   buyShopItem,
   chooseRunMode,
   depositBank,
+  depositUndergroundStorage,
   drinkHealingPotion,
   getAreaLabel,
   getBagCapacity,
@@ -35,13 +36,17 @@ const {
   getShopItems,
   getSupplyStationView,
   getTotalAsset,
+  getUndergroundInnSnapshot,
   leaveSupplyStation,
   mine,
+  openUndergroundInn,
   resolveEventChallenge,
   resolveRandomEvent,
   returnToSurface,
   sellSupplyStationBuff,
-  withdrawBank
+  withdrawBank,
+  withdrawUndergroundStorage,
+  buyUndergroundInnItem
 } = require("./game");
 const {
   cleanChickenCoop,
@@ -62,6 +67,30 @@ const DEFAULT_PORT = 3000;
 const SESSION_COOKIE = "mine_web_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const serverState = { server: null };
+const WEB_STORAGE_ITEMS = [
+  ["ore", "普通礦石"],
+  ["goldOre", "金礦石"],
+  ["platinumOre", "鉑金礦石"],
+  ["goldBlock", "金塊"],
+  ["oreIngot", "礦錠"],
+  ["goldOreIngot", "金錠"],
+  ["platinumOreIngot", "鉑金錠"],
+  ["bombItem", "完整炸彈"],
+  ["junk", "超級破爛"],
+  ["redGem", "紅寶石"],
+  ["blueGem", "藍寶石"],
+  ["greenGem", "綠寶石"],
+  ["invertedOre", "顛倒礦石"],
+  ["invertedGem", "顛倒寶石"],
+  ["orichalcum", "奧利哈鋼"],
+  ["platinumJunk", "白金破爛"],
+  ["minerHelmetCount", "礦工帽"],
+  ["healingPotion", "治療藥水"],
+  ["magicCandy", "神奇糖果"],
+  ["quickChickenBall", "先機球"],
+  ["undyingTotem", "不死圖騰"],
+  ["chickenTraitTickets", "賽雞詞條權"]
+];
 
 function getSessionSecret() {
   return cleanEnvValue(process.env.WEB_SESSION_SECRET)
@@ -269,6 +298,8 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
   const pendingEvent = getWebPendingEvent(player);
   const supplyStation = getSupplyStationView(player);
   const shop = getWebShop(player, progressInput);
+  const storage = getWebStorage(player);
+  const undergroundInn = getWebUndergroundInn(player, progressInput);
   return {
     user: {
       id: user.id,
@@ -312,11 +343,15 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
     pendingEvent,
     supplyStation,
     shop,
+    storage,
+    undergroundInn,
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
       canUseBank: Boolean(!player.dead && (!player.runMode || player.zone === "undergroundCamp")),
       canUseShop: Boolean(!player.dead && !player.runMode),
+      canUseStorage: Boolean(!player.dead && ["surface", "undergroundCamp", "skyCamp"].includes(player.zone)),
+      canUseUndergroundInn: Boolean(!player.dead && player.zone === "undergroundCamp"),
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
       needsTrait: Boolean(!player.runMode && !player.dead),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
@@ -327,6 +362,37 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
     inventory: getInventoryItems(player),
     collection: getCollectionItems(player),
     chicken: getChickenSummary(player)
+  };
+}
+
+function getWebStorage(player) {
+  const enabled = Boolean(!player.dead && ["surface", "undergroundCamp", "skyCamp"].includes(player.zone));
+  return {
+    enabled,
+    items: WEB_STORAGE_ITEMS.map(([id, label]) => ({
+      id,
+      label,
+      carried: Math.max(0, Math.floor(player[id] || 0)),
+      stored: Math.max(0, Math.floor(player.undergroundStorage && player.undergroundStorage[id] || 0))
+    })).filter((item) => item.carried > 0 || item.stored > 0)
+  };
+}
+
+function getWebUndergroundInn(player, progressInput = {}) {
+  const enabled = Boolean(!player.dead && player.zone === "undergroundCamp");
+  const snapshot = getUndergroundInnSnapshot(progressInput.globalState, progressInput.now || Date.now());
+  return {
+    enabled,
+    invertedOre: Math.max(0, Math.floor(player.invertedOre || 0)),
+    invertedGem: Math.max(0, Math.floor(player.invertedGem || 0)),
+    items: snapshot.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      description: item.description,
+      resource: item.resource,
+      price: item.price,
+      disabled: !enabled || (player[item.resource] || 0) < item.price
+    }))
   };
 }
 
@@ -562,6 +628,45 @@ async function handleApiAction(request, response) {
     await updatePlayers((players) => {
       const progress = getProgressWithGlobal(players);
       const result = buyShopItem(players[sessionUser.id], itemId, amount, progress);
+      resultPlayer = result.player;
+      message = result.message;
+      ok = result.ok !== false;
+      players[sessionUser.id] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
+    });
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponseWithProgress(sessionUser, resultPlayer, latestPlayers, message, ok));
+    return;
+  }
+
+  if (action === "storageDeposit" || action === "storageWithdraw") {
+    const itemId = String(body.itemId || "");
+    const amount = body.amount === null || body.amount === undefined || body.amount === ""
+      ? null
+      : Number(body.amount);
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const applied = action === "storageDeposit"
+        ? depositUndergroundStorage(player, itemId || null, amount)
+        : withdrawUndergroundStorage(player, itemId || null, amount);
+      resultPlayer = applied.player;
+      message = applied.message;
+      ok = applied.ok !== false;
+      return applied.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "innBuy") {
+    const itemId = String(body.itemId || "");
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const opened = openUndergroundInn(players[sessionUser.id], progress.globalState, Date.now());
+      const result = opened.ok
+        ? buyUndergroundInnItem(opened.player, itemId, opened.globalState, Date.now())
+        : opened;
       resultPlayer = result.player;
       message = result.message;
       ok = result.ok !== false;
