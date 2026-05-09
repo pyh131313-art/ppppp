@@ -20,6 +20,8 @@ let postgresReady = false;
 let postgresLoadError = null;
 let postgresMigrationChecked = false;
 
+const POSTGRES_SQLITE_MERGE_META_KEY = "sqlite_merged_v2";
+
 async function readJsonFile(file) {
   const raw = await fs.readFile(file, "utf8");
   return JSON.parse(raw || "{}");
@@ -189,20 +191,64 @@ function isEnabled(value) {
   return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
+function getMigrationScore(player) {
+  if (!player || typeof player !== "object") return -1;
+  let score = 0;
+  const numberKeys = [
+    "gold",
+    "bankGold",
+    "depth",
+    "runDepthProgress",
+    "rusty",
+    "ore",
+    "goldOre",
+    "platinumOre",
+    "oreIngot",
+    "goldOreIngot",
+    "platinumOreIngot",
+    "redGem",
+    "blueGem",
+    "greenGem",
+    "invertedOre",
+    "invertedGem",
+    "orichalcum",
+    "healingPotion",
+    "magicCandy",
+    "undyingTotem"
+  ];
+  for (const key of numberKeys) {
+    score += Math.max(0, Number(player[key] || 0));
+  }
+  if (player.stats && typeof player.stats === "object") {
+    score += Math.max(0, Number(player.stats.bestDepth || 0)) * 25;
+    score += Math.max(0, Number(player.stats.totalMines || 0));
+    score += Math.max(0, Number(player.stats.deaths || 0)) * 5;
+  }
+  if (player.collection && typeof player.collection === "object") {
+    score += Object.values(player.collection)
+      .reduce((sum, count) => sum + Math.max(0, Number(count || 0)), 0) * 40;
+  }
+  if (player.ownedChicken && typeof player.ownedChicken === "object") {
+    score += 100;
+    score += Math.max(0, Number(player.ownedChicken.level || 0)) * 20;
+    score += Math.max(0, Number(player.ownedChicken.wins || 0)) * 10;
+    score += Math.max(0, Number(player.ownedChicken.races || 0)) * 3;
+  }
+  return score;
+}
+
+function shouldImportSqlitePlayer(existingPlayer, sqlitePlayer) {
+  if (!existingPlayer) return true;
+  return getMigrationScore(sqlitePlayer) > getMigrationScore(existingPlayer);
+}
+
 async function maybeMigrateSqliteToPostgres(pool) {
   if (postgresMigrationChecked) return;
   postgresMigrationChecked = true;
   if (!isEnabled(process.env.POSTGRES_MIGRATE_FROM_SQLITE)) return;
 
-  const migrated = await pool.query("SELECT value FROM meta WHERE key = $1", ["sqlite_migrated"]);
+  const migrated = await pool.query("SELECT value FROM meta WHERE key = $1", [POSTGRES_SQLITE_MERGE_META_KEY]);
   if (migrated.rowCount > 0) return;
-
-  const existing = await pool.query("SELECT COUNT(*)::int AS count FROM players");
-  const existingCount = Number(existing.rows[0]?.count || 0);
-  if (existingCount > 0) {
-    console.log(`PostgreSQL 已有 ${existingCount} 筆玩家資料，略過 SQLite 自動搬家。`);
-    return;
-  }
 
   if (!fsSync.existsSync(DATABASE_FILE)) {
     console.log(`找不到 SQLite 檔案 ${DATABASE_FILE}，略過 PostgreSQL 自動搬家。`);
@@ -233,14 +279,25 @@ async function maybeMigrateSqliteToPostgres(pool) {
     await client.query("BEGIN");
     const now = Date.now();
     let imported = 0;
+    let replaced = 0;
+    let kept = 0;
     for (const row of rows) {
       try {
         const player = JSON.parse(row.data);
+        const existing = await client.query("SELECT data FROM players WHERE user_id = $1", [row.user_id]);
+        const existingPlayer = existing.rows[0]?.data || null;
+        if (!shouldImportSqlitePlayer(existingPlayer, player)) {
+          kept += 1;
+          continue;
+        }
         await client.query(`
           INSERT INTO players (user_id, data, updated_at)
           VALUES ($1, $2::jsonb, $3)
-          ON CONFLICT (user_id) DO NOTHING
+          ON CONFLICT (user_id) DO UPDATE SET
+            data = EXCLUDED.data,
+            updated_at = EXCLUDED.updated_at
         `, [row.user_id, JSON.stringify(player), now]);
+        if (existingPlayer) replaced += 1;
         imported += 1;
       } catch (error) {
         console.error(`玩家 ${row.user_id} 的 SQLite 資料損壞，搬家時已略過。`);
@@ -251,9 +308,9 @@ async function maybeMigrateSqliteToPostgres(pool) {
       INSERT INTO meta (key, value)
       VALUES ($1, $2)
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-    `, ["sqlite_migrated", JSON.stringify({ at: now, source: DATABASE_FILE, imported })]);
+    `, [POSTGRES_SQLITE_MERGE_META_KEY, JSON.stringify({ at: now, source: DATABASE_FILE, imported, replaced, kept })]);
     await client.query("COMMIT");
-    console.log(`已從 SQLite 搬家 ${imported} 筆玩家資料到 PostgreSQL。`);
+    console.log(`已從 SQLite 合併 ${imported} 筆玩家資料到 PostgreSQL（覆蓋 ${replaced}，保留 ${kept}）。`);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
