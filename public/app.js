@@ -4,8 +4,13 @@ const state = {
   data: null,
   leaderboard: null,
   tab: "overview",
-  collectionFilter: "all"
+  collectionFilter: "all",
+  loading: false,
+  autoSyncTimer: null,
+  lastSyncAt: null
 };
+
+const AUTO_SYNC_INTERVAL_MS = 10000;
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,6 +22,13 @@ function showNotice(message) {
   const notice = $("notice");
   notice.textContent = message;
   notice.classList.remove("hidden");
+}
+
+function setRefreshButtonLoading(isLoading) {
+  const button = $("refreshButton");
+  if (!button) return;
+  button.disabled = isLoading;
+  button.textContent = isLoading ? "同步中..." : "立即同步";
 }
 
 function hideNotice() {
@@ -190,35 +202,56 @@ function renderDashboard(payload) {
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderChicken(chicken);
   renderCollection(collection, summary);
-  setText("lastUpdated", `更新：${new Date().toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit" })}`);
+  state.lastSyncAt = new Date();
+  setText("lastUpdated", `同步：${state.lastSyncAt.toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   renderLeaderboard(state.leaderboard);
   setActiveTab(state.tab);
 }
 
-async function loadMe() {
+async function loadMe(options = {}) {
+  const { silent = false } = options;
+  if (state.loading) return;
+  state.loading = true;
+  if (!silent) setRefreshButtonLoading(true);
   const params = new URLSearchParams(location.search);
   if (params.get("login")) {
     showNotice("Discord 登入尚未完成，請確認 OAuth Redirect URI 和環境變數。");
   } else {
     hideNotice();
   }
-  const response = await fetch("/api/me", { credentials: "include" });
-  if (response.status === 401) return;
-  const body = await response.json();
-  if (!body.ok) {
-    showNotice(`讀取資料失敗：${body.message || "server_error"}`);
-    return;
+  try {
+    const response = await fetch("/api/me", { credentials: "include", cache: "no-store" });
+    if (response.status === 401) return;
+    const body = await response.json();
+    if (!body.ok) {
+      showNotice(`讀取資料失敗：${body.message || "server_error"}`);
+      return;
+    }
+    state.data = body.data;
+    await loadLeaderboard();
+    renderDashboard(body.data);
+    if (!params.get("login")) hideNotice();
+  } catch {
+    if (!silent) showNotice("讀取資料失敗，稍後再試。");
+  } finally {
+    state.loading = false;
+    if (!silent) setRefreshButtonLoading(false);
   }
-  state.data = body.data;
-  await loadLeaderboard();
-  renderDashboard(body.data);
 }
 
 async function loadLeaderboard() {
-  const response = await fetch("/api/leaderboard", { credentials: "include" });
+  const response = await fetch("/api/leaderboard", { credentials: "include", cache: "no-store" });
   if (response.status === 401) return;
   const body = await response.json();
   if (body.ok) state.leaderboard = body.data;
+}
+
+function startAutoSync() {
+  if (state.autoSyncTimer) clearInterval(state.autoSyncTimer);
+  state.autoSyncTimer = setInterval(() => {
+    if (document.hidden || !state.data) return;
+    loadMe({ silent: true });
+  }, AUTO_SYNC_INTERVAL_MS);
 }
 
 document.querySelectorAll(".tab").forEach((button) => {
@@ -243,4 +276,9 @@ $("logoutButton").addEventListener("click", () => {
   location.href = "/logout";
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.data) loadMe({ silent: true });
+});
+
+startAutoSync();
 loadMe();
