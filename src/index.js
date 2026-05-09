@@ -965,6 +965,12 @@ async function deletePreviousMinePanel(playerInput, fallbackChannel) {
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`已登入：${readyClient.user.tag}`);
   try {
+    const players = await loadPlayers();
+    console.log(`玩家資料已預先載入：${Object.keys(players).length} 筆`);
+  } catch (error) {
+    console.error("預先載入玩家資料失敗：", error);
+  }
+  try {
     await registerApplicationCommands();
   } catch (error) {
     console.error("註冊 slash commands 失敗：", error);
