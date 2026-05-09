@@ -623,9 +623,46 @@ h2 {
   min-height: 54px;
 }
 
+.action-button.hero-action {
+  grid-column: span 2;
+  min-height: 68px;
+  position: relative;
+  overflow: hidden;
+  font-size: 16px;
+  letter-spacing: 0;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.action-button.hero-action::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.13), transparent);
+  transform: translateX(-110%);
+  transition: transform 0.35s ease;
+}
+
+.action-button.hero-action:hover::after {
+  transform: translateX(110%);
+}
+
 .action-button.primary {
   background: linear-gradient(180deg, rgba(34, 197, 94, 0.32), rgba(21, 128, 61, 0.28));
   border-color: rgba(74, 222, 128, 0.48);
+}
+
+.action-button.route-left {
+  border-color: rgba(96, 165, 250, 0.5);
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.22), rgba(29, 78, 216, 0.18));
+}
+
+.action-button.route-middle {
+  border-color: rgba(74, 222, 128, 0.52);
+}
+
+.action-button.route-right {
+  border-color: rgba(251, 113, 133, 0.52);
 }
 
 .action-button.danger {
@@ -636,6 +673,14 @@ h2 {
 .action-button.safe {
   background: rgba(74, 222, 128, 0.16);
   border-color: rgba(74, 222, 128, 0.45);
+}
+
+.action-button.secondary {
+  min-height: 40px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.18);
+  border-color: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
 }
 
 .action-button:disabled,
@@ -1223,6 +1268,16 @@ h2 {
   .action-button {
     min-height: 42px;
     font-size: 13px;
+  }
+
+  .action-button.hero-action {
+    min-height: 54px;
+    font-size: 14px;
+  }
+
+  .action-button.secondary {
+    min-height: 34px;
+    font-size: 11px;
   }
 
   .action-message {

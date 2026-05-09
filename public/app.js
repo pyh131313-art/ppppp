@@ -421,7 +421,7 @@ function renderActions(payload) {
     startEventCountdown(pendingEvent);
     for (const choice of pendingEvent.choices || []) {
       const button = makeActionButton(choice.label, "eventChoice", {
-        kind: choice.kind || (pendingEvent.challengeType ? "primary" : "")
+        kind: `hero-action ${choice.kind || (pendingEvent.challengeType ? "primary" : "")}`.trim()
       });
       button.dataset.choice = choice.id;
       actionGrid.appendChild(button);
@@ -479,32 +479,37 @@ function renderActions(payload) {
     const sideName = { left: "左", middle: "中", right: "右" };
     for (const path of digPathOptions) {
       const button = makeActionButton(`${sideIcon[path.side] || "⛏️"} ${sideName[path.side] || "路"}：${path.label}`, "mine", {
-        kind: path.side === "right" ? "danger" : "primary"
+        kind: `hero-action route-${path.side} ${path.side === "right" ? "danger" : "primary"}`
       });
       button.dataset.path = path.side;
       actionGrid.appendChild(button);
     }
   } else {
     actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
-      kind: "primary",
+      kind: "hero-action primary",
       disabled: !stateFlags.canMine
     }));
   }
   actionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
+    kind: "secondary",
     disabled: !stateFlags.canReturn
   }));
   actionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
+    kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
   }));
   actionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
+    kind: "secondary",
     feedType: "normalFeed",
     disabled: !stateFlags.canFeedChicken || getInventoryCount("normalFeed") <= 0
   }));
   actionGrid.appendChild(makeActionButton(`✨ 餵好吃 x${formatNumber(getInventoryCount("gourmetFeed"))}`, "feedChicken", {
+    kind: "secondary",
     feedType: "gourmetFeed",
     disabled: !stateFlags.canFeedChicken || getInventoryCount("gourmetFeed") <= 0
   }));
   actionGrid.appendChild(makeActionButton("🧹 掃大便", "cleanCoop", {
+    kind: "secondary",
     disabled: !stateFlags.canCleanCoop
   }));
 
