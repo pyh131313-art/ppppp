@@ -96,6 +96,47 @@ function renderQuickBag(items, used, capacity) {
   }
 }
 
+function getShopIcon(itemId, category) {
+  const icons = {
+    healingPotion: "🧪",
+    undyingTotem: "🗿",
+    magicCandy: "🍬",
+    normalFeed: "🌾",
+    gourmetFeed: "🍖",
+    chickenMedicine: "💊",
+    autoCleaner: "🤖"
+  };
+  if (icons[itemId]) return icons[itemId];
+  if (category === "collectible") return "🪙";
+  return "📦";
+}
+
+function renderShop(shop) {
+  const panel = $("webShop");
+  const grid = $("webShopGrid");
+  grid.innerHTML = "";
+  panel.classList.toggle("disabled-panel", !shop || !shop.enabled);
+  setText("shopState", shop && shop.enabled ? "地表可用" : "回地表可用");
+  if (!shop || !shop.items || !shop.items.length) {
+    grid.innerHTML = `<div class="empty">商店目前沒有可購買商品</div>`;
+    return;
+  }
+  for (const item of shop.items) {
+    const button = document.createElement("button");
+    button.className = "shop-item-button";
+    button.dataset.action = "shopBuy";
+    button.dataset.itemId = item.id;
+    button.disabled = !shop.enabled || item.disabled;
+    const amountHint = item.multiBuy ? "可輸入數量" : "單買";
+    button.innerHTML = `
+      <span>${getShopIcon(item.id, item.category)}</span>
+      <strong>${item.label}</strong>
+      <small>${formatNumber(item.priceGold)} 金幣｜持有 ${formatNumber(item.owned)}｜${amountHint}</small>
+    `;
+    grid.appendChild(button);
+  }
+}
+
 function getItemIcon(key) {
   const icons = {
     ore: "🪨",
@@ -431,6 +472,7 @@ function renderDashboard(payload) {
   renderMineScene(payload);
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderQuickBag(inventory, summary.bagUsed, summary.bagCapacity);
+  renderShop(payload.shop);
   renderChicken(chicken);
   renderActions(payload);
   renderCollection(collection, summary);
@@ -562,6 +604,12 @@ $("dashboard").addEventListener("click", (event) => {
   }
   if (action === "supplySell") {
     postAction(action, { buff: button.dataset.buff || "" });
+    return;
+  }
+  if (action === "shopBuy") {
+    const amount = $("shopAmount").value || 1;
+    postAction(action, { itemId: button.dataset.itemId || "", amount });
+    $("shopAmount").value = "";
     return;
   }
   postAction(action);

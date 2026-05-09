@@ -12,6 +12,7 @@ const { CONFIG } = require("./config");
 const { cleanEnvValue } = require("./env");
 const {
   buySupplyStationItem,
+  buyShopItem,
   chooseRunMode,
   depositBank,
   drinkHealingPotion,
@@ -24,10 +25,14 @@ const {
   getDepthLabel,
   getDigPathOptions,
   getMaxBombs,
+  getMagicCandyPrice,
   getPlayer,
   getRandomEvent,
   getRunModeOptions,
   getRunModeLabel,
+  getCommunityProgress,
+  getShopConsumables,
+  getShopItems,
   getSupplyStationView,
   getTotalAsset,
   leaveSupplyStation,
@@ -252,10 +257,18 @@ function getCollectionItems(player) {
   }));
 }
 
-function buildPlayerPayload(user, playerInput) {
+function getProgressWithGlobal(players) {
+  return {
+    ...getCommunityProgress(players),
+    globalState: getGlobalStateFromPlayers(players)
+  };
+}
+
+function buildPlayerPayload(user, playerInput, progressInput = {}) {
   const player = getPlayer(playerInput);
   const pendingEvent = getWebPendingEvent(player);
   const supplyStation = getSupplyStationView(player);
+  const shop = getWebShop(player, progressInput);
   return {
     user: {
       id: user.id,
@@ -298,10 +311,12 @@ function buildPlayerPayload(user, playerInput) {
       : [],
     pendingEvent,
     supplyStation,
+    shop,
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
       canUseBank: Boolean(!player.dead && (!player.runMode || player.zone === "undergroundCamp")),
+      canUseShop: Boolean(!player.dead && !player.runMode),
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
       needsTrait: Boolean(!player.runMode && !player.dead),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
@@ -312,6 +327,45 @@ function buildPlayerPayload(user, playerInput) {
     inventory: getInventoryItems(player),
     collection: getCollectionItems(player),
     chicken: getChickenSummary(player)
+  };
+}
+
+function getWebShop(player, progressInput = {}) {
+  const progress = {
+    healingPotionUnlocked: false,
+    undyingTotemUnlocked: false,
+    ...progressInput
+  };
+  const consumables = getShopConsumables(progress).map((item) => {
+    const priceGold = item.id === "magicCandy" ? getMagicCandyPrice(player) : item.priceGold;
+    return {
+      id: item.id,
+      label: item.label,
+      priceGold,
+      owned: Math.max(0, Math.floor(player[item.id] || 0)),
+      category: /normalFeed|gourmetFeed|chickenMedicine|autoCleaner|magicCandy/.test(item.id) ? "chicken" : "mining",
+      multiBuy: item.id === "healingPotion" || item.id === "undyingTotem",
+      disabled: player.gold < priceGold
+    };
+  });
+  const collectibles = getShopItems().slice(0, 3).map((item) => ({
+    id: item.id,
+    label: item.collectible.name,
+    priceGold: item.priceGold,
+    owned: Math.max(0, Math.floor(player.collection[item.id] || 0)),
+    category: "collectible",
+    multiBuy: false,
+    disabled: player.gold < item.priceGold
+  }));
+  return {
+    enabled: Boolean(!player.dead && !player.runMode),
+    progress: {
+      bestDepth: progress.bestDepth || 0,
+      deaths: progress.deaths || 0,
+      healingPotionUnlocked: Boolean(progress.healingPotionUnlocked),
+      undyingTotemUnlocked: Boolean(progress.undyingTotemUnlocked)
+    },
+    items: [...collectibles, ...consumables]
   };
 }
 
@@ -393,9 +447,10 @@ async function handleApiMe(request, response) {
     return;
   }
   const players = await loadPlayers();
+  const progress = getProgressWithGlobal(players);
   sendJson(response, 200, {
     ok: true,
-    data: buildPlayerPayload(sessionUser, players[sessionUser.id])
+    data: buildPlayerPayload(sessionUser, players[sessionUser.id], progress)
   });
 }
 
@@ -417,6 +472,14 @@ function buildActionResponse(sessionUser, player, message, ok = true) {
     ok,
     message,
     data: buildPlayerPayload(sessionUser, player)
+  };
+}
+
+function buildActionResponseWithProgress(sessionUser, player, players, message, ok = true) {
+  return {
+    ok,
+    message,
+    data: buildPlayerPayload(sessionUser, player, getProgressWithGlobal(players))
   };
 }
 
@@ -490,6 +553,24 @@ async function handleApiAction(request, response) {
     });
     resultPlayer = resultPlayer || result;
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "shopBuy") {
+    const itemId = String(body.itemId || "");
+    const amount = Math.max(1, Math.floor(Number(body.amount || 1)));
+    await updatePlayers((players) => {
+      const progress = getProgressWithGlobal(players);
+      const result = buyShopItem(players[sessionUser.id], itemId, amount, progress);
+      resultPlayer = result.player;
+      message = result.message;
+      ok = result.ok !== false;
+      players[sessionUser.id] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
+    });
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponseWithProgress(sessionUser, resultPlayer, latestPlayers, message, ok));
     return;
   }
 
