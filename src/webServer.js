@@ -11,7 +11,9 @@ require("dotenv").config();
 const { CONFIG } = require("./config");
 const { cleanEnvValue } = require("./env");
 const {
+  buySupplyStationItem,
   chooseRunMode,
+  depositBank,
   drinkHealingPotion,
   getAreaLabel,
   getBagCapacity,
@@ -26,11 +28,15 @@ const {
   getRandomEvent,
   getRunModeOptions,
   getRunModeLabel,
+  getSupplyStationView,
   getTotalAsset,
+  leaveSupplyStation,
   mine,
   resolveEventChallenge,
   resolveRandomEvent,
-  returnToSurface
+  returnToSurface,
+  sellSupplyStationBuff,
+  withdrawBank
 } = require("./game");
 const {
   cleanChickenCoop,
@@ -249,6 +255,7 @@ function getCollectionItems(player) {
 function buildPlayerPayload(user, playerInput) {
   const player = getPlayer(playerInput);
   const pendingEvent = getWebPendingEvent(player);
+  const supplyStation = getSupplyStationView(player);
   return {
     user: {
       id: user.id,
@@ -290,9 +297,11 @@ function buildPlayerPayload(user, playerInput) {
       }))
       : [],
     pendingEvent,
+    supplyStation,
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
+      canUseBank: Boolean(!player.dead && (!player.runMode || player.zone === "undergroundCamp")),
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
       needsTrait: Boolean(!player.runMode && !player.dead),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
@@ -462,6 +471,41 @@ async function handleApiAction(request, response) {
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
       return players;
     });
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "bankDeposit" || action === "bankWithdraw") {
+    const amount = body.amount === null || body.amount === undefined || body.amount === ""
+      ? null
+      : Number(body.amount);
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const applied = action === "bankDeposit"
+        ? depositBank(player, amount)
+        : withdrawBank(player, amount);
+      resultPlayer = applied.player;
+      message = applied.message;
+      ok = applied.ok !== false;
+      return applied.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "supplyBuy" || action === "supplySell" || action === "supplyLeave") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const applied = action === "supplyBuy"
+        ? buySupplyStationItem(player, String(body.itemId || ""))
+        : action === "supplySell"
+          ? sellSupplyStationBuff(player, String(body.buff || ""))
+          : leaveSupplyStation(player);
+      resultPlayer = applied.player;
+      message = applied.message;
+      ok = applied.ok !== false;
+      return applied.player;
+    });
+    resultPlayer = resultPlayer || result;
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
     return;
   }

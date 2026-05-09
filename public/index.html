@@ -47,6 +47,17 @@
             <div><span>總資產</span><strong id="totalAsset">0</strong></div>
             <div><span>生命</span><strong id="hp">0/0</strong></div>
           </div>
+          <div class="bank-console" id="bankConsole">
+            <div class="bank-title">
+              <strong>🏦 銀行</strong>
+              <span>共用 Discord 資料</span>
+            </div>
+            <input id="bankAmount" type="number" min="1" step="1" placeholder="輸入金額，空白=全部">
+            <div class="bank-actions">
+              <button class="mini-button" data-action="bankDeposit">存入</button>
+              <button class="mini-button" data-action="bankWithdraw">領出</button>
+            </div>
+          </div>
         </aside>
 
         <section class="panel mine-panel tab-page" data-page="overview">

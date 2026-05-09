@@ -235,11 +235,13 @@ function makeActionButton(label, action, options = {}) {
 }
 
 function renderActions(payload) {
-  const { stateFlags, runModeOptions, digPathOptions, pendingEvent } = payload;
+  const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
   traitPicker.innerHTML = "";
   actionGrid.innerHTML = "";
+
+  $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
 
   if (pendingEvent) {
     traitPicker.classList.add("hidden");
@@ -264,6 +266,37 @@ function renderActions(payload) {
       button.dataset.choice = choice.id;
       actionGrid.appendChild(button);
     }
+    return;
+  }
+
+  if (supplyStation) {
+    traitPicker.classList.add("hidden");
+    const stationBox = document.createElement("div");
+    stationBox.className = "web-event-card supply-card";
+    stationBox.innerHTML = `
+      <div class="web-event-head">
+        <strong>🏪 ${supplyStation.title}</strong>
+        <span>第 ${formatNumber(supplyStation.depth)} 層</span>
+      </div>
+      <p>金幣：${formatNumber(payload.summary.gold)}｜買完或賣完可離開繼續挖。</p>
+    `;
+    actionGrid.appendChild(stationBox);
+    for (const item of supplyStation.items || []) {
+      const button = makeActionButton(`${item.emoji || "📦"} ${item.label}｜${formatNumber(item.price)}｜庫存 ${formatNumber(item.stock)}`, "supplyBuy", {
+        kind: item.type === "potion" ? "safe" : "primary",
+        disabled: item.disabled
+      });
+      button.dataset.itemId = item.id;
+      actionGrid.appendChild(button);
+    }
+    for (const offer of supplyStation.sellOffers || []) {
+      const button = makeActionButton(`💰 賣 ${offer.label}｜+${formatNumber(offer.price)}`, "supplySell", {
+        disabled: offer.disabled
+      });
+      button.dataset.buff = offer.buff;
+      actionGrid.appendChild(button);
+    }
+    actionGrid.appendChild(makeActionButton("🚪 離開補給站", "supplyLeave", { kind: "danger" }));
     return;
   }
 
@@ -515,6 +548,20 @@ $("dashboard").addEventListener("click", (event) => {
   }
   if (action === "eventChoice") {
     postAction(action, { choice: button.dataset.choice || "" });
+    return;
+  }
+  if (action === "bankDeposit" || action === "bankWithdraw") {
+    const input = $("bankAmount");
+    postAction(action, { amount: input.value || null });
+    input.value = "";
+    return;
+  }
+  if (action === "supplyBuy") {
+    postAction(action, { itemId: button.dataset.itemId || "" });
+    return;
+  }
+  if (action === "supplySell") {
+    postAction(action, { buff: button.dataset.buff || "" });
     return;
   }
   postAction(action);

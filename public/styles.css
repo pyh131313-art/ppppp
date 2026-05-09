@@ -282,6 +282,63 @@ h2 {
   color: var(--gold);
 }
 
+.bank-console {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.bank-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bank-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bank-console input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.26);
+  color: var(--text);
+  padding: 11px 12px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.bank-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mini-button {
+  border: 1px solid rgba(241, 196, 95, 0.28);
+  border-radius: 8px;
+  background: rgba(241, 196, 95, 0.12);
+  color: var(--text);
+  min-height: 40px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.disabled-panel {
+  opacity: 0.42;
+}
+
+.disabled-panel input,
+.disabled-panel button {
+  pointer-events: none;
+}
+
 .mine-screen {
   min-height: 382px;
   height: 100%;
@@ -459,6 +516,12 @@ h2 {
 .web-event-card small {
   color: #fde68a;
   font-weight: 800;
+}
+
+.supply-card {
+  border-color: rgba(74, 222, 128, 0.28);
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.14), rgba(0, 0, 0, 0.24));
 }
 
 .action-button {
