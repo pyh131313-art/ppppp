@@ -876,6 +876,10 @@ async function handleStatic(url, response) {
     await serveFile(response, path.join(ASSET_DIR, "assets", "collectibles", safeName), "public, max-age=86400");
     return true;
   }
+  if (pathname === "/assets/inventory-items.png") {
+    await serveFile(response, path.join(PUBLIC_DIR, "assets", "inventory-items.png"), "public, max-age=86400");
+    return true;
+  }
   const fileName = pathname === "/" ? "index.html" : path.basename(pathname);
   const allowed = new Set(["index.html", "app.js", "styles.css"]);
   if (!allowed.has(fileName)) return false;
