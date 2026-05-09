@@ -352,8 +352,49 @@ h2 {
     linear-gradient(180deg, rgba(13, 17, 23, 0.2), rgba(0, 0, 0, 0.34)),
     repeating-linear-gradient(135deg, #2e261e 0 22px, #241f1d 22px 44px);
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr auto;
   overflow: hidden;
+}
+
+.game-hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.game-hud div {
+  min-width: 0;
+  padding: 8px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(241, 196, 95, 0.2);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.36), rgba(0, 0, 0, 0.18));
+}
+
+.game-hud span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 3px;
+}
+
+.game-hud strong {
+  display: block;
+  color: #fef3c7;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-hud div:first-child strong {
+  color: #fecdd3;
+}
+
+.game-hud div:nth-child(2) strong {
+  color: var(--gold);
 }
 
 .scene-topline {
@@ -1127,6 +1168,24 @@ h2 {
     padding: 10px;
   }
 
+  .game-hud {
+    gap: 6px;
+    margin-bottom: 7px;
+  }
+
+  .game-hud div {
+    padding: 6px 7px;
+  }
+
+  .game-hud span {
+    font-size: 10px;
+    margin-bottom: 2px;
+  }
+
+  .game-hud strong {
+    font-size: 13px;
+  }
+
   .mine-art {
     gap: 7px;
     font-size: clamp(24px, 3vw, 36px);
@@ -1276,8 +1335,13 @@ h2 {
   .stats-grid,
   .trait-picker,
   .action-grid,
+  .game-hud,
   .quick-bag-grid {
     grid-template-columns: 1fr;
+  }
+
+  .game-hud {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .quick-bag-grid {

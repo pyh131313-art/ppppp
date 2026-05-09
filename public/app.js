@@ -581,6 +581,10 @@ function renderDashboard(payload) {
   setText("bankGold", formatNumber(summary.bankGold));
   setText("totalAsset", formatNumber(summary.totalAsset));
   setText("hp", summary.dead ? "死亡" : summary.hp);
+  setText("hudHp", summary.dead ? "死亡" : summary.hp);
+  setText("hudGold", formatNumber(summary.gold));
+  setText("hudDepth", summary.depthLabel || `${summary.depth}`);
+  setText("hudBag", `${summary.bagUsed}/${summary.bagCapacity}`);
   setText("area", summary.area);
   setText("cave", summary.cave);
   setText("depth", summary.depthLabel || `${summary.depth}`);
