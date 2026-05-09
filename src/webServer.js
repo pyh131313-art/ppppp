@@ -11,6 +11,8 @@ require("dotenv").config();
 const { CONFIG } = require("./config");
 const { cleanEnvValue } = require("./env");
 const {
+  chooseRunMode,
+  drinkHealingPotion,
   getAreaLabel,
   getBagCapacity,
   getBagUsedSlots,
@@ -20,15 +22,24 @@ const {
   getDepthLabel,
   getMaxBombs,
   getPlayer,
+  getRunModeOptions,
   getRunModeLabel,
-  getTotalAsset
+  getTotalAsset,
+  mine,
+  returnToSurface
 } = require("./game");
 const {
+  cleanChickenCoop,
+  feedChicken,
   getChickenRequiredExp,
   getChickenStage,
   normalizeOwnedChicken
 } = require("./chickenCare");
-const { loadPlayers } = require("./storage");
+const {
+  getGlobalStateFromPlayers,
+  setGlobalStateToPlayers
+} = require("./globalState");
+const { loadPlayers, updatePlayer, updatePlayers } = require("./storage");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const ASSET_DIR = path.join(__dirname, "..");
@@ -109,6 +120,14 @@ function sendJson(response, statusCode, body) {
   send(response, statusCode, JSON.stringify(body), {
     "Content-Type": "application/json; charset=utf-8"
   });
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (!raw.trim()) return {};
+  return JSON.parse(raw);
 }
 
 function redirect(response, location, headers = {}) {
@@ -198,6 +217,8 @@ function getInventoryItems(player) {
     minerHelmetCount: "礦工帽",
     healingPotion: "治療藥水",
     magicCandy: "神奇糖果",
+    normalFeed: "普通飼料",
+    gourmetFeed: "超好吃飼料",
     quickChickenBall: "先雞球",
     thickSoleShoes: "厚底鞋",
     guaranteedGemCaveTicket: "寶石洞券",
@@ -250,6 +271,21 @@ function buildPlayerPayload(user, playerInput) {
       collectionTotal: getCollectionTotal(player),
       collectionUnique: getCollectionUniqueCount(player),
       challengeBestDepth: player.challengeBestDepth || 0
+    },
+    runModeOptions: getRunModeOptions(player).map((mode) => ({
+      id: mode.id,
+      name: mode.label || mode.name || mode.id,
+      description: mode.shortDescription || ""
+    })),
+    stateFlags: {
+      hasPendingEvent: Boolean(player.pendingEvent),
+      hasSupplyStation: Boolean(player.supplyStation),
+      canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
+      needsTrait: Boolean(!player.runMode && !player.dead),
+      canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
+      canDrinkPotion: Boolean(player.runMode && !player.dead && player.healingPotion > 0),
+      canFeedChicken: Boolean(player.ownedChicken),
+      canCleanCoop: Boolean(player.ownedChicken)
     },
     inventory: getInventoryItems(player),
     collection: getCollectionItems(player),
@@ -313,6 +349,126 @@ async function handleApiLeaderboard(request, response) {
     ok: true,
     data: buildLeaderboardPayload(players, sessionUser.id)
   });
+}
+
+function buildActionResponse(sessionUser, player, message, ok = true) {
+  return {
+    ok,
+    message,
+    data: buildPlayerPayload(sessionUser, player)
+  };
+}
+
+async function handleApiAction(request, response) {
+  const sessionUser = getSessionUser(request);
+  if (!sessionUser) {
+    sendJson(response, 401, { ok: false, message: "not_logged_in" });
+    return;
+  }
+
+  const body = await readJsonBody(request);
+  const action = String(body.action || "");
+  let resultPlayer = null;
+  let message = "";
+  let ok = true;
+
+  if (action === "chooseTrait") {
+    const traitId = String(body.traitId || "");
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const chosen = chooseRunMode(player, traitId, Math.random);
+      resultPlayer = chosen.player;
+      message = chosen.message;
+      ok = chosen.ok !== false;
+      return chosen.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "mine") {
+    await updatePlayers((players) => {
+      const outcome = mine(players[sessionUser.id], Math.random, Date.now(), body.path || null);
+      resultPlayer = outcome.player;
+      message = `${outcome.title || "挖礦"}\n${outcome.message || ""}`.trim();
+      ok = outcome.kind !== "blocked";
+      players[sessionUser.id] = outcome.player;
+      return players;
+    });
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "returnSurface") {
+    await updatePlayers((players) => {
+      const globalState = getGlobalStateFromPlayers(players);
+      const result = returnToSurface(players[sessionUser.id], Math.random, globalState, Date.now());
+      resultPlayer = result.player;
+      message = result.message;
+      ok = result.ok !== false;
+      players[sessionUser.id] = result.player;
+      if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
+    });
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "drinkPotion") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const used = drinkHealingPotion(player);
+      resultPlayer = used.player;
+      message = used.message;
+      ok = used.ok !== false;
+      return used.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "feedChicken") {
+    const feedType = body.feedType === "gourmetFeed" ? "gourmetFeed" : "normalFeed";
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const current = getPlayer(player);
+      if (!current.ownedChicken) {
+        resultPlayer = current;
+        message = "你目前沒有自己的雞。";
+        ok = false;
+        return current;
+      }
+      const fed = feedChicken(current, feedType, Date.now(), Math.random);
+      resultPlayer = fed.player;
+      message = fed.message;
+      ok = fed.ok !== false;
+      return fed.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "cleanCoop") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const current = getPlayer(player);
+      if (!current.ownedChicken) {
+        resultPlayer = current;
+        message = "你目前沒有自己的雞。";
+        ok = false;
+        return current;
+      }
+      const cleaned = cleanChickenCoop(current, Date.now(), Math.random);
+      resultPlayer = cleaned.player;
+      message = cleaned.message;
+      ok = cleaned.ok !== false;
+      return cleaned.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  sendJson(response, 400, { ok: false, message: "unknown_action" });
 }
 
 async function handleDiscordCallback(request, response) {
@@ -417,7 +573,7 @@ async function handleStatic(url, response) {
   const fileName = pathname === "/" ? "index.html" : path.basename(pathname);
   const allowed = new Set(["index.html", "app.js", "styles.css"]);
   if (!allowed.has(fileName)) return false;
-  await serveFile(response, path.join(PUBLIC_DIR, fileName));
+  await serveFile(response, path.join(PUBLIC_DIR, fileName), "no-store");
   return true;
 }
 
@@ -446,6 +602,10 @@ async function handleRequest(request, response) {
     }
     if (url.pathname === "/api/leaderboard") {
       await handleApiLeaderboard(request, response);
+      return;
+    }
+    if (url.pathname === "/api/action" && request.method === "POST") {
+      await handleApiAction(request, response);
       return;
     }
     if (await handleStatic(url, response)) return;

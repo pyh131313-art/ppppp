@@ -35,6 +35,11 @@ function hideNotice() {
   $("notice").classList.add("hidden");
 }
 
+function getInventoryCount(key) {
+  if (!state.data || !Array.isArray(state.data.inventory)) return 0;
+  return state.data.inventory.find((item) => item.key === key)?.count || 0;
+}
+
 function setText(id, value) {
   $(id).textContent = value;
 }
@@ -87,6 +92,8 @@ function getItemIcon(key) {
     minerHelmetCount: "⛑️",
     healingPotion: "🧪",
     magicCandy: "🍬",
+    normalFeed: "🌾",
+    gourmetFeed: "🍖",
     quickChickenBall: "🥎",
     thickSoleShoes: "👞",
     guaranteedGemCaveTicket: "🎟️",
@@ -125,6 +132,79 @@ function renderChicken(chicken) {
       <div><span>雞舍</span><strong>${chicken.poop} 坨</strong></div>
     </div>
   `;
+}
+
+function showActionMessage(message, ok = true) {
+  const box = $("actionMessage");
+  if (!message) {
+    box.classList.add("hidden");
+    box.textContent = "";
+    return;
+  }
+  box.textContent = message;
+  box.classList.toggle("bad", !ok);
+  box.classList.remove("hidden");
+}
+
+function makeActionButton(label, action, options = {}) {
+  const button = document.createElement("button");
+  button.className = `action-button ${options.kind || ""}`.trim();
+  button.textContent = label;
+  button.dataset.action = action;
+  if (options.feedType) button.dataset.feedType = options.feedType;
+  if (options.disabled) button.disabled = true;
+  return button;
+}
+
+function renderActions(payload) {
+  const { stateFlags, runModeOptions } = payload;
+  const traitPicker = $("traitPicker");
+  const actionGrid = $("actionGrid");
+  traitPicker.innerHTML = "";
+  actionGrid.innerHTML = "";
+
+  if (stateFlags.needsTrait && runModeOptions.length) {
+    traitPicker.classList.remove("hidden");
+    for (const trait of runModeOptions) {
+      const button = document.createElement("button");
+      button.className = "trait-option";
+      button.dataset.action = "chooseTrait";
+      button.dataset.traitId = trait.id;
+      button.innerHTML = `<strong>${trait.name}</strong><span>${trait.description || "選擇後開始本輪"}</span>`;
+      traitPicker.appendChild(button);
+    }
+  } else {
+    traitPicker.classList.add("hidden");
+  }
+
+  actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
+    kind: "primary",
+    disabled: !stateFlags.canMine
+  }));
+  actionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
+    disabled: !stateFlags.canReturn
+  }));
+  actionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
+    disabled: !stateFlags.canDrinkPotion
+  }));
+  actionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
+    feedType: "normalFeed",
+    disabled: !stateFlags.canFeedChicken || getInventoryCount("normalFeed") <= 0
+  }));
+  actionGrid.appendChild(makeActionButton(`✨ 餵好吃 x${formatNumber(getInventoryCount("gourmetFeed"))}`, "feedChicken", {
+    feedType: "gourmetFeed",
+    disabled: !stateFlags.canFeedChicken || getInventoryCount("gourmetFeed") <= 0
+  }));
+  actionGrid.appendChild(makeActionButton("🧹 掃大便", "cleanCoop", {
+    disabled: !stateFlags.canCleanCoop
+  }));
+
+  if (stateFlags.hasPendingEvent) {
+    showActionMessage("目前遇到事件，事件選項仍需回 Discord 處理。", false);
+  }
+  if (stateFlags.hasSupplyStation) {
+    showActionMessage("目前在補給站，購買或離開仍需回 Discord 處理。", false);
+  }
 }
 
 function renderCollection(collection, summary) {
@@ -201,11 +281,42 @@ function renderDashboard(payload) {
 
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderChicken(chicken);
+  renderActions(payload);
   renderCollection(collection, summary);
   state.lastSyncAt = new Date();
   setText("lastUpdated", `同步：${state.lastSyncAt.toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   renderLeaderboard(state.leaderboard);
   setActiveTab(state.tab);
+}
+
+async function postAction(action, payload = {}) {
+  showActionMessage("處理中...");
+  try {
+    const response = await fetch("/api/action", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload })
+    });
+    if (response.status === 401) {
+      showNotice("請重新登入 Discord。");
+      return;
+    }
+    const body = await response.json();
+    if (!body.ok && !body.data) {
+      showActionMessage(body.message || "操作失敗。", false);
+      return;
+    }
+    if (body.data) {
+      state.data = body.data;
+      await loadLeaderboard();
+      renderDashboard(body.data);
+    }
+    showActionMessage(body.message || "完成。", body.ok);
+  } catch {
+    showActionMessage("操作失敗，稍後再試。", false);
+  }
 }
 
 async function loadMe(options = {}) {
@@ -266,6 +377,21 @@ document.querySelectorAll("[data-collection-filter]").forEach((button) => {
     });
     if (state.data) renderCollection(state.data.collection, state.data.summary);
   });
+});
+
+$("dashboard").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button || button.disabled) return;
+  const action = button.dataset.action;
+  if (action === "chooseTrait") {
+    postAction(action, { traitId: button.dataset.traitId });
+    return;
+  }
+  if (action === "feedChicken") {
+    postAction(action, { feedType: button.dataset.feedType || "normalFeed" });
+    return;
+  }
+  postAction(action);
 });
 
 $("refreshButton").addEventListener("click", () => {
