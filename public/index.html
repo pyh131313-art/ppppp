@@ -8,11 +8,11 @@
   </head>
   <body>
     <main class="shell">
-      <section class="hero">
+      <section class="hero game-topbar">
         <div>
-          <p class="eyebrow">Discord 共用資料</p>
+          <p class="eyebrow">Discord 即時同步</p>
           <h1>礦井探險</h1>
-          <p class="sub">用 Discord 登入後查看自己的礦場、包包、集幣冊與雞舍。</p>
+          <p class="sub">挖礦、養雞、收藏與排行榜都在同一個冒險面板。</p>
         </div>
         <div class="hero-actions">
           <button class="button ghost hidden" id="refreshButton">刷新資料</button>
@@ -48,6 +48,17 @@
             <div><span>生命</span><strong id="hp">0/0</strong></div>
           </div>
         </aside>
+
+        <section class="panel mine-panel tab-page" data-page="overview">
+          <div class="mine-screen" id="mineScreen">
+            <div class="scene-topline">
+              <span id="sceneArea">普通礦洞</span>
+              <strong id="sceneDepth">0 層</strong>
+            </div>
+            <div class="mine-art" id="mineArt" aria-hidden="true"></div>
+            <div class="route-strip" id="routeStrip"></div>
+          </div>
+        </section>
 
         <section class="panel status-panel tab-page" data-page="overview">
           <div class="section-title">

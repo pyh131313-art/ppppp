@@ -50,12 +50,9 @@ function setActiveTab(tab) {
     button.classList.toggle("active", button.dataset.tab === tab);
   });
   document.querySelectorAll(".tab-page").forEach((page) => {
-    page.classList.toggle("hidden-page", page.dataset.page !== tab && tab !== "overview");
+    page.classList.toggle("hidden-page", page.dataset.page !== tab);
   });
   document.querySelector(".profile").classList.toggle("hidden-page", tab !== "overview");
-  if (tab === "overview") {
-    document.querySelectorAll(".tab-page").forEach((page) => page.classList.remove("hidden-page"));
-  }
 }
 
 function renderInventory(items, used, capacity) {
@@ -103,6 +100,62 @@ function getItemIcon(key) {
     platinumJunk: "⬛"
   };
   return icons[key] || "📦";
+}
+
+function getAreaIcon(area = "", cave = "") {
+  const text = `${area} ${cave}`;
+  if (text.includes("天") || text.includes("天空")) return "☁️";
+  if (text.includes("地底") || text.includes("地下")) return "🌋";
+  if (text.includes("寶石")) return "💎";
+  if (text.includes("猛禽")) return "🦅";
+  if (text.includes("顛倒") || text.includes("反轉")) return "🌀";
+  return "⛏️";
+}
+
+function renderMineScene(payload) {
+  const { summary, stateFlags, digPathOptions } = payload;
+  const art = $("mineArt");
+  const routeStrip = $("routeStrip");
+  const areaText = `${summary.area}｜${summary.cave}`;
+  setText("sceneArea", areaText);
+  setText("sceneDepth", summary.depthLabel || `${summary.depth} 層`);
+
+  const areaIcon = getAreaIcon(summary.area, summary.cave);
+  let statusLine = `${areaIcon} ${summary.runMode || "尚未選詞條"}`;
+  let center = "⛏️";
+  if (summary.dead) {
+    statusLine = "💀 探險中斷";
+    center = "💀";
+  } else if (stateFlags.needsTrait) {
+    statusLine = "🏕️ 選一個詞條開始";
+    center = "🏕️";
+  } else if (stateFlags.hasPendingEvent) {
+    statusLine = "⚠️ 事件發生中";
+    center = "⚠️";
+  } else if (stateFlags.hasSupplyStation) {
+    statusLine = "🏪 補給站";
+    center = "🏪";
+  }
+
+  art.innerHTML = `
+    <div class="mine-row ceiling">🪨 🪨 🪨 🪨 🪨 🪨 🪨</div>
+    <div class="mine-row tunnel">⬛ ⬛ ${center} ⬛ ⬛</div>
+    <div class="mine-row vein">💰 🪨 💎 🪨 💣 🪨 💰</div>
+    <div class="scene-status">${statusLine}</div>
+  `;
+
+  routeStrip.innerHTML = "";
+  if (digPathOptions && digPathOptions.length) {
+    const sideIcon = { left: "←", middle: "↓", right: "→" };
+    for (const path of digPathOptions) {
+      const chip = document.createElement("span");
+      chip.className = "route-chip";
+      chip.textContent = `${sideIcon[path.side] || "•"} ${path.label}`;
+      routeStrip.appendChild(chip);
+    }
+    return;
+  }
+  routeStrip.innerHTML = `<span class="route-chip muted-chip">路線：無</span>`;
 }
 
 function renderChicken(chicken) {
@@ -291,6 +344,7 @@ function renderDashboard(payload) {
   setText("runMode", summary.runMode);
   setText("challengeBest", `${formatNumber(summary.challengeBestDepth)} 層`);
 
+  renderMineScene(payload);
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderChicken(chicken);
   renderActions(payload);
