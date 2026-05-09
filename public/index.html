@@ -94,14 +94,20 @@
           <div class="action-message hidden" id="actionMessage"></div>
           <div class="trait-picker hidden" id="traitPicker"></div>
           <div class="action-grid" id="actionGrid"></div>
-          <div class="quick-bag">
+          <div class="utility-tabs" aria-label="操作附屬功能">
+            <button class="utility-tab active" data-utility-tab="bag" type="button">包包</button>
+            <button class="utility-tab" data-utility-tab="shop" type="button">商店</button>
+            <button class="utility-tab" data-utility-tab="storage" type="button">倉庫</button>
+            <button class="utility-tab" data-utility-tab="inn" type="button">客棧</button>
+          </div>
+          <div class="quick-bag utility-page" data-utility-page="bag">
             <div class="quick-bag-title">
               <strong>🎒 包包</strong>
               <span id="quickBagCount">0/0</span>
             </div>
             <div class="quick-bag-grid" id="quickBagGrid"></div>
           </div>
-          <div class="web-shop" id="webShop">
+          <div class="web-shop utility-page hidden-utility" id="webShop" data-utility-page="shop">
             <div class="quick-bag-title">
               <strong>🏪 地表商店</strong>
               <span id="shopState">地表可用</span>
@@ -109,7 +115,7 @@
             <input id="shopAmount" type="number" min="1" step="1" placeholder="藥水/圖騰數量，空白=1">
             <div class="web-shop-grid" id="webShopGrid"></div>
           </div>
-          <div class="web-storage" id="webStorage">
+          <div class="web-storage utility-page hidden-utility" id="webStorage" data-utility-page="storage">
             <div class="quick-bag-title">
               <strong>📦 倉庫</strong>
               <span id="storageState">營地可用</span>
@@ -122,7 +128,7 @@
             </div>
             <div class="storage-grid" id="storageGrid"></div>
           </div>
-          <div class="web-inn" id="webInn">
+          <div class="web-inn utility-page hidden-utility" id="webInn" data-utility-page="inn">
             <div class="quick-bag-title">
               <strong>🍺 地底客棧</strong>
               <span id="innState">地底可用</span>

@@ -198,6 +198,9 @@ h2 {
 .action-panel {
   grid-column: 3;
   grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .mine-panel {
@@ -600,18 +603,49 @@ h2 {
   opacity: 0.38;
 }
 
-.quick-bag {
+.utility-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   margin-top: 14px;
-  padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
+  padding-top: 14px;
+}
+
+.utility-tab {
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.utility-tab.active {
+  color: var(--text);
+  border-color: rgba(241, 196, 95, 0.42);
+  background: rgba(241, 196, 95, 0.15);
+}
+
+.utility-page {
+  min-height: 0;
+}
+
+.hidden-utility {
+  display: none !important;
+}
+
+.quick-bag {
+  margin-top: 0;
 }
 
 .web-shop,
 .web-storage,
 .web-inn {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .web-shop input,
@@ -1150,8 +1184,19 @@ h2 {
   .web-shop,
   .web-storage,
   .web-inn {
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .utility-tabs {
     margin-top: 10px;
     padding-top: 10px;
+    gap: 5px;
+  }
+
+  .utility-tab {
+    min-height: 30px;
+    font-size: 12px;
   }
 
   .quick-bag-title {

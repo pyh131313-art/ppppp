@@ -4,6 +4,7 @@ const state = {
   data: null,
   leaderboard: null,
   tab: "overview",
+  utilityTab: "bag",
   collectionFilter: "all",
   loading: false,
   autoSyncTimer: null,
@@ -54,6 +55,16 @@ function setActiveTab(tab) {
     page.classList.toggle("hidden-page", page.dataset.page !== tab);
   });
   document.querySelector(".profile").classList.toggle("hidden-page", tab !== "overview");
+}
+
+function setUtilityTab(tab) {
+  state.utilityTab = tab;
+  document.querySelectorAll(".utility-tab").forEach((button) => {
+    button.classList.toggle("active", button.dataset.utilityTab === tab);
+  });
+  document.querySelectorAll(".utility-page").forEach((page) => {
+    page.classList.toggle("hidden-utility", page.dataset.utilityPage !== tab);
+  });
 }
 
 function renderInventory(items, used, capacity) {
@@ -590,6 +601,7 @@ function renderDashboard(payload) {
   setText("lastUpdated", `同步：${state.lastSyncAt.toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   renderLeaderboard(state.leaderboard);
   setActiveTab(state.tab);
+  setUtilityTab(state.utilityTab);
 }
 
 async function postAction(action, payload = {}) {
@@ -680,6 +692,10 @@ document.querySelectorAll("[data-collection-filter]").forEach((button) => {
     });
     if (state.data) renderCollection(state.data.collection, state.data.summary);
   });
+});
+
+document.querySelectorAll("[data-utility-tab]").forEach((button) => {
+  button.addEventListener("click", () => setUtilityTab(button.dataset.utilityTab));
 });
 
 $("dashboard").addEventListener("click", (event) => {
