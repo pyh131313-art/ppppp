@@ -947,6 +947,250 @@ h2 {
   color: var(--muted);
 }
 
+@media (min-width: 901px) {
+  body {
+    overflow: hidden;
+  }
+
+  .shell {
+    width: min(1500px, calc(100% - 20px));
+    height: 100vh;
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .hero {
+    min-height: 68px;
+    padding: 10px 14px;
+    gap: 14px;
+    flex: 0 0 auto;
+  }
+
+  .game-topbar::after,
+  .sub {
+    display: none;
+  }
+
+  .eyebrow {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+
+  h2 {
+    font-size: 17px;
+  }
+
+  .button {
+    padding: 9px 13px;
+  }
+
+  .notice {
+    margin-top: 0;
+    padding: 10px 12px;
+    flex: 0 0 auto;
+  }
+
+  .dashboard {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 0;
+    gap: 10px;
+    grid-template-columns: 260px minmax(0, 1fr) 360px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .tabs {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .tab,
+  .chip {
+    padding: 8px 11px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .profile,
+  .mine-panel,
+  .action-panel {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .profile {
+    grid-row: 2 / 4;
+  }
+
+  .mine-panel {
+    grid-row: 2 / 3;
+  }
+
+  .action-panel {
+    grid-row: 2 / 4;
+  }
+
+  .status-panel {
+    grid-row: 3 / 4;
+  }
+
+  .section-title {
+    margin-bottom: 10px;
+  }
+
+  .avatar {
+    width: 50px;
+    height: 50px;
+  }
+
+  .stats-grid {
+    gap: 7px;
+    margin-top: 12px;
+  }
+
+  .stats-grid div,
+  .status-list div,
+  .item-card {
+    padding: 8px;
+  }
+
+  .stats-grid span,
+  .status-list span {
+    margin-bottom: 3px;
+  }
+
+  .stats-grid strong,
+  .status-list strong {
+    font-size: 15px;
+  }
+
+  .bank-console {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  .bank-console input,
+  .web-shop input,
+  .web-storage input,
+  .web-storage select {
+    padding: 8px 10px;
+  }
+
+  .mini-button {
+    min-height: 34px;
+  }
+
+  .mine-screen {
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .mine-art {
+    gap: 7px;
+    font-size: clamp(24px, 3vw, 36px);
+  }
+
+  .mine-row.tunnel {
+    font-size: clamp(30px, 4vw, 48px);
+  }
+
+  .scene-status {
+    padding: 8px 11px;
+    font-size: 14px;
+  }
+
+  .route-chip {
+    min-height: 34px;
+    padding: 6px;
+    font-size: 13px;
+  }
+
+  .status-list {
+    gap: 7px;
+  }
+
+  .trait-picker,
+  .action-grid {
+    gap: 7px;
+  }
+
+  .trait-option,
+  .action-button {
+    padding: 9px;
+  }
+
+  .action-button {
+    min-height: 42px;
+    font-size: 13px;
+  }
+
+  .action-message {
+    padding: 9px;
+    margin-bottom: 8px;
+  }
+
+  .web-event-card {
+    padding: 10px;
+  }
+
+  .web-event-card p {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .quick-bag,
+  .web-shop,
+  .web-storage,
+  .web-inn {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  .quick-bag-title {
+    margin-bottom: 7px;
+  }
+
+  .quick-bag-grid {
+    gap: 5px;
+  }
+
+  .quick-slot {
+    min-height: 38px;
+  }
+
+  .quick-slot span {
+    font-size: 20px;
+  }
+
+  .quick-slot small {
+    font-size: 9px;
+  }
+
+  .web-shop-grid {
+    gap: 5px;
+  }
+
+  .shop-item-button {
+    padding: 7px;
+  }
+
+  .shop-item-button span {
+    font-size: 18px;
+  }
+
+  .storage-grid {
+    max-height: 92px;
+  }
+}
+
 @media (max-width: 900px) {
   .hero {
     align-items: flex-start;
