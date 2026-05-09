@@ -23,10 +23,13 @@ const {
   getDigPathOptions,
   getMaxBombs,
   getPlayer,
+  getRandomEvent,
   getRunModeOptions,
   getRunModeLabel,
   getTotalAsset,
   mine,
+  resolveEventChallenge,
+  resolveRandomEvent,
   returnToSurface
 } = require("./game");
 const {
@@ -245,6 +248,7 @@ function getCollectionItems(player) {
 
 function buildPlayerPayload(user, playerInput) {
   const player = getPlayer(playerInput);
+  const pendingEvent = getWebPendingEvent(player);
   return {
     user: {
       id: user.id,
@@ -285,6 +289,7 @@ function buildPlayerPayload(user, playerInput) {
         label: path.label
       }))
       : [],
+    pendingEvent,
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
@@ -298,6 +303,45 @@ function buildPlayerPayload(user, playerInput) {
     inventory: getInventoryItems(player),
     collection: getCollectionItems(player),
     chicken: getChickenSummary(player)
+  };
+}
+
+function getWebPendingEvent(player) {
+  if (!player.pendingEvent) return null;
+  const event = getRandomEvent(player.pendingEvent);
+  if (!event) return null;
+  const buttons = event.buttons || { risk: "冒險選項", safe: "保守選項" };
+  let choices = [];
+  if (player.eventChallenge && Array.isArray(player.eventChallenge.choices) && player.eventChallenge.choices.length > 0) {
+    choices = player.eventChallenge.choices.map((choice) => ({
+      id: choice.id,
+      label: choice.label
+    }));
+  } else {
+    const labels = { ...buttons };
+    if (player.wildChickenEncounter && player.pendingEvent.includes("chicken")) {
+      if (player.wildChickenEncounter.captureConfirm) {
+        labels.extreme = "確認烤雞捕捉";
+        labels.safe = "取消";
+      } else if (player.wildChickenEncounter.raceWeakened) {
+        labels.extreme = "趁機捕捉";
+        labels.safe = "放過";
+      }
+    }
+    choices = [
+      labels.risk ? { id: "risk", label: labels.risk, kind: "danger" } : null,
+      labels.safe ? { id: "safe", label: labels.safe, kind: "safe" } : null,
+      labels.extreme ? { id: "extreme", label: labels.extreme, kind: "danger" } : null
+    ].filter(Boolean);
+  }
+  return {
+    id: player.pendingEvent,
+    title: event.title || "事件",
+    description: event.description || "",
+    challengeType: player.eventChallenge ? player.eventChallenge.type : "",
+    hint: player.eventChallenge ? player.eventChallenge.hint || "" : "",
+    expiresAt: player.eventChallenge ? player.eventChallenge.expiresAt || 0 : 0,
+    choices
   };
 }
 
@@ -416,6 +460,24 @@ async function handleApiAction(request, response) {
       ok = result.ok !== false;
       players[sessionUser.id] = result.player;
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
+      return players;
+    });
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "eventChoice") {
+    const choice = String(body.choice || "");
+    await updatePlayers((players) => {
+      const player = getPlayer(players[sessionUser.id]);
+      const result = player.eventChallenge
+        ? resolveEventChallenge(player, choice, Math.random, Date.now())
+        : resolveRandomEvent(player, choice, Math.random, Date.now());
+      resultPlayer = result.player;
+      message = `${result.title || "事件"}\n${result.message || ""}`.trim();
+      if (result.announcement) message = `${message}\n\n${result.announcement.replace("<@PLAYER>", sessionUser.globalName || sessionUser.username || "你")}`;
+      ok = result.ok !== false;
+      players[sessionUser.id] = result.player;
       return players;
     });
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));

@@ -426,6 +426,41 @@ h2 {
   gap: 8px;
 }
 
+.web-event-card {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  background:
+    linear-gradient(180deg, rgba(251, 191, 36, 0.13), rgba(0, 0, 0, 0.24));
+}
+
+.web-event-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #fef3c7;
+}
+
+.web-event-head span {
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.web-event-card p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.web-event-card small {
+  color: #fde68a;
+  font-weight: 800;
+}
+
 .action-button {
   text-align: center;
   min-height: 54px;
@@ -439,6 +474,11 @@ h2 {
 .action-button.danger {
   background: rgba(251, 113, 133, 0.16);
   border-color: rgba(251, 113, 133, 0.45);
+}
+
+.action-button.safe {
+  background: rgba(74, 222, 128, 0.16);
+  border-color: rgba(74, 222, 128, 0.45);
 }
 
 .action-button:disabled,

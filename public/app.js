@@ -235,11 +235,37 @@ function makeActionButton(label, action, options = {}) {
 }
 
 function renderActions(payload) {
-  const { stateFlags, runModeOptions, digPathOptions } = payload;
+  const { stateFlags, runModeOptions, digPathOptions, pendingEvent } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
   traitPicker.innerHTML = "";
   actionGrid.innerHTML = "";
+
+  if (pendingEvent) {
+    traitPicker.classList.add("hidden");
+    const eventBox = document.createElement("div");
+    eventBox.className = "web-event-card";
+    const countdown = pendingEvent.expiresAt
+      ? `<span>限時互動</span>`
+      : "";
+    eventBox.innerHTML = `
+      <div class="web-event-head">
+        <strong>${pendingEvent.title}</strong>
+        ${countdown}
+      </div>
+      <p>${pendingEvent.description || "事件發生中。"}</p>
+      ${pendingEvent.hint ? `<small>${pendingEvent.hint}</small>` : ""}
+    `;
+    actionGrid.appendChild(eventBox);
+    for (const choice of pendingEvent.choices || []) {
+      const button = makeActionButton(choice.label, "eventChoice", {
+        kind: choice.kind || (pendingEvent.challengeType ? "primary" : "")
+      });
+      button.dataset.choice = choice.id;
+      actionGrid.appendChild(button);
+    }
+    return;
+  }
 
   if (stateFlags.needsTrait && runModeOptions.length) {
     traitPicker.classList.remove("hidden");
@@ -485,6 +511,10 @@ $("dashboard").addEventListener("click", (event) => {
   }
   if (action === "mine") {
     postAction(action, { path: button.dataset.path || null });
+    return;
+  }
+  if (action === "eventChoice") {
+    postAction(action, { choice: button.dataset.choice || "" });
     return;
   }
   postAction(action);
