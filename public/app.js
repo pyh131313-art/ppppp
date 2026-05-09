@@ -272,7 +272,9 @@ function getItemSpritePosition(key) {
 function getItemIconHtml(key, className = "item-icon") {
   const position = getItemSpritePosition(key);
   if (!position) return `<span class="${className} emoji-icon">${getItemIcon(key)}</span>`;
-  return `<span class="${className} item-sprite" style="--sprite-x:${position[0]};--sprite-y:${position[1]}" aria-hidden="true"></span>`;
+  const x = `${position[0] * 20}%`;
+  const y = `${position[1] * 33.333333}%`;
+  return `<span class="${className} item-sprite" style="--sprite-pos-x:${x};--sprite-pos-y:${y}" aria-hidden="true"></span>`;
 }
 
 function getAreaIcon(area = "", cave = "") {

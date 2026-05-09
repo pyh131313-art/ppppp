@@ -1058,9 +1058,7 @@ h2 {
   display: inline-block;
   background-image: url("/assets/inventory-items.png");
   background-size: 600% 400%;
-  background-position:
-    calc(var(--sprite-x) * 20%)
-    calc(var(--sprite-y) * 33.333333%);
+  background-position: var(--sprite-pos-x) var(--sprite-pos-y);
   background-repeat: no-repeat;
   filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.4));
 }
