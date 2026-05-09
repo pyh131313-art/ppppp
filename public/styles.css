@@ -508,6 +508,40 @@ h2 {
   cursor: pointer;
   text-align: left;
   font-weight: 900;
+  transition:
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease,
+    opacity 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.trait-option:hover:not(:disabled),
+.action-button:hover:not(:disabled),
+.mini-button:hover:not(:disabled),
+.shop-item-button:hover:not(:disabled),
+.utility-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(241, 196, 95, 0.42);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.26);
+}
+
+.trait-option:active:not(:disabled),
+.action-button:active:not(:disabled),
+.mini-button:active:not(:disabled),
+.shop-item-button:active:not(:disabled),
+.utility-tab:active {
+  transform: translateY(1px);
+}
+
+.trait-option:focus-visible,
+.action-button:focus-visible,
+.mini-button:focus-visible,
+.shop-item-button:focus-visible,
+.utility-tab:focus-visible,
+.button:focus-visible {
+  outline: 2px solid rgba(241, 196, 95, 0.9);
+  outline-offset: 2px;
 }
 
 .trait-option {
@@ -744,6 +778,50 @@ h2 {
 .trait-option:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.dashboard.action-busy .action-panel {
+  position: relative;
+}
+
+.dashboard.action-busy [data-action]:not(.is-loading) {
+  opacity: 0.32;
+}
+
+.action-button.is-loading,
+.trait-option.is-loading,
+.mini-button.is-loading,
+.shop-item-button.is-loading {
+  position: relative;
+  color: #fef3c7;
+  opacity: 1;
+  border-color: rgba(241, 196, 95, 0.62);
+  background:
+    linear-gradient(90deg, rgba(241, 196, 95, 0.22), rgba(74, 222, 128, 0.14)),
+    rgba(0, 0, 0, 0.24);
+  box-shadow: 0 0 0 1px rgba(241, 196, 95, 0.14), 0 12px 26px rgba(0, 0, 0, 0.32);
+}
+
+.action-button.is-loading::before,
+.trait-option.is-loading::before,
+.mini-button.is-loading::before,
+.shop-item-button.is-loading::before {
+  content: "";
+  display: inline-block;
+  width: 0.82em;
+  height: 0.82em;
+  margin-right: 8px;
+  border-radius: 999px;
+  border: 2px solid rgba(254, 243, 199, 0.35);
+  border-top-color: #fef3c7;
+  vertical-align: -0.1em;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .utility-tabs {

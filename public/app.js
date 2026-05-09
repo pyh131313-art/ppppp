@@ -7,6 +7,8 @@ const state = {
   utilityTab: "bag",
   collectionFilter: "all",
   loading: false,
+  actionLoading: false,
+  actionLockSnapshot: null,
   autoSyncTimer: null,
   eventCountdownTimer: null,
   lastSyncAt: null
@@ -331,6 +333,56 @@ function showActionMessage(message, ok = true) {
   box.classList.remove("hidden");
 }
 
+function getActionLabel(action, button) {
+  const labels = {
+    chooseTrait: "選擇詞條",
+    mine: button && button.dataset.path ? "挖掘路線" : "挖礦",
+    eventChoice: "處理事件",
+    bankDeposit: "存入銀行",
+    bankWithdraw: "領出銀行",
+    returnSurface: "返回地面",
+    drinkPotion: "喝藥水",
+    feedChicken: "餵雞",
+    cleanCoop: "掃雞舍",
+    supplyBuy: "補給站購買",
+    supplySell: "補給站出售",
+    supplyLeave: "離開補給站",
+    shopBuy: "商店購買",
+    storageDeposit: "存入倉庫",
+    storageWithdraw: "取出倉庫",
+    innBuy: "客棧購買"
+  };
+  return labels[action] || "執行操作";
+}
+
+function setActionLoading(isLoading, activeButton = null, label = "處理中") {
+  state.actionLoading = isLoading;
+  const dashboard = $("dashboard");
+  if (dashboard) dashboard.classList.toggle("action-busy", isLoading);
+
+  if (isLoading) {
+    state.actionLockSnapshot = Array.from(document.querySelectorAll("[data-action]")).map((button) => ({
+      button,
+      disabled: button.disabled,
+      html: button.innerHTML
+    }));
+    for (const item of state.actionLockSnapshot) {
+      item.button.disabled = true;
+      item.button.classList.toggle("is-loading", item.button === activeButton);
+      if (item.button === activeButton) item.button.textContent = `${label}中...`;
+    }
+    return;
+  }
+
+  for (const item of state.actionLockSnapshot || []) {
+    if (!item.button.isConnected) continue;
+    item.button.disabled = item.disabled;
+    item.button.classList.remove("is-loading");
+    item.button.innerHTML = item.html;
+  }
+  state.actionLockSnapshot = null;
+}
+
 function makeActionButton(label, action, options = {}) {
   const button = document.createElement("button");
   button.className = `action-button ${options.kind || ""}`.trim();
@@ -619,8 +671,11 @@ function renderDashboard(payload) {
   setUtilityTab(state.utilityTab);
 }
 
-async function postAction(action, payload = {}) {
-  showActionMessage("處理中...");
+async function postAction(action, payload = {}, activeButton = null) {
+  if (state.actionLoading) return;
+  const actionLabel = getActionLabel(action, activeButton);
+  setActionLoading(true, activeButton, actionLabel);
+  showActionMessage(`${actionLabel}中...`);
   try {
     const response = await fetch("/api/action", {
       method: "POST",
@@ -646,6 +701,8 @@ async function postAction(action, payload = {}) {
     showActionMessage(body.message || "完成。", body.ok);
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
+  } finally {
+    setActionLoading(false);
   }
 }
 
@@ -715,56 +772,56 @@ document.querySelectorAll("[data-utility-tab]").forEach((button) => {
 
 $("dashboard").addEventListener("click", (event) => {
   const button = event.target.closest("[data-action]");
-  if (!button || button.disabled) return;
+  if (!button || button.disabled || state.actionLoading) return;
   const action = button.dataset.action;
   if (action === "chooseTrait") {
-    postAction(action, { traitId: button.dataset.traitId });
+    postAction(action, { traitId: button.dataset.traitId }, button);
     return;
   }
   if (action === "feedChicken") {
-    postAction(action, { feedType: button.dataset.feedType || "normalFeed" });
+    postAction(action, { feedType: button.dataset.feedType || "normalFeed" }, button);
     return;
   }
   if (action === "mine") {
-    postAction(action, { path: button.dataset.path || null });
+    postAction(action, { path: button.dataset.path || null }, button);
     return;
   }
   if (action === "eventChoice") {
-    postAction(action, { choice: button.dataset.choice || "" });
+    postAction(action, { choice: button.dataset.choice || "" }, button);
     return;
   }
   if (action === "bankDeposit" || action === "bankWithdraw") {
     const input = $("bankAmount");
-    postAction(action, { amount: input.value || null });
+    postAction(action, { amount: input.value || null }, button);
     input.value = "";
     return;
   }
   if (action === "supplyBuy") {
-    postAction(action, { itemId: button.dataset.itemId || "" });
+    postAction(action, { itemId: button.dataset.itemId || "" }, button);
     return;
   }
   if (action === "supplySell") {
-    postAction(action, { buff: button.dataset.buff || "" });
+    postAction(action, { buff: button.dataset.buff || "" }, button);
     return;
   }
   if (action === "shopBuy") {
     const amount = $("shopAmount").value || 1;
-    postAction(action, { itemId: button.dataset.itemId || "", amount });
+    postAction(action, { itemId: button.dataset.itemId || "", amount }, button);
     $("shopAmount").value = "";
     return;
   }
   if (action === "storageDeposit" || action === "storageWithdraw") {
     const itemId = $("storageItem").value || "";
     const amount = $("storageAmount").value || null;
-    postAction(action, { itemId, amount });
+    postAction(action, { itemId, amount }, button);
     $("storageAmount").value = "";
     return;
   }
   if (action === "innBuy") {
-    postAction(action, { itemId: button.dataset.itemId || "" });
+    postAction(action, { itemId: button.dataset.itemId || "" }, button);
     return;
   }
-  postAction(action);
+  postAction(action, {}, button);
 });
 
 $("refreshButton").addEventListener("click", () => {
