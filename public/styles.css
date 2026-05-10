@@ -3836,3 +3836,390 @@ h1 {
     font-size: 12px;
   }
 }
+
+/* Mine scene inventory rail */
+.scene-bag-rail {
+  position: absolute;
+  z-index: 14;
+  top: clamp(96px, 17%, 140px);
+  right: 12px;
+  bottom: 62px;
+  width: clamp(70px, 7vw, 92px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(241, 196, 95, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(13, 15, 21, 0.86), rgba(5, 7, 10, 0.78));
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+}
+
+.scene-bag-rail .quick-bag-title {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scene-bag-rail .quick-bag-title strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.scene-bag-rail .quick-bag-title span {
+  font-size: 11px;
+}
+
+.scene-bag-rail .quick-bag-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: 58px;
+  gap: 7px;
+  padding-right: 2px;
+}
+
+.scene-bag-rail .quick-bag-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scene-bag-rail .quick-bag-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(241, 196, 95, 0.34);
+}
+
+.scene-bag-rail .quick-slot {
+  width: 100%;
+  min-height: 58px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+}
+
+.scene-bag-rail .quick-item-icon {
+  width: min(52px, 82%);
+  height: min(52px, 82%);
+}
+
+.scene-bag-rail .quick-slot span,
+.scene-bag-rail .quick-slot small {
+  right: 5px;
+  bottom: 4px;
+  font-size: 10px;
+}
+
+@media (min-width: 901px) {
+  .dashboard {
+    grid-template-columns: 220px minmax(0, 1fr) 340px;
+  }
+
+  .profile {
+    grid-row: 2 / 3;
+    align-self: start;
+    overflow: visible;
+    padding: 10px;
+  }
+
+  .profile .user-row {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .profile .avatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .profile h2 {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .profile .vital-card {
+    margin-top: 8px;
+    padding: 9px 10px;
+  }
+
+  .profile .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .profile .stats-grid .wide-stat {
+    grid-column: auto;
+  }
+
+  .profile .stats-grid div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  .profile .stats-grid span {
+    margin-bottom: 0;
+  }
+
+  .profile .stats-grid strong {
+    font-size: 14px;
+    text-align: right;
+  }
+
+  .profile .bank-console {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .mine-screen {
+    padding-right: clamp(98px, 10vw, 124px);
+  }
+
+  .mine-map-stage .stage-routes {
+    right: clamp(106px, 12vw, 142px);
+  }
+}
+
+@media (max-width: 700px) {
+  .mine-screen {
+    padding-right: 8px;
+  }
+
+  .scene-bag-rail {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: none;
+    margin-top: 4px;
+    padding: 7px;
+  }
+
+  .scene-bag-rail .quick-bag-title {
+    padding-bottom: 5px;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-template-columns: repeat(6, minmax(44px, 1fr));
+    grid-auto-rows: 46px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0 2px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 44px;
+    border-radius: 10px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(42px, 82%);
+    height: min(42px, 82%);
+  }
+
+  .mine-map-stage .stage-routes {
+    right: 10px;
+  }
+}
+
+/* Web interaction cleanup: put run decisions on the scene and compact side info. */
+.route-strip {
+  display: none;
+}
+
+.scene-control-panel {
+  position: absolute;
+  z-index: 18;
+  left: 22px;
+  right: clamp(108px, 11vw, 136px);
+  top: clamp(104px, 20%, 150px);
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.scene-control-panel > * {
+  pointer-events: auto;
+}
+
+.scene-control-panel .action-message {
+  margin: 0;
+  max-width: min(560px, 100%);
+  padding: 10px 12px;
+  border-color: rgba(74, 222, 128, 0.26);
+  background: rgba(5, 13, 12, 0.78);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(12px);
+}
+
+.scene-control-panel .trait-picker {
+  width: min(680px, 100%);
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scene-control-panel .trait-option,
+.scene-control-panel .action-button {
+  min-height: 58px;
+  border-color: rgba(241, 196, 95, 0.34);
+  background:
+    linear-gradient(180deg, rgba(16, 185, 129, 0.22), rgba(6, 78, 59, 0.44)),
+    rgba(0, 0, 0, 0.5);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.scene-control-panel .trait-reroll {
+  grid-column: 1 / -1;
+  min-height: 48px;
+  background:
+    linear-gradient(180deg, rgba(96, 165, 250, 0.2), rgba(30, 64, 175, 0.32)),
+    rgba(0, 0, 0, 0.5);
+}
+
+.scene-action-grid {
+  width: min(620px, 100%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.scene-action-grid:empty {
+  display: none;
+}
+
+.scene-control-panel .minor-buff-card,
+.scene-control-panel .supply-card,
+.scene-control-panel .death-card {
+  max-height: min(40vh, 320px);
+  overflow: auto;
+  background: rgba(5, 13, 12, 0.82);
+  backdrop-filter: blur(12px);
+}
+
+.profile-charge-summary {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-charge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.profile-charge-head strong {
+  color: #bbf7d0;
+}
+
+.profile-charge-summary .charge-bar-text {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.profile-charge-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.profile-charge-actions .mini-button {
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.profile-run-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.profile-run-actions .mini-button {
+  min-height: 34px;
+  padding: 7px 8px;
+}
+
+.profile-rescue-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+
+.action-panel {
+  gap: 10px;
+}
+
+.action-panel > .support-actions.hidden + .utility-tabs {
+  margin-top: 0;
+}
+
+@media (min-width: 901px) {
+  .profile {
+    max-height: none;
+  }
+
+  .profile .bank-console {
+    display: grid;
+    gap: 6px;
+  }
+
+  .profile .bank-title {
+    display: none;
+  }
+
+  .profile .bank-console input {
+    min-height: 34px;
+    padding: 7px 9px;
+  }
+
+  .profile .bank-actions {
+    gap: 6px;
+  }
+
+  .profile .bank-actions .mini-button {
+    min-height: 32px;
+    padding: 6px 8px;
+  }
+}
+
+@media (max-width: 700px) {
+  .scene-control-panel {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    margin: 6px 0;
+  }
+
+  .scene-control-panel .trait-picker,
+  .scene-action-grid {
+    width: 100%;
+  }
+
+  .scene-control-panel .trait-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .scene-control-panel .trait-reroll {
+    grid-column: auto;
+  }
+
+  .scene-control-panel .trait-option,
+  .scene-control-panel .action-button {
+    min-height: 48px;
+  }
+}

@@ -16,6 +16,20 @@ const state = {
 };
 
 const AUTO_SYNC_INTERVAL_MS = 10000;
+const ITEM_STACK_LIMIT = 10;
+const STACKED_SLOT_KEYS = new Set([
+  "ore",
+  "goldOre",
+  "platinumOre",
+  "oreIngot",
+  "goldOreIngot",
+  "platinumOreIngot",
+  "redGem",
+  "blueGem",
+  "greenGem",
+  "invertedOre",
+  "invertedGem"
+]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -92,12 +106,14 @@ function setUtilityTab(tab) {
 
 function updateFacilityVisibility(payload) {
   const { stateFlags, shop, storage, undergroundInn } = payload;
+  const actionPanel = document.querySelector(".action-panel");
   const available = {
     shop: Boolean(stateFlags.canUseShop && shop && shop.enabled),
     storage: Boolean(stateFlags.canUseStorage && storage && storage.enabled),
     inn: Boolean(stateFlags.canUseUndergroundInn && undergroundInn && undergroundInn.enabled)
   };
   const availableTabs = Object.keys(available).filter((key) => available[key]);
+  if (actionPanel) actionPanel.classList.toggle("hidden-page", availableTabs.length === 0);
   const utilityTabs = document.querySelector(".utility-tabs");
   utilityTabs.classList.toggle("hidden", availableTabs.length === 0);
   document.querySelectorAll(".utility-tab").forEach((button) => {
@@ -113,6 +129,25 @@ function updateFacilityVisibility(payload) {
   setUtilityTab(state.utilityTab);
 }
 
+function expandInventorySlots(items) {
+  const slots = [];
+  for (const item of items || []) {
+    const count = Math.max(0, Math.floor(item.count || 0));
+    if (count <= 0) continue;
+    if (!STACKED_SLOT_KEYS.has(item.key)) {
+      slots.push({ ...item, slotCount: count, totalCount: count });
+      continue;
+    }
+    let remaining = count;
+    while (remaining > 0) {
+      const slotCount = Math.min(ITEM_STACK_LIMIT, remaining);
+      slots.push({ ...item, slotCount, totalCount: count });
+      remaining -= slotCount;
+    }
+  }
+  return slots;
+}
+
 function renderInventory(items, used, capacity) {
   setText("bagCount", `${used}/${capacity}`);
   const grid = $("inventoryGrid");
@@ -121,37 +156,36 @@ function renderInventory(items, used, capacity) {
     grid.innerHTML = `<div class="empty">包包目前是空的</div>`;
     return;
   }
-  for (const item of items) {
+  const slots = expandInventorySlots(items);
+  for (const item of slots) {
     const card = document.createElement("button");
     card.className = "item-card";
     card.type = "button";
     card.dataset.itemKey = item.key;
-    card.innerHTML = `${getItemIconHtml(item.key)}<strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
+    card.title = `${item.label} x${formatNumber(item.totalCount || item.count)}`;
+    card.innerHTML = `${getItemIconHtml(item.key)}<strong>${item.label}</strong><span>x${formatNumber(item.slotCount || item.count)}</span>`;
     grid.appendChild(card);
   }
 }
 
 function renderQuickBag(items, used, capacity) {
-  const quickLimit = 8;
-  const suffix = capacity > quickLimit ? `｜快捷${quickLimit}格` : "";
-  setText("quickBagCount", `${used}/${capacity}${suffix}`);
+  setText("quickBagCount", `${used}/${capacity}`);
   const grid = $("quickBagGrid");
   grid.innerHTML = "";
-  const slots = [];
-  for (const item of items) {
-    slots.push({
-      icon: getItemIconHtml(item.key, "quick-item-icon"),
-      label: item.label,
-      count: item.count
-    });
-  }
-  const visibleSlots = quickLimit;
+  const slots = expandInventorySlots(items).map((item) => ({
+    key: item.key,
+    icon: getItemIconHtml(item.key, "quick-item-icon"),
+    label: item.label,
+    count: item.slotCount || item.count,
+    totalCount: item.totalCount || item.count
+  }));
+  const visibleSlots = Math.max(capacity || 0, slots.length, 8);
   for (let index = 0; index < visibleSlots; index += 1) {
     const item = slots[index];
     const cell = document.createElement("div");
     cell.className = `quick-slot${item ? "" : " empty-slot"}`;
     if (item) {
-      cell.title = `${item.label} x${formatNumber(item.count)}`;
+      cell.title = `${item.label} x${formatNumber(item.totalCount)}`;
       cell.dataset.itemKey = item.key;
       cell.innerHTML = `${item.icon}<small>x${formatNumber(item.count)}</small>`;
     }
@@ -521,29 +555,70 @@ function renderMiningSystems(payload) {
   if (minorBox) {
     const active = Array.isArray(minor.active) ? minor.active : [];
     const options = Array.isArray(minor.options) ? minor.options : [];
-    const activeHtml = active.length
-      ? active.map((buff) => `<span>${escapeHtml(buff.label)} x${formatNumber(buff.count)}</span>`).join("")
-      : "<span>無小詞條</span>";
-    const optionHtml = options.length
-      ? `<div class="mini-choice-hint">${minor.breakthrough ? "突破可選" : "待選"}：${options.map((buff) => `${buff.breakthrough ? "✨" : ""}${escapeHtml(buff.label)}`).join("｜")}</div>`
-      : "";
-    minorBox.innerHTML = `
-      <div class="system-title">小詞條</div>
-      <div class="system-chips">${activeHtml}</div>
-      ${optionHtml}
-    `;
+    if (!active.length && !options.length) {
+      minorBox.classList.add("hidden");
+      minorBox.innerHTML = "";
+    } else {
+      minorBox.classList.remove("hidden");
+      const activeHtml = active.length
+        ? active.map((buff) => `<span>${escapeHtml(buff.label)} x${formatNumber(buff.count)}</span>`).join("")
+        : "<span>無小詞條</span>";
+      const optionHtml = options.length
+        ? `<div class="mini-choice-hint">${minor.breakthrough ? "突破可選" : "待選"}：${options.map((buff) => `${buff.breakthrough ? "✨" : ""}${escapeHtml(buff.label)}`).join("｜")}</div>`
+        : "";
+      minorBox.innerHTML = `
+        <div class="system-title">小詞條</div>
+        <div class="system-chips">${activeHtml}</div>
+        ${optionHtml}
+      `;
+    }
   }
   if (chargeBox) {
     const value = Math.max(0, Math.min(100, Number(charge.value || 0)));
     const filled = Math.round(value / 10);
     const bar = `${"🟩".repeat(filled)}${"⬛".repeat(10 - filled)}`;
     const last = charge.lastUsed ? `<span>上次：${escapeHtml((charge.skills || []).find((skill) => skill.id === charge.lastUsed)?.label || charge.lastUsed)}</span>` : "";
+    const skillButtons = charge.ready
+      ? `<div class="profile-charge-actions">${(charge.skills || []).map((skill) => `
+          <button class="mini-button" data-action="triggerCharge" data-skill="${escapeHtml(skill.id)}" ${skill.disabled ? "disabled" : ""}>${escapeHtml(skill.label)}</button>
+        `).join("")}</div>`
+      : "";
     chargeBox.innerHTML = `
-      <div class="system-title">蓄力</div>
-      <div class="charge-bar-text">${bar} ${formatNumber(value)}/100</div>
+      <div class="profile-charge-head"><span>蓄力</span><strong>${formatNumber(value)}/100</strong></div>
+      <div class="charge-bar-text">${bar}</div>
       ${last ? `<div class="system-chips">${last}</div>` : ""}
+      ${skillButtons}
     `;
   }
+}
+
+function renderProfileRunActions(payload) {
+  const actions = $("profileRunActions");
+  if (!actions) return;
+  const flags = payload.stateFlags || {};
+  const summary = payload.summary || {};
+  const rescueTargets = Array.isArray(payload.rescueTargets) ? payload.rescueTargets : [];
+  const canReturn = Boolean(flags.canReturn && !summary.dead && !flags.hasPendingEvent && !flags.hasSupplyStation);
+  const canRevive = Boolean(flags.canRevive);
+  const rescueBox = $("profileRescueActions");
+  $("profileReturnButton").classList.toggle("hidden", !canReturn);
+  $("profileReturnButton").disabled = !canReturn;
+  $("profileReviveButton").classList.toggle("hidden", !canRevive);
+  $("profileReviveButton").disabled = !canRevive;
+  if (rescueBox) {
+    rescueBox.innerHTML = "";
+    if (flags.canRescue && rescueTargets.length) {
+      for (const target of rescueTargets.slice(0, 3)) {
+        const button = document.createElement("button");
+        button.className = "mini-button safe";
+        button.dataset.action = "rescue";
+        button.dataset.targetUserId = target.userId;
+        button.textContent = `救援 ${target.label}`;
+        rescueBox.appendChild(button);
+      }
+    }
+  }
+  actions.classList.toggle("hidden", !canReturn && !canRevive && !(flags.canRescue && rescueTargets.length));
 }
 
 function renderChicken(chicken) {
@@ -620,6 +695,11 @@ function renderChickenBattleView(battle = {}) {
 
 function showActionMessage(message, ok = true) {
   const box = $("actionMessage");
+  if (isSettlementMessage(message)) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
   if (!message) {
     box.classList.add("hidden");
     box.innerHTML = "";
@@ -883,19 +963,10 @@ function renderMobileDock(payload) {
   }
 
   if (stateFlags.canDrinkPotion) {
-    add(makeDockButton("🧪 喝藥水", "drinkPotion", { kind: "safe" }));
-  }
-  if (charge.ready && !pendingEvent && !supplyStation && !summary.dead) {
-    const firstSkill = (charge.skills || []).find((skill) => !skill.disabled);
-    if (firstSkill) {
-      add(makeDockButton(`⚡ ${firstSkill.label}`, "triggerCharge", {
-        kind: "safe",
-        skill: firstSkill.id
-      }));
-    }
+    // 藥水改從包包物品使用，手機底欄不再重複顯示。
   }
   if (stateFlags.canReturn && !summary.dead && !pendingEvent && !supplyStation) {
-    add(makeDockButton("↩️ 回地面", "returnSurface", { kind: "secondary" }));
+    // 返回地面整合到玩家資訊卡。
   }
 
   const hasDockControls = dock.children.length > 0;
@@ -1026,9 +1097,11 @@ function renderActions(payload) {
   supportActionGrid.innerHTML = "";
   supportActions.classList.remove("hidden");
   supportActions.open = !window.matchMedia("(max-width: 700px)").matches || Boolean(payload.summary && payload.summary.dead);
+  supportActions.classList.add("hidden");
 
   $("bankConsole").classList.toggle("hidden", !stateFlags.canUseBank);
   $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
+  renderProfileRunActions(payload);
   renderEventOverlay(pendingEvent);
 
   if (pendingEvent) {
@@ -1110,6 +1183,8 @@ function renderActions(payload) {
     rerollButton.dataset.action = "rerollTraits";
     rerollButton.innerHTML = "<strong>刷新詞條 10</strong><span>花 10 金幣重新抽兩個詞條</span>";
     traitPicker.appendChild(rerollButton);
+    renderMobileDock(payload);
+    return;
   } else {
     traitPicker.classList.add("hidden");
   }
@@ -1139,27 +1214,13 @@ function renderActions(payload) {
   }
 
   if (stateFlags.canMine && digPathOptions && digPathOptions.length) {
-    const hintBox = document.createElement("div");
-    hintBox.className = "web-event-card route-inline-hint";
-    hintBox.innerHTML = `
-      <div class="web-event-head">
-        <strong>選擇礦道</strong>
-        <span>場景操作</span>
-      </div>
-      <p>直接點礦坑畫面中的入口前進。</p>
-    `;
-    actionGrid.appendChild(hintBox);
+    // 路線按鈕已經在 CG 舞台上。
   } else {
     actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
       kind: "hero-action primary",
       disabled: !stateFlags.canMine
     }));
   }
-  supportActionGrid.appendChild(makeActionDivider("生存"));
-  supportActionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
-    kind: "secondary",
-    disabled: !stateFlags.canReturn
-  }));
   if (stateFlags.canRevive) {
     supportActionGrid.appendChild(makeActionButton("💚 自己復活", "revive", {
       kind: "primary"
@@ -1174,21 +1235,6 @@ function renderActions(payload) {
         kind: "safe"
       });
       button.dataset.targetUserId = target.userId;
-      supportActionGrid.appendChild(button);
-    }
-  }
-  supportActionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
-    kind: "secondary",
-    disabled: !stateFlags.canDrinkPotion
-  }));
-  if (charge && charge.value !== undefined) {
-    supportActionGrid.appendChild(makeActionDivider(`蓄力 ${formatNumber(charge.value)}/100`));
-    for (const skill of charge.skills || []) {
-      const button = makeActionButton(`⚡ ${skill.label}`, "triggerCharge", {
-        kind: "safe",
-        disabled: skill.disabled || Boolean(pendingEvent) || Boolean(supplyStation) || Boolean(summary.dead)
-      });
-      button.dataset.skill = skill.id;
       supportActionGrid.appendChild(button);
     }
   }
@@ -1283,6 +1329,7 @@ function renderDashboard(payload) {
 
   renderMineScene(payload);
   renderMiningSystems(payload);
+  renderProfileRunActions(payload);
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderQuickBag(inventory, summary.bagUsed, summary.bagCapacity);
   renderShop(payload.shop);
@@ -1328,8 +1375,11 @@ async function postAction(action, payload = {}, activeButton = null) {
     }
     const message = body.message || "完成。";
     showActionMessage(message, body.ok);
-    showFloatingToast(message, body.ok);
-    if (body.ok) showSettlementModal(message);
+    if (body.ok && isSettlementMessage(message)) {
+      showSettlementModal(message);
+    } else {
+      showFloatingToast(message, body.ok);
+    }
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
   } finally {

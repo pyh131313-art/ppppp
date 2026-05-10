@@ -48,6 +48,7 @@
               <strong id="hp">0/0</strong>
             </div>
             <div class="hp-track" aria-hidden="true"><span id="hpBar"></span></div>
+            <div class="profile-charge-summary" id="chargeSummary"></div>
           </div>
           <div class="stats-grid">
             <div><span>身上金幣</span><strong id="gold">0</strong></div>
@@ -65,6 +66,11 @@
               <button class="mini-button" data-action="bankWithdraw">領出</button>
             </div>
           </div>
+          <div class="profile-run-actions" id="profileRunActions">
+            <button class="mini-button" data-action="returnSurface" id="profileReturnButton">返回地表</button>
+            <button class="mini-button primary" data-action="revive" id="profileReviveButton">復活</button>
+            <div class="profile-rescue-actions" id="profileRescueActions"></div>
+          </div>
         </aside>
 
         <section class="panel mine-panel tab-page" data-page="overview">
@@ -79,7 +85,20 @@
               <span id="sceneArea">普通礦洞</span>
               <strong id="sceneDepth">0 層</strong>
             </div>
+            <div class="scene-control-panel">
+              <div class="action-message hidden" id="actionMessage"></div>
+              <div class="trait-picker hidden" id="traitPicker"></div>
+              <div class="mini-trait-summary" id="miniTraitSummary"></div>
+              <div class="action-grid scene-action-grid" id="actionGrid"></div>
+            </div>
             <div class="mine-art" id="mineArt" aria-hidden="true"></div>
+            <aside class="scene-bag-rail" aria-label="快捷包包">
+              <div class="quick-bag-title">
+                <strong>🎒</strong>
+                <span id="quickBagCount">0/0</span>
+              </div>
+              <div class="quick-bag-grid" id="quickBagGrid"></div>
+            </aside>
             <div class="route-strip" id="routeStrip"></div>
           </div>
         </section>
@@ -109,15 +128,7 @@
           </div>
         </section>
 
-        <section class="panel quickbar-panel tab-page" data-page="overview">
-          <div class="quick-bag-title">
-            <strong>🎒 快捷包包</strong>
-            <span id="quickBagCount">0/0</span>
-          </div>
-          <div class="quick-bag-grid" id="quickBagGrid"></div>
-        </section>
-
-        <section class="panel status-panel compact-status tab-page" data-page="overview">
+        <section class="panel status-panel compact-status tab-page hidden" data-page="overview" aria-hidden="true">
           <div class="section-title">
             <span>⛏️</span>
             <h2>礦場狀態</h2>
@@ -130,26 +141,11 @@
             <div><span>詞條</span><strong id="runMode">-</strong></div>
             <div><span>挑戰紀錄</span><strong id="challengeBest">-</strong></div>
           </div>
-          <div class="mini-trait-summary" id="miniTraitSummary"></div>
-          <div class="charge-summary" id="chargeSummary"></div>
         </section>
 
         <section class="panel action-panel tab-page" data-page="overview">
-          <div class="section-title">
-            <span>🎮</span>
-            <h2>操作</h2>
-          </div>
-          <div class="action-message hidden" id="actionMessage"></div>
-          <div class="trait-picker hidden" id="traitPicker"></div>
-          <div class="action-group">
-            <div class="action-group-title">
-              <strong>下一步</strong>
-              <span>路線 / 事件 / 挖礦</span>
-            </div>
-            <div class="action-grid" id="actionGrid"></div>
-          </div>
-          <details class="support-actions" id="supportActions" open>
-            <summary>生存 / 照顧</summary>
+          <details class="support-actions hidden" id="supportActions">
+            <summary>生存</summary>
             <div class="action-grid support-grid" id="supportActionGrid"></div>
           </details>
           <div class="utility-tabs" aria-label="操作附屬功能">
