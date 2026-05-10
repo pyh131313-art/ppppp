@@ -38,6 +38,15 @@ function showNotice(message) {
   notice.classList.remove("hidden");
 }
 
+function showLoggedOutControls() {
+  $("dashboard").classList.add("hidden");
+  $("loginButton").classList.remove("hidden");
+  $("loginButton").textContent = "Discord 登入";
+  $("guestButton").classList.remove("hidden");
+  $("logoutButton").classList.add("hidden");
+  $("refreshButton").classList.add("hidden");
+}
+
 function setRefreshButtonLoading(isLoading) {
   const button = $("refreshButton");
   if (!button) return;
@@ -951,12 +960,14 @@ function renderLeaderboard(leaderboard) {
 function renderDashboard(payload) {
   const { user, summary, inventory, collection, chicken } = payload;
   $("dashboard").classList.remove("hidden");
-  $("loginButton").classList.add("hidden");
+  $("loginButton").classList.toggle("hidden", !user.isGuest);
+  $("loginButton").textContent = user.isGuest ? "綁定 Discord" : "Discord 登入";
+  $("guestButton").classList.add("hidden");
   $("logoutButton").classList.remove("hidden");
   $("refreshButton").classList.remove("hidden");
 
   $("avatar").src = user.avatarUrl || "";
-  $("avatar").alt = user.globalName || user.username || "Discord 玩家";
+  $("avatar").alt = user.globalName || user.username || "玩家";
   setText("playerName", user.globalName || user.username || user.id);
   setText("gold", formatNumber(summary.gold));
   setText("bankGold", formatNumber(summary.bankGold));
@@ -1035,13 +1046,25 @@ async function loadMe(options = {}) {
   if (!silent) setRefreshButtonLoading(true);
   const params = new URLSearchParams(location.search);
   if (params.get("login")) {
-    showNotice("Discord 登入尚未完成，請確認 OAuth Redirect URI 和環境變數。");
+    const loginState = params.get("login");
+    const notices = {
+      guest: "已用訪客身分開始遊玩。之後可按 Discord 登入綁定存檔。",
+      guest_bound: "訪客存檔已綁定到 Discord 帳號。",
+      guest_bind_conflict: "這個 Discord 帳號已有存檔，已切換到原本的 Discord 存檔。",
+      client_id_missing: "Discord 登入尚未設定完成，但可以先用訪客身分遊玩。",
+      oauth_not_configured: "Discord 登入尚未完成，請確認 OAuth Redirect URI 和環境變數。"
+    };
+    showNotice(notices[loginState] || "Discord 登入尚未完成，請確認 OAuth Redirect URI 和環境變數。");
   } else {
     hideNotice();
   }
   try {
     const response = await fetch("/api/me", { credentials: "include", cache: "no-store" });
-    if (response.status === 401) return;
+    if (response.status === 401) {
+      showLoggedOutControls();
+      if (!silent && !params.get("login")) showNotice("可以用 Discord 登入，或用訪客身分先玩。");
+      return;
+    }
     const body = await response.json();
     if (!body.ok) {
       showNotice(`讀取資料失敗：${body.message || "server_error"}`);

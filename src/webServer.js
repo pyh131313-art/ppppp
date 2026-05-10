@@ -122,9 +122,14 @@ function createSession(user) {
     username: String(user.username || ""),
     globalName: String(user.global_name || user.globalName || ""),
     avatar: user.avatar ? String(user.avatar) : "",
+    isGuest: Boolean(user.isGuest),
     exp: Date.now() + SESSION_TTL_MS
   }));
   return `${payload}.${signPayload(payload)}`;
+}
+
+function createSessionCookie(user) {
+  return `${SESSION_COOKIE}=${encodeURIComponent(createSession(user))}; HttpOnly; Path=/; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; SameSite=Lax`;
 }
 
 function readCookies(request) {
@@ -202,6 +207,7 @@ function getRedirectUri(request) {
 }
 
 function getDiscordAvatarUrl(user) {
+  if (user && user.isGuest) return "";
   if (!user || !user.id || !user.avatar) return "";
   return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
 }
@@ -327,6 +333,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput 
       id: user.id,
       username: user.username,
       globalName: user.globalName || user.global_name || "",
+      isGuest: Boolean(user.isGuest),
       avatarUrl: getDiscordAvatarUrl(user)
     },
     summary: {
@@ -883,13 +890,42 @@ async function handleDiscordCallback(request, response) {
     });
     if (!userResponse.ok) throw new Error(`Discord user fetch failed: ${userResponse.status}`);
     const discordUser = await userResponse.json();
-    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(createSession(discordUser))}; HttpOnly; Path=/; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; SameSite=Lax`;
-    redirect(response, "/", { "Set-Cookie": cookie });
+    const previousSession = getSessionUser(request);
+    let boundGuest = false;
+    let bindConflict = false;
+    if (previousSession && previousSession.isGuest && String(previousSession.id).startsWith("guest_")) {
+      await updatePlayers((players) => {
+        if (players[previousSession.id] && !players[discordUser.id]) {
+          players[discordUser.id] = players[previousSession.id];
+          delete players[previousSession.id];
+          boundGuest = true;
+        } else if (players[previousSession.id] && players[discordUser.id]) {
+          bindConflict = true;
+        }
+        return players;
+      });
+    }
+    const cookie = createSessionCookie(discordUser);
+    const bindQuery = boundGuest ? "?login=guest_bound" : bindConflict ? "?login=guest_bind_conflict" : "";
+    redirect(response, `/${bindQuery}`, { "Set-Cookie": cookie });
   } catch (error) {
     console.error("[web] Discord OAuth failed");
     console.error(error);
     redirect(response, "/?login=failed");
   }
+}
+
+function handleGuestLogin(_request, response) {
+  const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  const guestUser = {
+    id: `guest_${crypto.randomUUID()}`,
+    username: `guest_${suffix}`,
+    globalName: `訪客${suffix}`,
+    isGuest: true
+  };
+  redirect(response, "/?login=guest", {
+    "Set-Cookie": createSessionCookie(guestUser)
+  });
 }
 
 function handleLogin(request, response) {
@@ -902,8 +938,7 @@ function handleLogin(request, response) {
     client_id: clientId,
     redirect_uri: getRedirectUri(request),
     response_type: "code",
-    scope: "identify",
-    prompt: "none"
+    scope: "identify"
   });
   redirect(response, `https://discord.com/api/oauth2/authorize?${params.toString()}`);
 }
@@ -979,6 +1014,10 @@ async function handleRequest(request, response) {
     }
     if (url.pathname === "/login") {
       handleLogin(request, response);
+      return;
+    }
+    if (url.pathname === "/guest-login") {
+      handleGuestLogin(request, response);
       return;
     }
     if (url.pathname === "/logout") {
