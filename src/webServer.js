@@ -221,6 +221,26 @@ function getDiscordAvatarUrl(user) {
   return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
 }
 
+function cleanDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 40);
+}
+
+function applySessionIdentity(playerInput, user) {
+  const player = getPlayer(playerInput);
+  if (!user || user.isGuest) return player;
+  const displayName = cleanDisplayName(user.globalName || user.global_name || user.username);
+  const username = cleanDisplayName(user.username);
+  if (displayName) player.discordDisplayName = displayName;
+  if (username) player.discordUsername = username;
+  if (user.avatar) player.discordAvatar = String(user.avatar).slice(0, 128);
+  return player;
+}
+
+async function rememberSessionIdentity(user) {
+  if (!user || user.isGuest || !user.id) return;
+  await updatePlayer(user.id, (player) => applySessionIdentity(player, user));
+}
+
 function getHpText(player) {
   const maxHp = getMaxBombs(player);
   const damage = Number(player.bombs || 0);
@@ -626,8 +646,17 @@ function getEventCgUrl(eventId, event) {
   return "";
 }
 
-function getMaskedPlayerName(userId, currentUserId) {
-  if (String(userId) === String(currentUserId)) return "你";
+function getLeaderboardDisplayName(userId, playerInput, currentUserId) {
+  const player = getPlayer(playerInput);
+  const savedName = cleanDisplayName(
+    player.discordDisplayName
+    || player.displayName
+    || player.globalName
+    || player.discordUsername
+    || player.username
+  );
+  if (String(userId) === String(currentUserId)) return savedName ? `你（${savedName}）` : "你";
+  if (savedName) return savedName;
   const id = String(userId || "");
   return `玩家 ${id.slice(-4) || "????"}`;
 }
@@ -638,7 +667,7 @@ function buildLeaderboardPayload(playersInput, currentUserId) {
     const chicken = player.ownedChicken ? normalizeOwnedChicken(player.ownedChicken) : null;
     return {
       userId,
-      name: getMaskedPlayerName(userId, currentUserId),
+      name: getLeaderboardDisplayName(userId, player, currentUserId),
       bestDepth: Math.max(0, Math.floor(player.stats.bestDepth || 0)),
       totalAsset: getTotalAsset(player),
       challengeBestDepth: Math.max(0, Math.floor(player.challengeBestDepth || 0)),
@@ -1112,6 +1141,7 @@ async function handleDiscordCallback(request, response) {
         return players;
       });
     }
+    await rememberSessionIdentity(discordUser);
     const cookie = createSessionCookie(discordUser);
     const bindQuery = boundGuest ? "?login=guest_bound" : bindConflict ? "?login=guest_bind_conflict" : "";
     redirect(response, `/${bindQuery}`, { "Set-Cookie": cookie });

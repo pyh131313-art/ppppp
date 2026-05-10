@@ -172,6 +172,32 @@ const client = new Client({
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function cleanDiscordDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 40);
+}
+
+function getInteractionDisplayName(interaction) {
+  const member = interaction && interaction.member ? interaction.member : null;
+  return cleanDiscordDisplayName(
+    (member && (member.displayName || member.nick))
+    || (interaction.user && (interaction.user.globalName || interaction.user.username))
+  );
+}
+
+async function rememberInteractionIdentity(interaction) {
+  if (!interaction || !interaction.user || interaction.user.bot) return;
+  const displayName = getInteractionDisplayName(interaction);
+  const username = cleanDiscordDisplayName(interaction.user.username);
+  if (!displayName && !username) return;
+  await updatePlayer(interaction.user.id, (playerInput) => {
+    const player = getPlayer(playerInput);
+    if (displayName) player.discordDisplayName = displayName;
+    if (username) player.discordUsername = username;
+    if (interaction.user.avatar) player.discordAvatar = String(interaction.user.avatar).slice(0, 128);
+    return player;
+  });
+}
+
 async function checkDiscordGateway(timeoutMs = 15_000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -986,6 +1012,10 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    if (interaction.isChatInputCommand()) {
+      rememberInteractionIdentity(interaction).catch((error) => console.error("記錄 Discord 名稱失敗：", error));
+    }
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith(`${BANK_MODAL_PREFIX}:`)) {
       await handleBankModalSubmit(interaction);
       return;

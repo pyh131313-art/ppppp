@@ -395,22 +395,36 @@ function renderMineScene(payload) {
     statusLine = "補給站";
     stageState = "is-supply";
   }
+  const showStageRoutes = Boolean(stateFlags.canMine && digPathOptions && digPathOptions.length);
+  const sideLabel = { left: "左路", middle: "中路", right: "右路" };
+  const routeButtons = showStageRoutes
+    ? `
+      <div class="stage-routes stage-routes-${digPathOptions.length}">
+        ${digPathOptions.map((path) => `
+          <button class="stage-route-button route-${path.side}" data-action="mine" data-path="${escapeHtml(path.side)}" type="button">
+            <span>${sideLabel[path.side] || "路線"}</span>
+            <strong>${escapeHtml(path.label)}</strong>
+          </button>
+        `).join("")}
+      </div>
+    `
+    : "";
 
   art.innerHTML = `
-    <div class="mine-map-stage ${stageState}">
+    <div class="mine-map-stage ${stageState}${showStageRoutes ? " has-routes" : ""}">
       <img class="mine-map-bg" src="${getMineSceneImage(summary, stateFlags)}" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
       <div class="scene-status">${statusLine}</div>
+      ${routeButtons}
     </div>
   `;
 
   routeStrip.innerHTML = "";
   if (digPathOptions && digPathOptions.length) {
-    const sideIcon = { left: "←", middle: "↓", right: "→" };
     for (const path of digPathOptions) {
       const chip = document.createElement("span");
-      chip.className = "route-chip";
-      chip.textContent = `${sideIcon[path.side] || "•"} ${path.label}`;
+      chip.className = `route-chip route-${path.side}`;
+      chip.textContent = `${sideLabel[path.side] || "路線"}｜${path.label}`;
       routeStrip.appendChild(chip);
     }
     return;
@@ -845,6 +859,78 @@ function startEventCountdown(eventData) {
   state.eventCountdownTimer = setInterval(tick, 250);
 }
 
+function hideEventOverlay() {
+  const overlay = $("eventOverlay");
+  if (!overlay) return;
+  overlay.classList.add("hidden");
+  const choices = $("eventChoiceGrid");
+  if (choices) choices.innerHTML = "";
+}
+
+function renderEventOverlay(pendingEvent) {
+  const overlay = $("eventOverlay");
+  if (!overlay) return;
+  if (!pendingEvent) {
+    hideEventOverlay();
+    return;
+  }
+  const media = $("eventDialogMedia");
+  const description = $("eventDialogDescription");
+  const hint = $("eventDialogHint");
+  const timer = $("eventCountdownText");
+  const challengePanel = $("eventChallengePanel");
+  const challengeType = $("eventChallengeType");
+  const challengeMeta = $("eventChallengeMeta");
+  const choices = $("eventChoiceGrid");
+
+  setText("eventDialogTitle", pendingEvent.title || "礦坑事件");
+  description.textContent = pendingEvent.description || "事件發生中。";
+  if (pendingEvent.hint) {
+    hint.textContent = pendingEvent.hint;
+    hint.classList.remove("hidden");
+  } else {
+    hint.textContent = "";
+    hint.classList.add("hidden");
+  }
+
+  if (pendingEvent.imageUrl) {
+    media.innerHTML = `<img src="${pendingEvent.imageUrl}" alt="${escapeHtml(pendingEvent.title || "事件")}">`;
+    media.classList.remove("hidden");
+  } else {
+    media.innerHTML = "";
+    media.classList.add("hidden");
+  }
+
+  if (pendingEvent.expiresAt) {
+    timer.textContent = "限時";
+    timer.classList.remove("hidden");
+  } else {
+    timer.textContent = "";
+    timer.classList.add("hidden");
+  }
+
+  if (pendingEvent.challengeType) {
+    challengeType.textContent = getChallengeLabel(pendingEvent.challengeType);
+    challengeMeta.textContent = pendingEvent.durability
+      ? `鐵絲 ${formatNumber(pendingEvent.durability)}｜嘗試 ${formatNumber(pendingEvent.attempts || 0)}`
+      : "快速判斷";
+    challengePanel.classList.remove("hidden");
+  } else {
+    challengePanel.classList.add("hidden");
+  }
+
+  choices.innerHTML = "";
+  for (const choice of pendingEvent.choices || []) {
+    const button = makeActionButton(choice.label, "eventChoice", {
+      kind: `hero-action ${choice.kind || (pendingEvent.challengeType ? "primary" : "")}`.trim()
+    });
+    button.dataset.choice = choice.id;
+    choices.appendChild(button);
+  }
+  overlay.classList.remove("hidden");
+  startEventCountdown(pendingEvent);
+}
+
 function renderActions(payload) {
   const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation, rescueTargets = [], summary = {}, minorBuffs = {}, charge = {} } = payload;
   const traitPicker = $("traitPicker");
@@ -860,45 +946,21 @@ function renderActions(payload) {
 
   $("bankConsole").classList.toggle("hidden", !stateFlags.canUseBank);
   $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
+  renderEventOverlay(pendingEvent);
 
   if (pendingEvent) {
     traitPicker.classList.add("hidden");
     supportActions.classList.add("hidden");
     const eventBox = document.createElement("div");
-    eventBox.className = `web-event-card ${pendingEvent.challengeType ? "challenge-card" : ""}`;
-    const countdown = pendingEvent.expiresAt
-      ? `<span id="eventCountdownText">限時</span>`
-      : "";
-    const challengeInfo = pendingEvent.challengeType
-      ? `
-        <div class="challenge-panel">
-          <div class="challenge-meter"><i id="eventCountdownFill"></i></div>
-          <div class="challenge-meta">
-            <b>${getChallengeLabel(pendingEvent.challengeType)}</b>
-            ${pendingEvent.durability ? `<span>鐵絲 ${formatNumber(pendingEvent.durability)}｜嘗試 ${formatNumber(pendingEvent.attempts || 0)}</span>` : "<span>快速判斷</span>"}
-          </div>
-        </div>
-      `
-      : "";
+    eventBox.className = "web-event-card event-inline-hint";
     eventBox.innerHTML = `
-      ${pendingEvent.imageUrl ? `<div class="event-cg"><img src="${pendingEvent.imageUrl}" alt="${escapeHtml(pendingEvent.title)}"></div>` : ""}
       <div class="web-event-head">
         <strong>${pendingEvent.title}</strong>
-        ${countdown || "<span>網頁操作</span>"}
+        <span>彈窗操作</span>
       </div>
-      <p>${pendingEvent.description || "事件發生中。"}</p>
-      ${pendingEvent.hint ? `<small>${pendingEvent.hint}</small>` : ""}
-      ${challengeInfo}
+      <p>事件已在礦坑畫面中開啟，請直接選擇處理方式。</p>
     `;
     actionGrid.appendChild(eventBox);
-    startEventCountdown(pendingEvent);
-    for (const choice of pendingEvent.choices || []) {
-      const button = makeActionButton(choice.label, "eventChoice", {
-        kind: `hero-action ${choice.kind || (pendingEvent.challengeType ? "primary" : "")}`.trim()
-      });
-      button.dataset.choice = choice.id;
-      actionGrid.appendChild(button);
-    }
     renderMobileDock(payload);
     return;
   }
@@ -989,15 +1051,16 @@ function renderActions(payload) {
   }
 
   if (stateFlags.canMine && digPathOptions && digPathOptions.length) {
-    const sideIcon = { left: "⬅️", middle: "⬇️", right: "➡️" };
-    const sideName = { left: "左", middle: "中", right: "右" };
-    for (const path of digPathOptions) {
-      const button = makeActionButton(`${sideIcon[path.side] || "⛏️"} ${sideName[path.side] || "路"}：${path.label}`, "mine", {
-        kind: `hero-action route-${path.side} ${path.side === "right" ? "danger" : "primary"}`
-      });
-      button.dataset.path = path.side;
-      actionGrid.appendChild(button);
-    }
+    const hintBox = document.createElement("div");
+    hintBox.className = "web-event-card route-inline-hint";
+    hintBox.innerHTML = `
+      <div class="web-event-head">
+        <strong>選擇礦道</strong>
+        <span>場景操作</span>
+      </div>
+      <p>直接點礦坑畫面中的入口前進。</p>
+    `;
+    actionGrid.appendChild(hintBox);
   } else {
     actionGrid.appendChild(makeActionButton("⛏️ 挖礦", "mine", {
       kind: "hero-action primary",

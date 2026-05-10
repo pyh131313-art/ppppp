@@ -84,6 +84,31 @@
           </div>
         </section>
 
+        <section class="event-overlay hidden" id="eventOverlay" aria-live="polite">
+          <div class="event-dialog">
+            <div class="event-dialog-media hidden" id="eventDialogMedia"></div>
+            <div class="event-dialog-body">
+              <div class="event-dialog-head">
+                <div>
+                  <p class="eyebrow">礦坑遭遇</p>
+                  <h2 id="eventDialogTitle">事件</h2>
+                </div>
+                <span id="eventCountdownText" class="event-timer hidden">限時</span>
+              </div>
+              <p id="eventDialogDescription"></p>
+              <small id="eventDialogHint" class="hidden"></small>
+              <div class="challenge-panel hidden" id="eventChallengePanel">
+                <div class="challenge-meter"><i id="eventCountdownFill"></i></div>
+                <div class="challenge-meta">
+                  <b id="eventChallengeType">事件</b>
+                  <span id="eventChallengeMeta">快速判斷</span>
+                </div>
+              </div>
+              <div class="event-choice-grid" id="eventChoiceGrid"></div>
+            </div>
+          </div>
+        </section>
+
         <section class="panel quickbar-panel tab-page" data-page="overview">
           <div class="quick-bag-title">
             <strong>🎒 快捷包包</strong>

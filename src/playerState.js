@@ -44,6 +44,9 @@ const STACKABLE_ITEM_KEYS = new Set([
 
 function createPlayer() {
   return {
+    discordDisplayName: "",
+    discordUsername: "",
+    discordAvatar: "",
     gold: 0,
     bankGold: 0,
     healingPotion: 0,
