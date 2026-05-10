@@ -374,6 +374,8 @@ function renderChicken(chicken) {
     return;
   }
   const expPercent = Math.min(100, Math.floor((chicken.exp / Math.max(1, chicken.requiredExp)) * 100));
+  const normalFeedCount = getInventoryCount("normalFeed");
+  const gourmetFeedCount = getInventoryCount("gourmetFeed");
   card.innerHTML = `
     <div class="chicken-name">${chicken.icon} ${chicken.name}</div>
     <div class="muted">Lv.${chicken.level}｜${chicken.stage}｜${chicken.evolution}</div>
@@ -392,6 +394,11 @@ function renderChicken(chicken) {
       <div><span>健康</span><strong>${chicken.health}%</strong></div>
       <div><span>飢餓</span><strong>${chicken.hunger}%</strong></div>
       <div><span>雞舍</span><strong>${chicken.poop} 坨</strong></div>
+    </div>
+    <div class="chicken-actions">
+      <button class="mini-button" data-action="feedChicken" data-feed-type="normalFeed" ${normalFeedCount <= 0 ? "disabled" : ""}>🍖 餵普通 x${formatNumber(normalFeedCount)}</button>
+      <button class="mini-button" data-action="feedChicken" data-feed-type="gourmetFeed" ${gourmetFeedCount <= 0 ? "disabled" : ""}>✨ 餵好吃 x${formatNumber(gourmetFeedCount)}</button>
+      <button class="mini-button" data-action="cleanCoop">🧹 掃大便</button>
     </div>
   `;
 }
@@ -639,21 +646,6 @@ function renderActions(payload) {
   supportActionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
     kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
-  }));
-  supportActionGrid.appendChild(makeActionDivider("照顧"));
-  supportActionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
-    kind: "secondary",
-    feedType: "normalFeed",
-    disabled: !stateFlags.canFeedChicken || getInventoryCount("normalFeed") <= 0
-  }));
-  supportActionGrid.appendChild(makeActionButton(`✨ 餵好吃 x${formatNumber(getInventoryCount("gourmetFeed"))}`, "feedChicken", {
-    kind: "secondary",
-    feedType: "gourmetFeed",
-    disabled: !stateFlags.canFeedChicken || getInventoryCount("gourmetFeed") <= 0
-  }));
-  supportActionGrid.appendChild(makeActionButton("🧹 掃大便", "cleanCoop", {
-    kind: "secondary",
-    disabled: !stateFlags.canCleanCoop
   }));
 
   if (stateFlags.hasPendingEvent) {

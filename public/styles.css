@@ -529,6 +529,35 @@ h2 {
   gap: 10px;
 }
 
+.compact-status {
+  align-self: start;
+}
+
+.compact-status .section-title {
+  margin-bottom: 8px;
+}
+
+.compact-status .section-title h2 {
+  font-size: 15px;
+}
+
+.compact-status .status-list {
+  gap: 6px;
+}
+
+.compact-status .status-list div {
+  padding: 8px;
+}
+
+.compact-status .status-list span {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+
+.compact-status .status-list strong {
+  font-size: 14px;
+}
+
 .action-message {
   white-space: pre-wrap;
   padding: 12px;
@@ -1195,6 +1224,13 @@ h2 {
   padding: 10px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 8px;
+}
+
+.chicken-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .coin-grid {
@@ -1983,6 +2019,7 @@ h2 {
   .stats-grid,
   .trait-picker,
   .action-grid,
+  .chicken-actions,
   .game-hud,
   .quick-bag-grid {
     grid-template-columns: 1fr;
