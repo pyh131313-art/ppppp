@@ -13,6 +13,7 @@ const { cleanEnvValue } = require("./env");
 const {
   buySupplyStationItem,
   buyShopItem,
+  chooseMinorBuff,
   chooseRunMode,
   depositBank,
   depositUndergroundStorage,
@@ -27,6 +28,7 @@ const {
   getDigPathOptions,
   getMaxBombs,
   getMagicCandyPrice,
+  getMinorBuffOptions,
   getPlayer,
   getRandomEvent,
   getRunModeOptions,
@@ -47,16 +49,21 @@ const {
   rerollRunModeOptions,
   returnToSurface,
   sellSupplyStationBuff,
+  triggerCharge,
   withdrawBank,
   withdrawUndergroundStorage,
   buyUndergroundInnItem
 } = require("./game");
 const {
   cleanChickenCoop,
+  createBossBattle,
   feedChicken,
   getChickenRequiredExp,
   getChickenStage,
-  normalizeOwnedChicken
+  hasChickenReachedFinish,
+  normalizeOwnedChicken,
+  settleBattle,
+  updateBattleFrame
 } = require("./chickenCare");
 const {
   getGlobalStateFromPlayers,
@@ -70,6 +77,7 @@ const DEFAULT_PORT = 3000;
 const SESSION_COOKIE = "mine_web_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const serverState = { server: null };
+const webChickenBattles = new Map();
 const WEB_STORAGE_ITEMS = [
   ["ore", "普通礦石"],
   ["goldOre", "金礦石"],
@@ -220,6 +228,47 @@ function getHpText(player) {
   return `${current}/${maxHp}`;
 }
 
+function getWebChickenBattle(userId) {
+  const battle = webChickenBattles.get(userId);
+  if (!battle || battle.status === "settled") return null;
+  return battle;
+}
+
+function formatWebBattleRunner(runner) {
+  if (!runner || !runner.chicken) return null;
+  return {
+    name: runner.chicken.name || "賽雞",
+    icon: runner.chicken.icon || "🐔",
+    level: Math.max(1, Math.floor(runner.chicken.level || 1)),
+    speed: Math.max(0, Math.floor(runner.chicken.speed || 0)),
+    sprint: Math.max(0, Math.floor(runner.chicken.sprint || 0)),
+    stability: Math.max(0, Math.floor(runner.chicken.stability || 0)),
+    stamina: Math.max(0, Math.floor(runner.chicken.stamina || 0)),
+    position: Math.max(0, Number(runner.position || 0))
+  };
+}
+
+function getWebBattleView(userId, player) {
+  const battle = getWebChickenBattle(userId);
+  if (!battle) {
+    return {
+      active: false,
+      rank: Math.max(1, Math.floor(player.chickenArenaRank || 1)),
+      highestClearedRank: Math.max(0, Math.floor((player.chickenArenaRank || 1) - 1))
+    };
+  }
+  return {
+    active: true,
+    id: battle.id,
+    status: battle.status,
+    bossRank: Math.max(1, Math.floor(battle.bossRank || 1)),
+    frame: battle.frames && battle.frames.length ? battle.frames[battle.frames.length - 1] : "",
+    frameCount: Math.max(0, Math.floor(battle.webFrame || 0)),
+    challenger: formatWebBattleRunner(Array.isArray(battle.runners) ? battle.runners[0] : null),
+    boss: formatWebBattleRunner(Array.isArray(battle.runners) ? battle.runners[1] : null)
+  };
+}
+
 function getRunModeText(player) {
   if (!player.runMode) return "未選擇";
   return getRunModeLabel(player.runMode);
@@ -325,6 +374,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput 
   const player = getPlayer(playerInput);
   const pendingEvent = getWebPendingEvent(player);
   const supplyStation = getSupplyStationView(player);
+  const minorBuffs = getWebMinorBuffs(player);
   const shop = getWebShop(player, progressInput);
   const storage = getWebStorage(player);
   const undergroundInn = getWebUndergroundInn(player, progressInput);
@@ -384,8 +434,9 @@ function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput 
       canUseShop: Boolean(!player.dead && !player.runMode),
       canUseStorage: Boolean(!player.dead && ["surface", "undergroundCamp", "skyCamp"].includes(player.zone)),
       canUseUndergroundInn: Boolean(!player.dead && player.zone === "undergroundCamp"),
-      canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
+      canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation && !minorBuffs.needsChoice),
       needsTrait: Boolean(!player.runMode && !player.dead),
+      needsMinorBuff: Boolean(!player.dead && minorBuffs.needsChoice),
       canRevive: Boolean(player.dead),
       canRescue: Boolean(!player.dead && rescueTargets.length > 0),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
@@ -393,9 +444,12 @@ function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput 
       canFeedChicken: Boolean(player.ownedChicken),
       canCleanCoop: Boolean(player.ownedChicken)
     },
+    minorBuffs,
+    charge: getWebCharge(player),
     inventory: getInventoryItems(player),
     collection: getCollectionItems(player),
-    chicken: getChickenSummary(player)
+    chicken: getChickenSummary(player),
+    chickenBattle: getWebBattleView(user.id, player)
   };
 }
 
@@ -426,6 +480,48 @@ function getWebUndergroundInn(player, progressInput = {}) {
       resource: item.resource,
       price: item.price,
       disabled: !enabled || (player[item.resource] || 0) < item.price
+    }))
+  };
+}
+
+function getWebMinorBuffs(player) {
+  const active = Object.entries(player.minorBuffs || {})
+    .filter(([id, count]) => count > 0 && CONFIG.minorBuffs[id])
+    .map(([id, count]) => ({
+      id,
+      label: CONFIG.minorBuffs[id].label,
+      count: Math.max(0, Math.floor(count || 0))
+    }));
+  const options = getMinorBuffOptions(player).map((buff) => ({
+    id: buff.id,
+    label: buff.label,
+    currentStacks: Math.max(0, Math.floor(buff.currentStacks || 0)),
+    effectiveStacks: Number(buff.effectiveStacks || 0),
+    breakthrough: Boolean(buff.breakthrough)
+  }));
+  return {
+    active,
+    options,
+    needsChoice: options.length > 0,
+    breakthrough: Boolean(player.minorBuffBreakthroughMode)
+  };
+}
+
+function getWebCharge(player) {
+  const value = Math.max(0, Math.min(100, Math.floor(player.chargeValue || 0)));
+  const labels = {
+    reward: "收益爆發",
+    safe: "穩定爆發",
+    resource: "資源爆發"
+  };
+  return {
+    value,
+    ready: value >= 100,
+    lastUsed: player.lastChargeSkillUsed || "",
+    skills: Object.entries(labels).map(([id, label]) => ({
+      id,
+      label,
+      disabled: value < 100 || player.lastChargeSkillUsed === id
     }))
   };
 }
@@ -818,6 +914,87 @@ async function handleApiAction(request, response) {
       return players;
     });
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "chooseMinorBuff") {
+    const buff = String(body.buff || "");
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const applied = chooseMinorBuff(player, buff);
+      resultPlayer = applied.player;
+      message = applied.message;
+      ok = applied.ok !== false;
+      return applied.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "triggerCharge") {
+    const skill = String(body.skill || "");
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const applied = triggerCharge(player, skill);
+      resultPlayer = applied.player;
+      message = applied.message;
+      ok = applied.ok !== false;
+      return applied.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "startBossBattle") {
+    await updatePlayers((players) => {
+      const created = createBossBattle(sessionUser.id, players, Date.now(), Math.random, "web", null, null);
+      if (!created.ok) {
+        resultPlayer = getPlayer(players[sessionUser.id]);
+        message = created.message || "無法開始賽雞館挑戰。";
+        ok = false;
+        return players;
+      }
+      created.battle.status = "racing";
+      created.battle.webFrame = 0;
+      updateBattleFrame(created.battle, players, 0, Math.random);
+      webChickenBattles.set(sessionUser.id, created.battle);
+      resultPlayer = getPlayer(players[sessionUser.id]);
+      message = `🏟️ 賽雞館 Rank ${created.battle.bossRank || 1} 開始！\n${created.battle.frames[created.battle.frames.length - 1] || ""}`;
+      ok = true;
+      return created.players || players;
+    });
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponseWithProgress(sessionUser, resultPlayer, latestPlayers, message, ok));
+    return;
+  }
+
+  if (action === "advanceBossBattle") {
+    await updatePlayers((players) => {
+      const battle = getWebChickenBattle(sessionUser.id);
+      if (!battle) {
+        resultPlayer = getPlayer(players[sessionUser.id]);
+        message = "目前沒有進行中的賽雞館挑戰。";
+        ok = false;
+        return players;
+      }
+      battle.webFrame = Math.max(0, Math.floor(battle.webFrame || 0)) + 1;
+      updateBattleFrame(battle, players, battle.webFrame, Math.random);
+      if (hasChickenReachedFinish(battle) || battle.webFrame >= 18) {
+        const settled = settleBattle(battle, players, Math.random, Date.now());
+        resultPlayer = getPlayer(settled.players[sessionUser.id]);
+        message = `🏁 賽雞館結束！\n${settled.message}`;
+        ok = true;
+        webChickenBattles.delete(sessionUser.id);
+        return settled.players;
+      }
+      webChickenBattles.set(sessionUser.id, battle);
+      resultPlayer = getPlayer(players[sessionUser.id]);
+      message = battle.frames[battle.frames.length - 1] || "賽況推進。";
+      ok = true;
+      return players;
+    });
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponseWithProgress(sessionUser, resultPlayer, latestPlayers, message, ok));
     return;
   }
 

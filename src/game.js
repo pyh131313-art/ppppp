@@ -1673,8 +1673,8 @@ function useRaptorCaveTicket(playerInput) {
 }
 
 function canChooseMinorBuff(playerInput) {
-  getPlayer(playerInput);
-  return false;
+  const player = getPlayer(playerInput);
+  return Array.isArray(player.minorBuffOptions) && player.minorBuffOptions.length > 0;
 }
 
 function getSupplyStationRegion(playerInput) {

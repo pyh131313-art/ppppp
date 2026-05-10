@@ -418,8 +418,42 @@ function renderMineScene(payload) {
   routeStrip.innerHTML = `<span class="route-chip muted-chip">路線：無</span>`;
 }
 
+function renderMiningSystems(payload) {
+  const minor = payload.minorBuffs || {};
+  const charge = payload.charge || {};
+  const minorBox = $("miniTraitSummary");
+  const chargeBox = $("chargeSummary");
+  if (minorBox) {
+    const active = Array.isArray(minor.active) ? minor.active : [];
+    const options = Array.isArray(minor.options) ? minor.options : [];
+    const activeHtml = active.length
+      ? active.map((buff) => `<span>${escapeHtml(buff.label)} x${formatNumber(buff.count)}</span>`).join("")
+      : "<span>無小詞條</span>";
+    const optionHtml = options.length
+      ? `<div class="mini-choice-hint">${minor.breakthrough ? "突破可選" : "待選"}：${options.map((buff) => `${buff.breakthrough ? "✨" : ""}${escapeHtml(buff.label)}`).join("｜")}</div>`
+      : "";
+    minorBox.innerHTML = `
+      <div class="system-title">小詞條</div>
+      <div class="system-chips">${activeHtml}</div>
+      ${optionHtml}
+    `;
+  }
+  if (chargeBox) {
+    const value = Math.max(0, Math.min(100, Number(charge.value || 0)));
+    const filled = Math.round(value / 10);
+    const bar = `${"🟩".repeat(filled)}${"⬛".repeat(10 - filled)}`;
+    const last = charge.lastUsed ? `<span>上次：${escapeHtml((charge.skills || []).find((skill) => skill.id === charge.lastUsed)?.label || charge.lastUsed)}</span>` : "";
+    chargeBox.innerHTML = `
+      <div class="system-title">蓄力</div>
+      <div class="charge-bar-text">${bar} ${formatNumber(value)}/100</div>
+      ${last ? `<div class="system-chips">${last}</div>` : ""}
+    `;
+  }
+}
+
 function renderChicken(chicken) {
   const card = $("chickenCard");
+  const battle = state.data && state.data.chickenBattle ? state.data.chickenBattle : {};
   if (!chicken) {
     card.innerHTML = `<div class="empty">還沒有自己的雞</div>`;
     return;
@@ -451,6 +485,41 @@ function renderChicken(chicken) {
       <button class="mini-button" data-action="feedChicken" data-feed-type="gourmetFeed" ${gourmetFeedCount <= 0 ? "disabled" : ""}>✨ 餵好吃 x${formatNumber(gourmetFeedCount)}</button>
       <button class="mini-button" data-action="cleanCoop">🧹 掃大便</button>
     </div>
+    <div class="chicken-arena">
+      <div class="arena-head">
+        <strong>🏟️ 賽雞館</strong>
+        <span>${battle.active ? `Rank ${formatNumber(battle.bossRank || 1)} 進行中` : `目前 Rank ${formatNumber(battle.rank || 1)}`}</span>
+      </div>
+      ${renderChickenBattleView(battle)}
+      <div class="chicken-actions">
+        <button class="mini-button" data-action="startBossBattle" ${battle.active ? "disabled" : ""}>挑戰館主</button>
+        <button class="mini-button" data-action="advanceBossBattle" ${battle.active ? "" : "disabled"}>推進賽況</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderRunnerStats(runner, label) {
+  if (!runner) return "";
+  return `
+    <div class="runner-card">
+      <strong>${label}｜${escapeHtml(runner.icon)} ${escapeHtml(runner.name)}</strong>
+      <span>Lv.${formatNumber(runner.level)}｜速${formatNumber(runner.speed)} 衝${formatNumber(runner.sprint)} 穩${formatNumber(runner.stability)} 耐${formatNumber(runner.stamina)}</span>
+    </div>
+  `;
+}
+
+function renderChickenBattleView(battle = {}) {
+  if (!battle.active) {
+    return `<div class="arena-empty">挑戰賽雞館，勝利可獲得經驗與 Rank 進度。</div>`;
+  }
+  const frame = escapeHtml(battle.frame || "賽雞準備中").replace(/\n/g, "<br>");
+  return `
+    <div class="battle-runners">
+      ${renderRunnerStats(battle.challenger, "你的雞")}
+      ${renderRunnerStats(battle.boss, "館主")}
+    </div>
+    <pre class="battle-frame">${frame}</pre>
   `;
 }
 
@@ -573,6 +642,8 @@ function getActionLabel(action, button) {
     rescue: "救援",
     feedChicken: "餵雞",
     cleanCoop: "掃雞舍",
+    startBossBattle: "挑戰賽雞館",
+    advanceBossBattle: "推進賽況",
     supplyBuy: "補給站購買",
     supplySell: "補給站出售",
     supplyLeave: "離開補給站",
@@ -638,6 +709,8 @@ function makeDockButton(label, action, options = {}) {
   if (options.choice) button.dataset.choice = options.choice;
   if (options.itemId) button.dataset.itemId = options.itemId;
   if (options.traitId) button.dataset.traitId = options.traitId;
+  if (options.buff) button.dataset.buff = options.buff;
+  if (options.skill) button.dataset.skill = options.skill;
   if (options.targetUserId) button.dataset.targetUserId = options.targetUserId;
   if (options.disabled) button.disabled = true;
   return button;
@@ -659,7 +732,7 @@ function renderMobileDock(payload) {
     return;
   }
 
-  const { stateFlags, runModeOptions = [], digPathOptions = [], pendingEvent, supplyStation, summary = {} } = payload;
+  const { stateFlags, runModeOptions = [], digPathOptions = [], pendingEvent, supplyStation, summary = {}, minorBuffs = {}, charge = {} } = payload;
   const add = (button) => {
     if (button) dock.appendChild(button);
   };
@@ -689,6 +762,13 @@ function renderMobileDock(payload) {
       }));
     });
     add(makeDockButton("🔄 刷新 10", "rerollTraits", { kind: "secondary" }));
+  } else if (stateFlags.needsMinorBuff && minorBuffs.options && minorBuffs.options.length) {
+    minorBuffs.options.slice(0, 3).forEach((buff) => {
+      add(makeDockButton(`${buff.breakthrough ? "✨ " : ""}${buff.label}`, "chooseMinorBuff", {
+        kind: buff.breakthrough ? "safe" : "primary",
+        buff: buff.id
+      }));
+    });
   } else if (stateFlags.canMine && digPathOptions.length) {
     const sideIcon = { left: "←", middle: "↓", right: "→" };
     for (const path of digPathOptions.slice(0, 3)) {
@@ -706,6 +786,15 @@ function renderMobileDock(payload) {
 
   if (stateFlags.canDrinkPotion) {
     add(makeDockButton("🧪 喝藥水", "drinkPotion", { kind: "safe" }));
+  }
+  if (charge.ready && !pendingEvent && !supplyStation && !summary.dead) {
+    const firstSkill = (charge.skills || []).find((skill) => !skill.disabled);
+    if (firstSkill) {
+      add(makeDockButton(`⚡ ${firstSkill.label}`, "triggerCharge", {
+        kind: "safe",
+        skill: firstSkill.id
+      }));
+    }
   }
   if (stateFlags.canReturn && !summary.dead && !pendingEvent && !supplyStation) {
     add(makeDockButton("↩️ 回地面", "returnSurface", { kind: "secondary" }));
@@ -756,7 +845,7 @@ function startEventCountdown(eventData) {
 }
 
 function renderActions(payload) {
-  const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation, rescueTargets = [], summary = {} } = payload;
+  const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation, rescueTargets = [], summary = {}, minorBuffs = {}, charge = {} } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
   const supportActions = $("supportActions");
@@ -874,6 +963,30 @@ function renderActions(payload) {
     traitPicker.classList.add("hidden");
   }
 
+  if (stateFlags.needsMinorBuff && minorBuffs.options && minorBuffs.options.length) {
+    const buffBox = document.createElement("div");
+    buffBox.className = "web-event-card minor-buff-card";
+    buffBox.innerHTML = `
+      <div class="web-event-head">
+        <strong>${minorBuffs.breakthrough ? "✨ 突破小詞條" : "✨ 小詞條"}</strong>
+        <span>選 1 個</span>
+      </div>
+      <p>${minorBuffs.breakthrough ? "所有可選小詞條已滿，上限突破會遞減成長。" : "選完後可以繼續挖。"} </p>
+    `;
+    actionGrid.appendChild(buffBox);
+    for (const buff of minorBuffs.options) {
+      const label = `${buff.breakthrough ? "✨ " : ""}${buff.label} +1`;
+      const button = makeActionButton(label, "chooseMinorBuff", {
+        kind: buff.breakthrough ? "hero-action safe" : "hero-action primary"
+      });
+      button.dataset.buff = buff.id;
+      actionGrid.appendChild(button);
+    }
+    supportActions.classList.add("hidden");
+    renderMobileDock(payload);
+    return;
+  }
+
   if (stateFlags.canMine && digPathOptions && digPathOptions.length) {
     const sideIcon = { left: "⬅️", middle: "⬇️", right: "➡️" };
     const sideName = { left: "左", middle: "中", right: "右" };
@@ -916,6 +1029,17 @@ function renderActions(payload) {
     kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
   }));
+  if (charge && charge.value !== undefined) {
+    supportActionGrid.appendChild(makeActionDivider(`蓄力 ${formatNumber(charge.value)}/100`));
+    for (const skill of charge.skills || []) {
+      const button = makeActionButton(`⚡ ${skill.label}`, "triggerCharge", {
+        kind: "safe",
+        disabled: skill.disabled || Boolean(pendingEvent) || Boolean(supplyStation) || Boolean(summary.dead)
+      });
+      button.dataset.skill = skill.id;
+      supportActionGrid.appendChild(button);
+    }
+  }
 
   if (stateFlags.hasPendingEvent) {
     showActionMessage("目前遇到事件，可以直接在網頁端處理。", false);
@@ -1006,6 +1130,7 @@ function renderDashboard(payload) {
   setText("challengeBest", `${formatNumber(summary.challengeBestDepth)} 層`);
 
   renderMineScene(payload);
+  renderMiningSystems(payload);
   renderInventory(inventory, summary.bagUsed, summary.bagCapacity);
   renderQuickBag(inventory, summary.bagUsed, summary.bagCapacity);
   renderShop(payload.shop);
@@ -1141,6 +1266,14 @@ $("dashboard").addEventListener("click", (event) => {
   const action = button.dataset.action;
   if (action === "chooseTrait") {
     postAction(action, { traitId: button.dataset.traitId }, button);
+    return;
+  }
+  if (action === "chooseMinorBuff") {
+    postAction(action, { buff: button.dataset.buff || "" }, button);
+    return;
+  }
+  if (action === "triggerCharge") {
+    postAction(action, { skill: button.dataset.skill || "" }, button);
     return;
   }
   if (action === "rerollTraits") {
