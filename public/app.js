@@ -486,12 +486,33 @@ function getMineSceneImage(summary = {}, stateFlags = {}) {
   return "/assets/mine-scene-map.png?v=20260510c";
 }
 
+function getRunImmersionClasses(payload = {}) {
+  const summary = payload.summary || {};
+  const stateFlags = payload.stateFlags || {};
+  const charge = payload.charge || {};
+  const bagCapacity = Number(summary.bagCapacity || 0);
+  const bagUsed = Number(summary.bagUsed || 0);
+  const bagRatio = bagCapacity > 0 ? bagUsed / bagCapacity : 0;
+  const hpRatio = summary.dead ? 0 : getHpRatio(summary.hp || "0/1");
+  const classes = [];
+  if (summary.dead) classes.push("is-dead-run");
+  else if (hpRatio > 0 && hpRatio <= 0.35) classes.push("is-low-hp");
+  if (bagRatio >= 1) classes.push("is-bag-full");
+  else if (bagRatio >= 0.85) classes.push("is-bag-warning");
+  if (charge.ready) classes.push("is-charge-ready");
+  if (stateFlags.hasPendingEvent) classes.push("is-event-active");
+  if (stateFlags.hasSupplyStation) classes.push("is-supply-active");
+  if (stateFlags.needsTrait) classes.push("is-at-camp");
+  return classes.join(" ");
+}
+
 function renderMineScene(payload) {
   const { summary, stateFlags, digPathOptions } = payload;
   const art = $("mineArt");
   const routeStrip = $("routeStrip");
   const areaText = `${summary.area}｜${summary.cave}`;
-  $("mineScreen").className = `mine-screen ${getMineSceneClass(summary.area, summary.cave)}`;
+  const immersionClasses = getRunImmersionClasses(payload);
+  $("mineScreen").className = `mine-screen ${getMineSceneClass(summary.area, summary.cave)} ${immersionClasses}`.trim();
   setText("sceneArea", areaText);
   setText("sceneDepth", summary.depthLabel || `${summary.depth} 層`);
 
@@ -529,6 +550,7 @@ function renderMineScene(payload) {
     <div class="mine-map-stage ${stageState}${showStageRoutes ? " has-routes" : ""}">
       <img class="mine-map-bg" src="${getMineSceneImage(summary, stateFlags)}" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
+      <div class="scene-ambient" aria-hidden="true"></div>
       <div class="scene-status">${statusLine}</div>
       ${routeButtons}
     </div>
@@ -754,6 +776,43 @@ function showFloatingToast(message, ok = true) {
     toast.classList.remove("show");
     setTimeout(() => toast.remove(), 220);
   }, ok ? 2300 : 3000);
+}
+
+function getPrimaryActionLine(message, ok = true) {
+  const lines = getToastLines(message, ok);
+  return lines[0] || String(message || "").split("\n").map((line) => line.trim()).filter(Boolean)[0] || "";
+}
+
+function pulseMineScene(action, ok = true) {
+  const screen = $("mineScreen");
+  if (!screen) return;
+  const actionClasses = {
+    mine: "is-mining-hit",
+    chooseTrait: "is-choice-pulse",
+    chooseMinorBuff: "is-choice-pulse",
+    rerollTrait: "is-choice-pulse",
+    chooseEvent: "is-event-pulse",
+    triggerCharge: "is-charge-burst",
+    usePotion: "is-heal-pulse",
+    returnSurface: "is-return-pulse"
+  };
+  const className = ok ? (actionClasses[action] || "is-action-pulse") : "is-action-fail";
+  screen.classList.remove(className);
+  void screen.offsetWidth;
+  screen.classList.add(className);
+  setTimeout(() => screen.classList.remove(className), 700);
+}
+
+function showSceneBurst(message, ok = true) {
+  const stage = document.querySelector(".mine-map-stage");
+  if (!stage || !message) return;
+  const line = getPrimaryActionLine(message, ok).replace(/[。！!]+$/g, "");
+  if (!line) return;
+  const burst = document.createElement("div");
+  burst.className = `scene-burst ${ok ? "" : "bad"}`.trim();
+  burst.textContent = line.length > 28 ? `${line.slice(0, 28)}...` : line;
+  stage.appendChild(burst);
+  setTimeout(() => burst.remove(), 1200);
 }
 
 function isSettlementMessage(message) {
@@ -1376,13 +1435,16 @@ async function postAction(action, payload = {}, activeButton = null) {
     }
     const message = body.message || "完成。";
     showActionMessage(message, body.ok);
+    pulseMineScene(action, body.ok);
     if (body.ok && isSettlementMessage(message)) {
       showSettlementModal(message);
     } else {
       showFloatingToast(message, body.ok);
+      showSceneBurst(message, body.ok);
     }
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
+    pulseMineScene(action, false);
   } finally {
     setActionLoading(false);
   }

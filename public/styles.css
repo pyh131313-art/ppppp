@@ -5368,3 +5368,295 @@ h1 {
     height: var(--scene-h);
   }
 }
+
+/* Immersion layer: reactive atmosphere without changing game logic. */
+.mine-screen .mine-map-bg {
+  transition: filter 220ms ease, transform 220ms ease;
+}
+
+.scene-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.34;
+  mix-blend-mode: screen;
+  transition: opacity 220ms ease, background 220ms ease;
+}
+
+.mine-screen.scene-normal .mine-map-bg {
+  filter: saturate(1.04) contrast(1.02);
+}
+
+.mine-screen.scene-gem .mine-map-bg {
+  filter: saturate(1.22) contrast(1.05) hue-rotate(10deg) brightness(1.04);
+}
+
+.mine-screen.scene-gem .scene-ambient {
+  background:
+    radial-gradient(circle at 66% 44%, rgba(96, 165, 250, 0.18), transparent 28%),
+    radial-gradient(circle at 42% 72%, rgba(168, 85, 247, 0.16), transparent 32%);
+}
+
+.mine-screen.scene-underground .mine-map-bg {
+  filter: saturate(1.18) contrast(1.08) sepia(0.08) brightness(0.94);
+}
+
+.mine-screen.scene-underground .scene-ambient {
+  background:
+    radial-gradient(circle at 50% 76%, rgba(248, 113, 113, 0.17), transparent 30%),
+    linear-gradient(180deg, transparent 48%, rgba(127, 29, 29, 0.18));
+}
+
+.mine-screen.scene-sky .mine-map-bg {
+  filter: saturate(1.08) contrast(1.03) brightness(1.08);
+}
+
+.mine-screen.scene-sky .scene-ambient {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(191, 219, 254, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(96, 165, 250, 0.1), transparent 58%);
+}
+
+.mine-screen.scene-inverted .mine-map-bg {
+  filter: saturate(1.16) contrast(1.08) hue-rotate(34deg) brightness(0.98);
+}
+
+.mine-screen.scene-inverted .scene-ambient {
+  background:
+    radial-gradient(circle at 58% 48%, rgba(45, 212, 191, 0.16), transparent 24%),
+    radial-gradient(circle at 38% 58%, rgba(217, 70, 239, 0.14), transparent 32%);
+}
+
+.mine-screen.scene-raptor .mine-map-bg {
+  filter: saturate(1.14) contrast(1.08) brightness(0.98);
+}
+
+.mine-screen.is-low-hp .mine-map-stage {
+  box-shadow:
+    inset 0 0 0 2px rgba(251, 113, 133, 0.34),
+    inset 0 0 88px rgba(127, 29, 29, 0.42),
+    0 0 26px rgba(251, 113, 133, 0.08);
+}
+
+.mine-screen.is-low-hp .mine-map-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(127, 29, 29, 0.28), transparent 18%, transparent 82%, rgba(127, 29, 29, 0.28)),
+    radial-gradient(circle at 50% 50%, transparent 45%, rgba(127, 29, 29, 0.24));
+  animation: dangerBreath 1.6s ease-in-out infinite;
+}
+
+.mine-screen.is-bag-warning .scene-bag-rail {
+  border-color: rgba(250, 204, 21, 0.46);
+  box-shadow:
+    inset 0 0 0 1px rgba(250, 204, 21, 0.14),
+    0 0 22px rgba(250, 204, 21, 0.12);
+}
+
+.mine-screen.is-bag-full .scene-bag-rail {
+  border-color: rgba(251, 113, 133, 0.58);
+  box-shadow:
+    inset 0 0 0 1px rgba(251, 113, 133, 0.2),
+    0 0 24px rgba(251, 113, 133, 0.15);
+}
+
+.mine-screen.is-charge-ready .stage-glow {
+  opacity: 0.86;
+  animation: chargeAura 1.45s ease-in-out infinite;
+}
+
+.mine-screen.is-charge-ready .profile-charge-actions .mini-button:not(:disabled),
+.profile-charge-actions .mini-button:not(:disabled) {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(134, 239, 172, 0.75);
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.24);
+}
+
+.mine-screen.is-charge-ready .profile-charge-actions .mini-button:not(:disabled)::after,
+.profile-charge-actions .mini-button:not(:disabled)::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(115deg, transparent, rgba(187, 247, 208, 0.32), transparent);
+  transform: translateX(-120%);
+  animation: skillShine 1.65s linear infinite;
+}
+
+.mine-screen.is-mining-hit .mine-map-stage {
+  animation: mineHit 360ms ease;
+}
+
+.mine-screen.is-choice-pulse .mine-map-stage {
+  animation: choicePulse 520ms ease;
+}
+
+.mine-screen.is-event-pulse .mine-map-stage {
+  animation: eventPulse 560ms ease;
+}
+
+.mine-screen.is-charge-burst .mine-map-stage {
+  animation: chargeBurst 680ms ease;
+}
+
+.mine-screen.is-heal-pulse .mine-map-stage {
+  animation: healPulse 620ms ease;
+}
+
+.mine-screen.is-action-fail .mine-map-stage {
+  animation: actionFail 420ms ease;
+}
+
+.stage-route-button,
+.trait-option {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.stage-route-button:hover,
+.trait-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28), 0 0 20px rgba(250, 204, 21, 0.1);
+}
+
+.stage-route-button:active,
+.trait-option:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.scene-burst {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  z-index: 24;
+  max-width: min(74%, 520px);
+  padding: 10px 16px;
+  border: 1px solid rgba(134, 239, 172, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.9), rgba(15, 23, 42, 0.86));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.36), 0 0 28px rgba(34, 197, 94, 0.18);
+  color: #dcfce7;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transform: translate(-50%, 16px) scale(0.96);
+  animation: sceneBurst 1.12s ease forwards;
+}
+
+.scene-burst.bad {
+  border-color: rgba(251, 113, 133, 0.58);
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(15, 23, 42, 0.86));
+  color: #ffe4e6;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.36), 0 0 28px rgba(251, 113, 133, 0.18);
+}
+
+.result-toast {
+  border-left: 4px solid rgba(134, 239, 172, 0.75);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(6, 78, 59, 0.88)),
+    radial-gradient(circle at 12% 20%, rgba(250, 204, 21, 0.12), transparent 34%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32), 0 0 22px rgba(34, 197, 94, 0.13);
+}
+
+.result-toast.bad {
+  border-left-color: rgba(251, 113, 133, 0.82);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(127, 29, 29, 0.9)),
+    radial-gradient(circle at 12% 20%, rgba(251, 113, 133, 0.12), transparent 34%);
+}
+
+@keyframes dangerBreath {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.78; }
+}
+
+@keyframes chargeAura {
+  0%, 100% {
+    transform: scale(0.94);
+    opacity: 0.58;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.95;
+  }
+}
+
+@keyframes skillShine {
+  to { transform: translateX(120%); }
+}
+
+@keyframes mineHit {
+  0% { transform: translate3d(0, 0, 0); filter: brightness(1); }
+  22% { transform: translate3d(-5px, 2px, 0); filter: brightness(1.1); }
+  46% { transform: translate3d(4px, -2px, 0); }
+  72% { transform: translate3d(-2px, 1px, 0); }
+  100% { transform: translate3d(0, 0, 0); filter: brightness(1); }
+}
+
+@keyframes choicePulse {
+  0% { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.2); }
+  50% { box-shadow: inset 0 0 0 2px rgba(134, 239, 172, 0.44), 0 0 28px rgba(34, 197, 94, 0.16); }
+  100% { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.2); }
+}
+
+@keyframes eventPulse {
+  0%, 100% { filter: saturate(1); }
+  45% { filter: saturate(1.25) contrast(1.06); }
+}
+
+@keyframes chargeBurst {
+  0% { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.2); }
+  45% { box-shadow: inset 0 0 0 2px rgba(134, 239, 172, 0.66), 0 0 42px rgba(34, 197, 94, 0.28); }
+  100% { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.2); }
+}
+
+@keyframes healPulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.2); }
+  45% { box-shadow: inset 0 0 0 2px rgba(74, 222, 128, 0.6), inset 0 0 70px rgba(22, 163, 74, 0.18); }
+}
+
+@keyframes actionFail {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+
+@keyframes sceneBurst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 18px) scale(0.92);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -18px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -34px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mine-screen.is-low-hp .mine-map-stage::after,
+  .mine-screen.is-charge-ready .stage-glow,
+  .profile-charge-actions .mini-button:not(:disabled)::after,
+  .scene-burst,
+  .mine-screen.is-mining-hit .mine-map-stage,
+  .mine-screen.is-choice-pulse .mine-map-stage,
+  .mine-screen.is-event-pulse .mine-map-stage,
+  .mine-screen.is-charge-burst .mine-map-stage,
+  .mine-screen.is-heal-pulse .mine-map-stage,
+  .mine-screen.is-action-fail .mine-map-stage {
+    animation: none;
+  }
+}
