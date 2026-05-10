@@ -1005,8 +1005,8 @@ h2 {
 }
 
 .quick-item-icon {
-  width: 40px;
-  height: 40px;
+  width: min(48px, 82%);
+  height: min(48px, 82%);
 }
 
 .quick-slot small {
@@ -1043,8 +1043,8 @@ h2 {
 }
 
 .item-icon {
-  width: 62px;
-  height: 62px;
+  width: min(78px, 86%);
+  height: min(78px, 86%);
 }
 
 .emoji-icon {
@@ -1064,8 +1064,8 @@ h2 {
 }
 
 .storage-item-icon {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   vertical-align: middle;
   margin-right: 4px;
 }
