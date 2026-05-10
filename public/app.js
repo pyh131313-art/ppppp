@@ -86,7 +86,9 @@ function renderInventory(items, used, capacity) {
 }
 
 function renderQuickBag(items, used, capacity) {
-  setText("quickBagCount", `${used}/${capacity}`);
+  const quickLimit = 8;
+  const suffix = capacity > quickLimit ? `｜快捷${quickLimit}格` : "";
+  setText("quickBagCount", `${used}/${capacity}${suffix}`);
   const grid = $("quickBagGrid");
   grid.innerHTML = "";
   const slots = [];
@@ -97,7 +99,7 @@ function renderQuickBag(items, used, capacity) {
       count: item.count
     });
   }
-  const visibleSlots = Math.max(12, Math.min(18, capacity || 12));
+  const visibleSlots = quickLimit;
   for (let index = 0; index < visibleSlots; index += 1) {
     const item = slots[index];
     const cell = document.createElement("div");
@@ -108,6 +110,15 @@ function renderQuickBag(items, used, capacity) {
     }
     grid.appendChild(cell);
   }
+}
+
+function getHpRatio(hpText) {
+  const match = String(hpText || "").match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/);
+  if (!match) return 0;
+  const current = Number(match[1]);
+  const max = Number(match[2]);
+  if (!Number.isFinite(current) || !Number.isFinite(max) || max <= 0) return 0;
+  return Math.max(0, Math.min(1, current / max));
 }
 
 function getShopIcon(itemId, category) {
@@ -694,6 +705,7 @@ function renderDashboard(payload) {
   setText("bankGold", formatNumber(summary.bankGold));
   setText("totalAsset", formatNumber(summary.totalAsset));
   setText("hp", summary.dead ? "死亡" : summary.hp);
+  $("hpBar").style.width = `${Math.round(getHpRatio(summary.dead ? "0/1" : summary.hp) * 100)}%`;
   setText("hudHp", summary.dead ? "死亡" : summary.hp);
   setText("hudGold", formatNumber(summary.gold));
   setText("hudDepth", summary.depthLabel || `${summary.depth}`);
