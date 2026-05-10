@@ -925,6 +925,13 @@ function getCurrentHudPage(interaction) {
   return "main";
 }
 
+function findPanelOwnerByMessageId(players, messageId) {
+  if (!messageId) return null;
+  return Object.entries(players || {}).find(([, player]) => (
+    player && player.activeMinePanelMessageId === messageId
+  ))?.[0] || null;
+}
+
 function parseShopBuyButton(customId) {
   if (customId === CUSTOM_IDS.shopBuyOne) {
     const shopItem = getShopItems()[0];
@@ -2218,9 +2225,15 @@ async function handleChallengeInteraction(interaction) {
 }
 
 async function handleMiningButton(interaction) {
-  const panelTargetUserId = getPanelTargetUserId(interaction) || interaction.user.id;
+  const rawPanelTargetUserId = getPanelTargetUserId(interaction);
   const isRescueButton = interaction.customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`);
+  const isReviveButton = interaction.customId === CUSTOM_IDS.revive;
   const isAdminPanelOperator = canUseAdminCommand(interaction.user.id);
+  const panelMessageId = interaction.message && interaction.message.id ? interaction.message.id : "";
+  const players = await loadPlayers();
+  const panelTargetUserId = rawPanelTargetUserId
+    || findPanelOwnerByMessageId(players, panelMessageId)
+    || interaction.user.id;
   if (panelTargetUserId !== interaction.user.id && !isRescueButton && !isAdminPanelOperator) {
     await interaction.reply({
       content: "這是別人的礦場面板。請使用 `/礦場` 打開自己的面板。",
@@ -2229,10 +2242,8 @@ async function handleMiningButton(interaction) {
     return;
   }
 
-  const players = await loadPlayers();
   const panelPlayer = getPlayer(players[panelTargetUserId]);
-  const panelMessageId = interaction.message && interaction.message.id ? interaction.message.id : "";
-  if (!isRescueButton && panelPlayer.activeMinePanelMessageId && panelMessageId && panelPlayer.activeMinePanelMessageId !== panelMessageId) {
+  if (!isRescueButton && !isReviveButton && panelPlayer.activeMinePanelMessageId && panelMessageId && panelPlayer.activeMinePanelMessageId !== panelMessageId) {
     await interaction.reply({
       content: "這是舊的礦場面板，請使用最新的 `/礦場` 面板。",
       ephemeral: true
@@ -2816,7 +2827,10 @@ async function handleMiningButton(interaction) {
   }
 
   if (interaction.customId.startsWith(`${CUSTOM_IDS.rescuePrefix}:`)) {
-    const targetUserId = interaction.customId.split(":")[2];
+    const rawTargetUserId = interaction.customId.split(":")[2];
+    const targetUserId = rawTargetUserId && rawTargetUserId !== "none"
+      ? rawTargetUserId
+      : panelTargetUserId;
     componentTargetId = targetUserId && targetUserId !== "none" ? targetUserId : interaction.user.id;
 
     if (!targetUserId || targetUserId === "none" || targetUserId === interaction.user.id) {
