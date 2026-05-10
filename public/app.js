@@ -69,6 +69,29 @@ function setUtilityTab(tab) {
   });
 }
 
+function updateFacilityVisibility(payload) {
+  const { stateFlags, shop, storage, undergroundInn } = payload;
+  const available = {
+    shop: Boolean(stateFlags.canUseShop && shop && shop.enabled),
+    storage: Boolean(stateFlags.canUseStorage && storage && storage.enabled),
+    inn: Boolean(stateFlags.canUseUndergroundInn && undergroundInn && undergroundInn.enabled)
+  };
+  const availableTabs = Object.keys(available).filter((key) => available[key]);
+  const utilityTabs = document.querySelector(".utility-tabs");
+  utilityTabs.classList.toggle("hidden", availableTabs.length === 0);
+  document.querySelectorAll(".utility-tab").forEach((button) => {
+    const enabled = Boolean(available[button.dataset.utilityTab]);
+    button.classList.toggle("hidden", !enabled);
+  });
+  document.querySelectorAll(".utility-page").forEach((page) => {
+    const enabled = Boolean(available[page.dataset.utilityPage]);
+    page.classList.toggle("hidden-utility", !enabled || page.dataset.utilityPage !== state.utilityTab);
+  });
+  if (!availableTabs.length) return;
+  if (!availableTabs.includes(state.utilityTab)) state.utilityTab = availableTabs[0];
+  setUtilityTab(state.utilityTab);
+}
+
 function renderInventory(items, used, capacity) {
   setText("bagCount", `${used}/${capacity}`);
   const grid = $("inventoryGrid");
@@ -503,6 +526,7 @@ function renderActions(payload) {
   supportActionGrid.innerHTML = "";
   supportActions.classList.remove("hidden");
 
+  $("bankConsole").classList.toggle("hidden", !stateFlags.canUseBank);
   $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
 
   if (pendingEvent) {
@@ -730,7 +754,7 @@ function renderDashboard(payload) {
   setText("lastUpdated", `同步：${state.lastSyncAt.toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   renderLeaderboard(state.leaderboard);
   setActiveTab(state.tab);
-  setUtilityTab(state.utilityTab);
+  updateFacilityVisibility(payload);
 }
 
 async function postAction(action, payload = {}, activeButton = null) {
