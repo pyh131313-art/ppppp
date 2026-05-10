@@ -5116,3 +5116,244 @@ h1 {
     min-height: clamp(440px, 52vh, 620px);
   }
 }
+
+/* Top player card and shop-side bank layout. */
+@media (min-width: 901px) {
+  .dashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .top-player-card {
+    flex: 0 0 min(420px, 32vw);
+    display: grid;
+    grid-template-columns: auto minmax(120px, 1fr) minmax(150px, 0.8fr);
+    grid-template-areas:
+      "user vital stats"
+      "actions actions actions";
+    gap: 7px;
+    min-width: 320px;
+    padding: 7px;
+    border: 1px solid rgba(241, 196, 95, 0.24);
+    border-radius: 10px;
+    background:
+      radial-gradient(circle at top left, rgba(241, 196, 95, 0.12), transparent 42%),
+      rgba(0, 0, 0, 0.22);
+  }
+
+  .top-player-card .user-row {
+    grid-area: user;
+    min-width: 0;
+    padding: 6px;
+  }
+
+  .top-player-card .avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .top-player-card h2 {
+    max-width: 120px;
+    font-size: 13px;
+  }
+
+  .top-player-card .vital-card {
+    grid-area: vital;
+    margin: 0;
+    padding: 6px 8px;
+  }
+
+  .top-player-card .profile-charge-summary,
+  .top-player-card .mini-trait-summary {
+    margin-top: 5px;
+    padding: 6px;
+  }
+
+  .top-player-card .stats-grid {
+    grid-area: stats;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin: 0;
+  }
+
+  .top-player-card .stats-grid div {
+    padding: 5px 7px;
+  }
+
+  .top-player-card .profile-run-actions {
+    grid-area: actions;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+  }
+
+  .top-player-card .profile-rescue-actions {
+    grid-column: auto;
+  }
+
+  .tabs .tab {
+    align-self: center;
+  }
+
+  .last-updated {
+    align-self: center;
+  }
+
+  .mine-panel,
+  .action-panel,
+  .bag-panel,
+  .chicken-panel,
+  .collection-panel,
+  .leaderboard-panel {
+    grid-column: 1 / -1;
+  }
+
+  .mine-panel {
+    grid-row: auto;
+  }
+
+  .action-panel {
+    grid-row: auto;
+    display: grid;
+    grid-template-columns: minmax(190px, 0.26fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    width: 100%;
+  }
+
+  .shop-bank-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid rgba(241, 196, 95, 0.22);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.18));
+  }
+
+  .action-panel .utility-tabs,
+  .action-panel .utility-page {
+    grid-column: 2;
+  }
+
+  .action-panel .utility-tabs {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .web-shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .top-player-card {
+    flex-basis: 100%;
+    grid-template-columns: auto minmax(120px, 1fr) minmax(160px, 1fr);
+  }
+
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  .last-updated {
+    margin-left: 0;
+  }
+}
+
+/* Keep the mine card tight: no empty striped well under the CG. */
+@media (min-width: 901px) {
+  .mine-panel {
+    display: block;
+    padding: 10px;
+  }
+
+  .mine-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(126px, 8.6vw, 154px);
+    gap: 12px;
+    height: auto;
+    min-height: 0;
+    padding: 10px;
+    align-items: stretch;
+  }
+
+  .mine-art,
+  .mine-map-stage,
+  .scene-bag-rail {
+    min-height: clamp(380px, 46vh, 540px);
+    max-height: 540px;
+  }
+
+  .mine-art {
+    display: block;
+  }
+
+  .mine-map-stage {
+    height: clamp(380px, 46vh, 540px);
+  }
+
+  .scene-control-panel {
+    left: clamp(26px, 4vw, 58px);
+    right: clamp(172px, 13vw, 220px);
+    bottom: clamp(22px, 3.6vh, 42px);
+  }
+
+  .mine-screen:has(.stage-routes) .scene-control-panel {
+    bottom: clamp(118px, 14vh, 150px);
+  }
+
+  .mine-screen:not(:has(.stage-routes)) .scene-control-panel {
+    bottom: clamp(28px, 4vh, 48px);
+  }
+
+  .scene-control-panel .trait-picker {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 82px;
+  }
+
+  .scene-control-panel .trait-option:not(.trait-reroll),
+  .scene-control-panel .trait-reroll {
+    min-height: 58px;
+  }
+
+  .scene-bag-rail {
+    height: clamp(380px, 46vh, 540px);
+    padding: 8px;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-auto-rows: 64px;
+    gap: 8px;
+    padding-right: 6px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 64px;
+    height: 64px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(56px, 78%);
+    height: min(56px, 78%);
+  }
+}
+
+@media (min-width: 1500px) {
+  .mine-art,
+  .mine-map-stage,
+  .scene-bag-rail {
+    min-height: clamp(400px, 48vh, 560px);
+    max-height: 560px;
+  }
+
+  .mine-map-stage,
+  .scene-bag-rail {
+    height: clamp(400px, 48vh, 560px);
+  }
+}

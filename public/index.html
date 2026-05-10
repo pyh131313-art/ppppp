@@ -26,6 +26,34 @@
 
       <section class="dashboard hidden" id="dashboard">
         <nav class="tabs" aria-label="面板分頁">
+          <div class="profile top-player-card">
+            <div class="user-row">
+              <img class="avatar" id="avatar" alt="">
+              <div>
+                <p class="muted">玩家</p>
+                <h2 id="playerName">-</h2>
+              </div>
+            </div>
+            <div class="vital-card">
+              <div class="vital-row">
+                <span>生命</span>
+                <strong id="hp">0/0</strong>
+              </div>
+              <div class="hp-track" aria-hidden="true"><span id="hpBar"></span></div>
+              <div class="profile-charge-summary" id="chargeSummary"></div>
+              <div class="mini-trait-summary" id="miniTraitSummary"></div>
+            </div>
+            <div class="stats-grid">
+              <div><span>身上金幣</span><strong id="gold">0</strong></div>
+              <div><span>銀行</span><strong id="bankGold">0</strong></div>
+              <div class="wide-stat"><span>總資產</span><strong id="totalAsset">0</strong></div>
+            </div>
+            <div class="profile-run-actions" id="profileRunActions">
+              <button class="mini-button" data-action="returnSurface" id="profileReturnButton">返回地表</button>
+              <button class="mini-button primary" data-action="revive" id="profileReviveButton">復活</button>
+              <div class="profile-rescue-actions" id="profileRescueActions"></div>
+            </div>
+          </div>
           <button class="tab active" data-tab="overview">總覽</button>
           <button class="tab" data-tab="bag">包包</button>
           <button class="tab" data-tab="chicken">雞舍</button>
@@ -33,46 +61,6 @@
           <button class="tab" data-tab="leaderboard">排行榜</button>
           <span class="last-updated" id="lastUpdated">-</span>
         </nav>
-
-        <aside class="profile panel">
-          <div class="user-row">
-            <img class="avatar" id="avatar" alt="">
-            <div>
-              <p class="muted">玩家</p>
-              <h2 id="playerName">-</h2>
-            </div>
-          </div>
-          <div class="vital-card">
-            <div class="vital-row">
-              <span>生命</span>
-              <strong id="hp">0/0</strong>
-            </div>
-            <div class="hp-track" aria-hidden="true"><span id="hpBar"></span></div>
-            <div class="profile-charge-summary" id="chargeSummary"></div>
-            <div class="mini-trait-summary" id="miniTraitSummary"></div>
-          </div>
-          <div class="stats-grid">
-            <div><span>身上金幣</span><strong id="gold">0</strong></div>
-            <div><span>銀行</span><strong id="bankGold">0</strong></div>
-            <div class="wide-stat"><span>總資產</span><strong id="totalAsset">0</strong></div>
-          </div>
-          <div class="bank-console" id="bankConsole">
-            <div class="bank-title">
-              <strong>🏦 銀行</strong>
-              <span>共用 Discord 資料</span>
-            </div>
-            <input id="bankAmount" type="number" min="1" step="1" placeholder="輸入金額，空白=全部">
-            <div class="bank-actions">
-              <button class="mini-button" data-action="bankDeposit">存入</button>
-              <button class="mini-button" data-action="bankWithdraw">領出</button>
-            </div>
-          </div>
-          <div class="profile-run-actions" id="profileRunActions">
-            <button class="mini-button" data-action="returnSurface" id="profileReturnButton">返回地表</button>
-            <button class="mini-button primary" data-action="revive" id="profileReviveButton">復活</button>
-            <div class="profile-rescue-actions" id="profileRescueActions"></div>
-          </div>
-        </aside>
 
         <section class="panel mine-panel tab-page" data-page="overview">
           <div class="mine-screen" id="mineScreen">
@@ -148,6 +136,17 @@
             <summary>生存</summary>
             <div class="action-grid support-grid" id="supportActionGrid"></div>
           </details>
+          <div class="bank-console shop-bank-card" id="bankConsole">
+            <div class="bank-title">
+              <strong>🏦 銀行</strong>
+              <span>共用 Discord 資料</span>
+            </div>
+            <input id="bankAmount" type="number" min="1" step="1" placeholder="輸入金額，空白=全部">
+            <div class="bank-actions">
+              <button class="mini-button" data-action="bankDeposit">存入</button>
+              <button class="mini-button" data-action="bankWithdraw">領出</button>
+            </div>
+          </div>
           <div class="utility-tabs" aria-label="操作附屬功能">
             <button class="utility-tab active" data-utility-tab="shop" type="button">商店</button>
             <button class="utility-tab" data-utility-tab="storage" type="button">倉庫</button>
