@@ -1357,7 +1357,7 @@ h2 {
     margin-top: 0;
     gap: 10px;
     grid-template-columns: 260px minmax(0, 1fr) 360px;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
   }
 
   .tabs {
@@ -1383,7 +1383,7 @@ h2 {
 
   .profile {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 2 / 5;
   }
 
   .mine-panel {
@@ -1392,18 +1392,18 @@ h2 {
   }
 
   .action-panel {
-    grid-column: 3;
-    grid-row: 2 / 4;
+    grid-column: 2;
+    grid-row: 3 / 4;
   }
 
   .status-panel {
-    grid-column: 1;
-    grid-row: 3 / 4;
+    grid-column: 3;
+    grid-row: 2 / 5;
   }
 
   .quickbar-panel {
     grid-column: 2;
-    grid-row: 3 / 4;
+    grid-row: 4 / 5;
   }
 
   .section-title {
@@ -1682,20 +1682,20 @@ h2 {
 
   .status-panel {
     grid-column: 1;
+    grid-row: 3 / 5;
+  }
+
+  .action-panel {
+    grid-column: 2;
     grid-row: 3;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+    align-items: start;
   }
 
   .quickbar-panel {
     grid-column: 2;
-    grid-row: 3;
-  }
-
-  .action-panel {
-    grid-column: 1 / -1;
     grid-row: 4;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
-    align-items: start;
   }
 
   .action-panel .section-title,
@@ -1757,7 +1757,7 @@ h2 {
     flex: none;
     min-height: auto;
     grid-template-columns: 240px minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     align-items: start;
   }
 
@@ -1778,20 +1778,20 @@ h2 {
 
   .status-panel {
     grid-column: 1;
+    grid-row: 3 / 5;
+  }
+
+  .action-panel {
+    grid-column: 2;
     grid-row: 3;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+    align-items: start;
   }
 
   .quickbar-panel {
     grid-column: 2;
-    grid-row: 3;
-  }
-
-  .action-panel {
-    grid-column: 1 / -1;
     grid-row: 4;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
-    align-items: start;
   }
 
   .action-panel .section-title,
