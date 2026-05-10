@@ -379,6 +379,7 @@ function renderMineScene(payload) {
 
   art.innerHTML = `
     <div class="mine-map-stage ${stageState}">
+      <img class="mine-map-bg" src="/assets/mine-scene-map.png?v=20260510b" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
       <div class="stage-loot stage-loot-left">${makeSceneIcon("coin", "金幣")}</div>
       <div class="stage-loot stage-loot-mid">${makeSceneIcon("gem", "寶石")}</div>
