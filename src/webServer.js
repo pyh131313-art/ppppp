@@ -41,6 +41,7 @@ const {
   mine,
   openUndergroundInn,
   revive,
+  rescuePlayer,
   resolveEventChallenge,
   resolveRandomEvent,
   returnToSurface,
@@ -294,13 +295,33 @@ function getProgressWithGlobal(players) {
   };
 }
 
-function buildPlayerPayload(user, playerInput, progressInput = {}) {
+function getWebRescueTargets(players, currentUserId) {
+  return Object.entries(players || {})
+    .filter(([userId, player]) => userId !== currentUserId && getPlayer(player).dead)
+    .slice(0, 8)
+    .map(([userId, player]) => {
+      const target = getPlayer(player);
+      const deathAt = target.deathAt || 0;
+      const refundWindowMs = CONFIG.revive.rescueRefundAfterMs;
+      const refundRemainingMs = deathAt ? Math.max(0, refundWindowMs - (Date.now() - deathAt)) : 0;
+      return {
+        userId,
+        label: `玩家 ${userId.slice(0, 4)}...${userId.slice(-4)}`,
+        gold: target.gold,
+        depth: target.depth,
+        refundRemainingMs
+      };
+    });
+}
+
+function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput = null) {
   const player = getPlayer(playerInput);
   const pendingEvent = getWebPendingEvent(player);
   const supplyStation = getSupplyStationView(player);
   const shop = getWebShop(player, progressInput);
   const storage = getWebStorage(player);
   const undergroundInn = getWebUndergroundInn(player, progressInput);
+  const rescueTargets = playersInput ? getWebRescueTargets(playersInput, user.id) : [];
   return {
     user: {
       id: user.id,
@@ -347,6 +368,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
     shop,
     storage,
     undergroundInn,
+    rescueTargets,
     stateFlags: {
       hasPendingEvent: Boolean(player.pendingEvent),
       hasSupplyStation: Boolean(player.supplyStation),
@@ -357,6 +379,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
       needsTrait: Boolean(!player.runMode && !player.dead),
       canRevive: Boolean(player.dead),
+      canRescue: Boolean(!player.dead && rescueTargets.length > 0),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
       canDrinkPotion: Boolean(player.runMode && !player.dead && player.healingPotion > 0),
       canFeedChicken: Boolean(player.ownedChicken),
@@ -525,7 +548,7 @@ async function handleApiMe(request, response) {
   const progress = getProgressWithGlobal(players);
   sendJson(response, 200, {
     ok: true,
-    data: buildPlayerPayload(sessionUser, players[sessionUser.id], progress)
+    data: buildPlayerPayload(sessionUser, players[sessionUser.id], progress, players)
   });
 }
 
@@ -542,11 +565,11 @@ async function handleApiLeaderboard(request, response) {
   });
 }
 
-function buildActionResponse(sessionUser, player, message, ok = true) {
+function buildActionResponse(sessionUser, player, message, ok = true, players = null) {
   return {
     ok,
     message,
-    data: buildPlayerPayload(sessionUser, player)
+    data: buildPlayerPayload(sessionUser, player, {}, players)
   };
 }
 
@@ -554,7 +577,7 @@ function buildActionResponseWithProgress(sessionUser, player, players, message, 
   return {
     ok,
     message,
-    data: buildPlayerPayload(sessionUser, player, getProgressWithGlobal(players))
+    data: buildPlayerPayload(sessionUser, player, getProgressWithGlobal(players), players)
   };
 }
 
@@ -614,15 +637,43 @@ async function handleApiAction(request, response) {
   }
 
   if (action === "revive") {
-    const result = await updatePlayer(sessionUser.id, (player) => {
-      const revived = revive(player, Date.now(), Math.random);
+    await updatePlayers((players) => {
+      const revived = revive(players[sessionUser.id], Date.now(), Math.random);
       resultPlayer = revived.player;
       message = revived.message;
       ok = revived.ok !== false;
-      return revived.player;
+      players[sessionUser.id] = revived.player;
+      return players;
     });
-    resultPlayer = resultPlayer || result;
-    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok, latestPlayers));
+    return;
+  }
+
+  if (action === "rescue") {
+    const targetUserId = String(body.targetUserId || "");
+    if (!targetUserId || targetUserId === sessionUser.id) {
+      sendJson(response, 400, { ok: false, message: "不能救援自己。" });
+      return;
+    }
+    await updatePlayers((players) => {
+      if (!players[targetUserId]) {
+        resultPlayer = getPlayer(players[sessionUser.id]);
+        message = "找不到這位玩家。";
+        ok = false;
+        players[sessionUser.id] = resultPlayer;
+        return players;
+      }
+      const rescue = rescuePlayer(players[sessionUser.id], players[targetUserId], Date.now(), Math.random);
+      resultPlayer = rescue.rescuer;
+      message = rescue.message;
+      ok = rescue.ok !== false;
+      players[sessionUser.id] = rescue.rescuer;
+      players[targetUserId] = rescue.target;
+      return players;
+    });
+    const latestPlayers = await loadPlayers();
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok, latestPlayers));
     return;
   }
 

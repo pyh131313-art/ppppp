@@ -1066,6 +1066,13 @@ h2 {
     linear-gradient(180deg, rgba(37, 99, 235, 0.14), rgba(0, 0, 0, 0.24));
 }
 
+.web-event-card.death-card {
+  border-color: rgba(251, 113, 133, 0.42);
+  background:
+    radial-gradient(circle at top right, rgba(251, 113, 133, 0.18), transparent 42%),
+    linear-gradient(180deg, rgba(127, 29, 29, 0.24), rgba(0, 0, 0, 0.28));
+}
+
 .web-event-head {
   display: flex;
   justify-content: space-between;
@@ -1397,6 +1404,91 @@ h2 {
 
 .inn-resource {
   margin-bottom: 8px;
+}
+
+.settlement-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(241, 196, 95, 0.18), transparent 34%),
+    rgba(2, 6, 23, 0.72);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.settlement-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settlement-card {
+  width: min(560px, 100%);
+  max-height: min(78vh, 720px);
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(241, 196, 95, 0.42);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(250, 204, 21, 0.18), transparent 32%),
+    linear-gradient(160deg, rgba(31, 41, 55, 0.98), rgba(10, 12, 18, 0.98));
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.58),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: translateY(12px) scale(0.98);
+  transition: transform 0.18s ease;
+}
+
+.settlement-modal.show .settlement-card {
+  transform: translateY(0) scale(1);
+}
+
+.settlement-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settlement-head h2 {
+  margin: 2px 0 0;
+  font-size: clamp(24px, 4vw, 34px);
+  color: #fef3c7;
+}
+
+.modal-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.settlement-body {
+  white-space: normal;
+  padding: 18px 20px;
+  color: #fef3c7;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.75;
+}
+
+.settlement-body .count-pop {
+  font-size: 1.28em;
+}
+
+.settlement-ok {
+  width: calc(100% - 40px);
+  margin: 0 20px 20px;
 }
 
 .quick-bag-title {

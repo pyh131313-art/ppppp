@@ -458,6 +458,23 @@ function showActionMessage(message, ok = true) {
   animateActionNumbers(box);
 }
 
+function showSettlementModal(message) {
+  const modal = $("settlementModal");
+  const body = $("settlementBody");
+  if (!modal || !body || !isSettlementMessage(message)) return;
+  body.innerHTML = formatActionMessage(message);
+  modal.classList.remove("hidden");
+  requestAnimationFrame(() => modal.classList.add("show"));
+  animateActionNumbers(body);
+}
+
+function hideSettlementModal() {
+  const modal = $("settlementModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  setTimeout(() => modal.classList.add("hidden"), 160);
+}
+
 function isSettlementMessage(message) {
   return /總(?:獲得|收益)|探險結算|本次自動結算|礦石收益|寶石收益|特殊收益/.test(String(message || ""));
 }
@@ -515,6 +532,8 @@ function getActionLabel(action, button) {
     bankWithdraw: "領出銀行",
     returnSurface: "返回地面",
     drinkPotion: "喝藥水",
+    revive: "自己復活",
+    rescue: "救援",
     feedChicken: "餵雞",
     cleanCoop: "掃雞舍",
     supplyBuy: "補給站購買",
@@ -613,7 +632,7 @@ function startEventCountdown(eventData) {
 }
 
 function renderActions(payload) {
-  const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation } = payload;
+  const { stateFlags, runModeOptions, digPathOptions, pendingEvent, supplyStation, rescueTargets = [], summary = {} } = payload;
   const traitPicker = $("traitPicker");
   const actionGrid = $("actionGrid");
   const supportActions = $("supportActions");
@@ -649,7 +668,7 @@ function renderActions(payload) {
     eventBox.innerHTML = `
       <div class="web-event-head">
         <strong>${pendingEvent.title}</strong>
-        ${countdown}
+        ${countdown || "<span>網頁操作</span>"}
       </div>
       <p>${pendingEvent.description || "事件發生中。"}</p>
       ${pendingEvent.hint ? `<small>${pendingEvent.hint}</small>` : ""}
@@ -665,6 +684,20 @@ function renderActions(payload) {
       actionGrid.appendChild(button);
     }
     return;
+  }
+
+  if (summary.dead) {
+    traitPicker.classList.add("hidden");
+    const deathBox = document.createElement("div");
+    deathBox.className = "web-event-card death-card";
+    deathBox.innerHTML = `
+      <div class="web-event-head">
+        <strong>💥 你倒在礦坑裡</strong>
+        <span>等待救援</span>
+      </div>
+      <p>可以自己復活，或讓其他玩家在網頁端救你。</p>
+    `;
+    actionGrid.appendChild(deathBox);
   }
 
   if (supplyStation) {
@@ -738,6 +771,18 @@ function renderActions(payload) {
     supportActionGrid.appendChild(makeActionButton("💚 自己復活", "revive", {
       kind: "primary"
     }));
+  }
+  if (stateFlags.canRescue && rescueTargets.length) {
+    supportActionGrid.appendChild(makeActionDivider("救援別人"));
+    for (const target of rescueTargets) {
+      const seconds = Math.ceil((target.refundRemainingMs || 0) / 1000);
+      const refundText = seconds > 0 ? `｜退還倒數 ${seconds}s` : "";
+      const button = makeActionButton(`💚 救援 ${target.label}${refundText}`, "rescue", {
+        kind: "safe"
+      });
+      button.dataset.targetUserId = target.userId;
+      supportActionGrid.appendChild(button);
+    }
   }
   supportActionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
     kind: "secondary",
@@ -872,7 +917,9 @@ async function postAction(action, payload = {}, activeButton = null) {
       await loadLeaderboard();
       renderDashboard(body.data);
     }
-    showActionMessage(body.message || "完成。", body.ok);
+    const message = body.message || "完成。";
+    showActionMessage(message, body.ok);
+    if (body.ok) showSettlementModal(message);
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
   } finally {
@@ -964,6 +1011,10 @@ $("dashboard").addEventListener("click", (event) => {
     postAction(action, { choice: button.dataset.choice || "" }, button);
     return;
   }
+  if (action === "rescue") {
+    postAction(action, { targetUserId: button.dataset.targetUserId || "" }, button);
+    return;
+  }
   if (action === "bankDeposit" || action === "bankWithdraw") {
     const input = $("bankAmount");
     postAction(action, { amount: input.value || null }, button);
@@ -1004,6 +1055,12 @@ $("refreshButton").addEventListener("click", () => {
 
 $("logoutButton").addEventListener("click", () => {
   location.href = "/logout";
+});
+
+$("settlementClose").addEventListener("click", hideSettlementModal);
+$("settlementOk").addEventListener("click", hideSettlementModal);
+$("settlementModal").addEventListener("click", (event) => {
+  if (event.target && event.target.id === "settlementModal") hideSettlementModal();
 });
 
 document.addEventListener("visibilitychange", () => {

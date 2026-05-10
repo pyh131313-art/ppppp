@@ -216,6 +216,20 @@
           </div>
         </section>
       </section>
+
+      <div class="settlement-modal hidden" id="settlementModal" role="dialog" aria-modal="true" aria-labelledby="settlementTitle">
+        <div class="settlement-card">
+          <div class="settlement-head">
+            <div>
+              <p class="eyebrow">探險結算</p>
+              <h2 id="settlementTitle">本次收益</h2>
+            </div>
+            <button class="modal-close" id="settlementClose" type="button" aria-label="關閉">×</button>
+          </div>
+          <div class="settlement-body" id="settlementBody"></div>
+          <button class="button primary settlement-ok" id="settlementOk" type="button">收下</button>
+        </div>
+      </div>
     </main>
     <script src="/app.js"></script>
   </body>
