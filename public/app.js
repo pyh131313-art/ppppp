@@ -642,6 +642,7 @@ function renderActions(payload) {
   actionGrid.innerHTML = "";
   supportActionGrid.innerHTML = "";
   supportActions.classList.remove("hidden");
+  supportActions.open = !window.matchMedia("(max-width: 700px)").matches || Boolean(payload.summary && payload.summary.dead);
 
   $("bankConsole").classList.toggle("hidden", !stateFlags.canUseBank);
   $("bankConsole").classList.toggle("disabled-panel", !stateFlags.canUseBank);
