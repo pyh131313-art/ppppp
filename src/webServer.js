@@ -40,6 +40,7 @@ const {
   leaveSupplyStation,
   mine,
   openUndergroundInn,
+  revive,
   resolveEventChallenge,
   resolveRandomEvent,
   returnToSurface,
@@ -355,6 +356,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
       canUseUndergroundInn: Boolean(!player.dead && player.zone === "undergroundCamp"),
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation),
       needsTrait: Boolean(!player.runMode && !player.dead),
+      canRevive: Boolean(player.dead),
       canReturn: Boolean(player.runMode || player.depth !== 0 || player.runDepthProgress !== 0 || player.zone !== "surface"),
       canDrinkPotion: Boolean(player.runMode && !player.dead && player.healingPotion > 0),
       canFeedChicken: Boolean(player.ownedChicken),
@@ -607,6 +609,19 @@ async function handleApiAction(request, response) {
       if (result.globalState) setGlobalStateToPlayers(players, result.globalState);
       return players;
     });
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "revive") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const revived = revive(player, Date.now(), Math.random);
+      resultPlayer = revived.player;
+      message = revived.message;
+      ok = revived.ok !== false;
+      return revived.player;
+    });
+    resultPlayer = resultPlayer || result;
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
     return;
   }

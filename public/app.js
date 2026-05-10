@@ -734,6 +734,11 @@ function renderActions(payload) {
     kind: "secondary",
     disabled: !stateFlags.canReturn
   }));
+  if (stateFlags.canRevive) {
+    supportActionGrid.appendChild(makeActionButton("💚 自己復活", "revive", {
+      kind: "primary"
+    }));
+  }
   supportActionGrid.appendChild(makeActionButton(`🧪 喝藥水 x${formatNumber(getInventoryCount("healingPotion"))}`, "drinkPotion", {
     kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
