@@ -2943,3 +2943,63 @@ h1 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* Illustrated mine scene sizing fixes */
+.mine-screen {
+  grid-template-rows: auto auto minmax(280px, 1fr) auto;
+}
+
+.mine-art {
+  align-self: stretch;
+  min-height: clamp(280px, 42vh, 520px);
+}
+
+.mine-map-stage {
+  min-height: inherit;
+}
+
+.mine-map-stage .scene-status {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 2.2vw, 26px);
+  z-index: 8;
+  transform: translateX(-50%);
+}
+
+@media (min-width: 901px) {
+  .mine-panel {
+    min-height: clamp(430px, 56vh, 680px);
+  }
+
+  .mine-screen {
+    min-height: clamp(406px, 54vh, 650px);
+  }
+
+  .mine-art {
+    min-height: clamp(285px, 40vh, 520px);
+  }
+}
+
+@media (min-width: 1501px) {
+  .mine-panel {
+    min-height: clamp(500px, 58vh, 760px);
+  }
+
+  .mine-screen {
+    min-height: clamp(470px, 56vh, 730px);
+  }
+
+  .mine-art {
+    min-height: clamp(340px, 42vh, 600px);
+  }
+}
+
+@media (max-width: 700px) {
+  .mine-art {
+    min-height: 260px;
+  }
+
+  .mine-map-stage .scene-status {
+    width: min(92%, 360px);
+  }
+}
