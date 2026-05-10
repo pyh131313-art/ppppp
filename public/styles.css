@@ -213,6 +213,10 @@ h2 {
   grid-column: 2;
 }
 
+.quickbar-panel {
+  grid-column: 2;
+}
+
 .leaderboard-panel {
   grid-column: 1 / -1;
 }
@@ -774,6 +778,15 @@ h2 {
   font-size: 12px;
 }
 
+.action-divider {
+  grid-column: 1 / -1;
+  padding: 2px 2px 0;
+  color: #fef3c7;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .action-button:disabled,
 .trait-option:disabled {
   cursor: not-allowed;
@@ -826,7 +839,7 @@ h2 {
 
 .utility-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
@@ -855,10 +868,6 @@ h2 {
 
 .hidden-utility {
   display: none !important;
-}
-
-.quick-bag {
-  margin-top: 0;
 }
 
 .web-shop,
@@ -1310,18 +1319,27 @@ h2 {
   }
 
   .profile {
-    grid-row: 2 / 4;
+    grid-column: 1;
+    grid-row: 2;
   }
 
   .mine-panel {
+    grid-column: 2;
     grid-row: 2 / 3;
   }
 
   .action-panel {
+    grid-column: 3;
     grid-row: 2 / 4;
   }
 
   .status-panel {
+    grid-column: 1;
+    grid-row: 3 / 4;
+  }
+
+  .quickbar-panel {
+    grid-column: 2;
     grid-row: 3 / 4;
   }
 
@@ -1462,7 +1480,6 @@ h2 {
     line-height: 1.35;
   }
 
-  .quick-bag,
   .web-shop,
   .web-storage,
   .web-inn {
@@ -1487,6 +1504,7 @@ h2 {
 
   .quick-bag-grid {
     gap: 5px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .quick-slot {
@@ -1604,9 +1622,32 @@ h2 {
     grid-row: 3;
   }
 
-  .action-panel {
+  .quickbar-panel {
     grid-column: 2;
     grid-row: 3;
+  }
+
+  .action-panel {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+    align-items: start;
+  }
+
+  .action-panel .section-title,
+  .action-panel .action-message,
+  .action-panel .trait-picker {
+    grid-column: 1 / -1;
+  }
+
+  .action-panel .utility-tabs,
+  .action-panel .utility-page {
+    grid-column: 2;
+  }
+
+  .action-panel .support-actions {
+    margin-top: 0;
   }
 
   .profile,
@@ -1657,6 +1698,7 @@ h2 {
   .profile,
   .action-panel,
   .mine-panel,
+  .quickbar-panel,
   .status-panel,
   .collection-panel,
   .leaderboard-panel {
@@ -1703,12 +1745,16 @@ h2 {
     min-height: 430px;
   }
 
+  .quickbar-panel {
+    grid-column: 2;
+  }
+
   .status-panel {
     grid-column: 1;
   }
 
   .action-panel {
-    grid-column: 2;
+    grid-column: 1 / -1;
   }
 
   .stats-grid,

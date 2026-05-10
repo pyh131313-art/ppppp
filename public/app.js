@@ -4,7 +4,7 @@ const state = {
   data: null,
   leaderboard: null,
   tab: "overview",
-  utilityTab: "bag",
+  utilityTab: "shop",
   collectionFilter: "all",
   loading: false,
   actionLoading: false,
@@ -434,6 +434,13 @@ function makeActionButton(label, action, options = {}) {
   return button;
 }
 
+function makeActionDivider(label) {
+  const divider = document.createElement("div");
+  divider.className = "action-divider";
+  divider.textContent = label;
+  return divider;
+}
+
 function clearEventCountdown() {
   if (state.eventCountdownTimer) {
     clearInterval(state.eventCountdownTimer);
@@ -589,6 +596,7 @@ function renderActions(payload) {
       disabled: !stateFlags.canMine
     }));
   }
+  supportActionGrid.appendChild(makeActionDivider("生存"));
   supportActionGrid.appendChild(makeActionButton("↩️ 返回地面", "returnSurface", {
     kind: "secondary",
     disabled: !stateFlags.canReturn
@@ -597,6 +605,7 @@ function renderActions(payload) {
     kind: "secondary",
     disabled: !stateFlags.canDrinkPotion
   }));
+  supportActionGrid.appendChild(makeActionDivider("照顧"));
   supportActionGrid.appendChild(makeActionButton(`🍖 餵普通 x${formatNumber(getInventoryCount("normalFeed"))}`, "feedChicken", {
     kind: "secondary",
     feedType: "normalFeed",
