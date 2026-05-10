@@ -615,9 +615,12 @@ function getEventCgUrl(eventId, event) {
   const id = String(eventId || "");
   if (!id) return "";
   if (id.includes("chicken")) return "/assets/event-cg-wild-chicken.png?v=20260510";
+  if (id.startsWith("sky_") || id.includes("_sky_") || id.includes("thunder") || id.includes("cloud") || id.includes("starlight") || id.includes("lightwing")) return "/assets/event-cg-sky-v2.png?v=20260510";
   if (event && event.traitSwapEvent) return "/assets/event-cg-trait-swap.png?v=20260510";
   if (id.includes("trait_swap") || id.includes("mirror") || id.includes("stele")) return "/assets/event-cg-trait-swap.png?v=20260510";
-  if (id.includes("chest") || id.includes("safe") || id.includes("vault") || id.includes("lockpick") || id.includes("supply_cache") || id.includes("lost_backpack")) return "/assets/event-cg-treasure-chest.png?v=20260510";
+  if (id.includes("lockpick") || id.includes("vault") || id.includes("seal") || (event && event.lockpick)) return "/assets/event-cg-lockpick-v2.png?v=20260510";
+  if (id.includes("puzzle") || id.includes("circuit") || id.includes("valve") || id.includes("pipe") || id.includes("refraction") || id.includes("bridge")) return "/assets/event-cg-puzzle-v2.png?v=20260510";
+  if (id.includes("chest") || id.includes("safe") || id.includes("supply_cache") || id.includes("lost_backpack")) return "/assets/event-cg-treasure-chest.png?v=20260510";
   if (id.includes("bomb") || id.includes("powder") || id.includes("explosive") || id.includes("blaster")) return "/assets/event-cg-bomb-defuse.png?v=20260510";
   if (id.includes("collapse") || id.includes("cavein") || id.includes("evacuation") || id.includes("escape")) return "/assets/event-cg-cave-collapse.png?v=20260510";
   return "";
@@ -1207,6 +1210,9 @@ async function handleStatic(url, response) {
     const allowed = new Set([
       "event-cg-bomb-defuse.png",
       "event-cg-cave-collapse.png",
+      "event-cg-lockpick-v2.png",
+      "event-cg-puzzle-v2.png",
+      "event-cg-sky-v2.png",
       "event-cg-treasure-chest.png",
       "event-cg-wild-chicken.png",
       "event-cg-trait-swap.png"

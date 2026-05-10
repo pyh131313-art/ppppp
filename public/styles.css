@@ -3362,10 +3362,11 @@ h1 {
     right: max(8px, env(safe-area-inset-right));
     bottom: max(8px, env(safe-area-inset-bottom));
     z-index: 90;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     gap: 7px;
     padding: 8px;
-    overflow-x: auto;
+    overflow: hidden;
     border: 1px solid rgba(241, 196, 95, 0.28);
     border-radius: 14px;
     background:
@@ -3378,7 +3379,6 @@ h1 {
   }
 
   .mobile-dock-button {
-    flex: 1 0 max(108px, 31%);
     min-height: 48px;
     border: 1px solid rgba(255, 255, 255, 0.11);
     border-radius: 10px;
@@ -3389,6 +3389,8 @@ h1 {
     font-size: 13px;
     cursor: pointer;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .mobile-dock-button.primary {
@@ -3407,7 +3409,6 @@ h1 {
   }
 
   .mobile-dock-button.secondary {
-    flex-grow: 0;
     color: var(--muted);
     background: rgba(0, 0, 0, 0.22);
   }
@@ -3456,5 +3457,20 @@ h1 {
 
   .quick-bag-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .mobile-action-dock {
+    left: max(6px, env(safe-area-inset-left));
+    right: max(6px, env(safe-area-inset-right));
+    bottom: max(6px, env(safe-area-inset-bottom));
+    gap: 5px;
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  .mobile-dock-button {
+    min-height: 44px;
+    padding: 7px 6px;
+    font-size: 12px;
   }
 }

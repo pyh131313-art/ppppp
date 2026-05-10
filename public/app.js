@@ -733,8 +733,9 @@ function renderMobileDock(payload) {
   }
 
   const { stateFlags, runModeOptions = [], digPathOptions = [], pendingEvent, supplyStation, summary = {}, minorBuffs = {}, charge = {} } = payload;
+  const maxDockButtons = 3;
   const add = (button) => {
-    if (button) dock.appendChild(button);
+    if (button && dock.children.length < maxDockButtons) dock.appendChild(button);
   };
 
   if (pendingEvent) {
