@@ -4414,3 +4414,147 @@ h1 {
     min-height: 42px;
   }
 }
+
+/* Desktop cleanup: keep the CG as the main play surface. */
+.mine-screen .game-hud,
+.mine-screen .scene-topline {
+  display: none;
+}
+
+.mine-screen {
+  display: block;
+}
+
+.mine-art {
+  padding-top: 0;
+}
+
+.scene-control-panel .minor-buff-card {
+  max-width: min(620px, 100%);
+  max-height: min(34vh, 260px);
+}
+
+.scene-control-panel .mini-trait-summary {
+  max-width: min(620px, 100%);
+}
+
+@media (min-width: 901px) {
+  .dashboard {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+  }
+
+  .profile {
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .profile.panel {
+    padding: 8px;
+  }
+
+  .profile .user-row {
+    padding: 7px;
+  }
+
+  .profile .avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .profile h2 {
+    font-size: 14px;
+  }
+
+  .profile .vital-card {
+    margin-top: 7px;
+    padding: 8px;
+  }
+
+  .profile .stats-grid {
+    gap: 5px;
+    margin-top: 7px;
+  }
+
+  .profile .stats-grid div {
+    padding: 6px 8px;
+  }
+
+  .profile .bank-console {
+    margin-top: 7px;
+    padding-top: 7px;
+  }
+
+  .mine-panel {
+    grid-row: 2;
+  }
+
+  .action-panel {
+    grid-row: 3;
+    width: min(760px, calc(100% - 24px));
+    margin-top: 14px;
+    justify-self: start;
+    position: relative;
+    z-index: 1;
+  }
+
+  .mine-screen {
+    padding: 0;
+    min-height: clamp(560px, 66vh, 820px);
+  }
+
+  .mine-art,
+  .mine-map-stage {
+    min-height: clamp(560px, 66vh, 820px);
+  }
+
+  .scene-bag-rail {
+    top: 14px;
+    right: 14px;
+    bottom: 14px;
+    width: clamp(82px, 7vw, 110px);
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-auto-rows: 72px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 72px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(64px, 84%);
+    height: min(64px, 84%);
+  }
+
+  .scene-control-panel {
+    left: clamp(30px, 4vw, 58px);
+    right: clamp(124px, 10vw, 156px);
+    bottom: clamp(26px, 4vh, 44px);
+  }
+
+  .scene-control-panel .trait-picker {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(78px, 0.18fr);
+  }
+
+  .scene-control-panel .trait-option:not(.trait-reroll) {
+    min-height: 82px;
+  }
+
+  .scene-control-panel .trait-reroll {
+    min-height: 82px;
+  }
+
+  .scene-control-panel .minor-buff-card,
+  .scene-control-panel .mini-trait-summary {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+}
