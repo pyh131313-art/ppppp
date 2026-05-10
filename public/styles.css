@@ -1819,6 +1819,7 @@ h2 {
 
   .dashboard {
     grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
     align-items: start;
   }
 
@@ -1832,25 +1833,32 @@ h2 {
 
   .profile {
     grid-column: 1;
-    grid-row: auto;
+    grid-row: 2;
   }
 
   .mine-panel {
     grid-column: 2;
-    grid-row: auto;
-    min-height: 430px;
+    grid-row: 2;
+    min-height: 360px;
   }
 
-  .quickbar-panel {
+  .action-panel {
     grid-column: 2;
+    grid-row: 3;
   }
 
   .status-panel {
     grid-column: 1;
+    grid-row: 3 / 5;
   }
 
-  .action-panel {
-    grid-column: 1 / -1;
+  .quickbar-panel {
+    grid-column: 2;
+    grid-row: 4;
+  }
+
+  .mine-screen {
+    min-height: 336px;
   }
 
   .stats-grid,
