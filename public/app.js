@@ -791,6 +791,7 @@ function renderActions(payload) {
       `
       : "";
     eventBox.innerHTML = `
+      ${pendingEvent.imageUrl ? `<div class="event-cg"><img src="${pendingEvent.imageUrl}" alt="${escapeHtml(pendingEvent.title)}"></div>` : ""}
       <div class="web-event-head">
         <strong>${pendingEvent.title}</strong>
         ${countdown || "<span>網頁操作</span>"}

@@ -501,6 +501,7 @@ function getWebPendingEvent(player) {
     id: player.pendingEvent,
     title: event.title || "事件",
     description: event.description || "",
+    imageUrl: getEventCgUrl(player.pendingEvent, event),
     challengeType: player.eventChallenge ? player.eventChallenge.type : "",
     hint: player.eventChallenge ? player.eventChallenge.hint || "" : "",
     startedAt: player.eventChallenge ? player.eventChallenge.startedAt || 0 : 0,
@@ -512,6 +513,18 @@ function getWebPendingEvent(player) {
     attempts: player.eventChallenge ? player.eventChallenge.attempts || 0 : 0,
     choices
   };
+}
+
+function getEventCgUrl(eventId, event) {
+  const id = String(eventId || "");
+  if (!id) return "";
+  if (id.includes("chicken")) return "/assets/event-cg-wild-chicken.png?v=20260510";
+  if (event && event.traitSwapEvent) return "/assets/event-cg-trait-swap.png?v=20260510";
+  if (id.includes("trait_swap") || id.includes("mirror") || id.includes("stele")) return "/assets/event-cg-trait-swap.png?v=20260510";
+  if (id.includes("chest") || id.includes("safe") || id.includes("vault") || id.includes("lockpick") || id.includes("supply_cache") || id.includes("lost_backpack")) return "/assets/event-cg-treasure-chest.png?v=20260510";
+  if (id.includes("bomb") || id.includes("powder") || id.includes("explosive") || id.includes("blaster")) return "/assets/event-cg-bomb-defuse.png?v=20260510";
+  if (id.includes("collapse") || id.includes("cavein") || id.includes("evacuation") || id.includes("escape")) return "/assets/event-cg-cave-collapse.png?v=20260510";
+  return "";
 }
 
 function getMaskedPlayerName(userId, currentUserId) {
