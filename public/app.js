@@ -340,15 +340,15 @@ function getMineSceneImage(summary = {}, stateFlags = {}) {
   const zone = summary.zone || "";
   const text = `${summary.area || ""} ${summary.cave || ""}`;
   if (zone === "undergroundCamp" || text.includes("地底營地")) {
-    return "/assets/camp-underground-scene.svg?v=20260510";
+    return "/assets/camp-underground-scene.png?v=20260510";
   }
   if (zone === "skyCamp" || text.includes("天域營地")) {
-    return "/assets/camp-sky-scene.svg?v=20260510";
+    return "/assets/camp-sky-scene.png?v=20260510";
   }
   if (zone === "surface" && stateFlags.needsTrait) {
-    return "/assets/camp-surface-scene.svg?v=20260510";
+    return "/assets/camp-surface-scene.png?v=20260510";
   }
-  return "/assets/mine-scene-map.png?v=20260510b";
+  return "/assets/mine-scene-map.png?v=20260510c";
 }
 
 function renderMineScene(payload) {

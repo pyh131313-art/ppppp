@@ -886,12 +886,12 @@ async function handleStatic(url, response) {
     await serveFile(response, path.join(PUBLIC_DIR, "assets", "mine-scene-map.png"), "no-store");
     return true;
   }
-  if (pathname.startsWith("/assets/camp-") && pathname.endsWith("-scene.svg")) {
+  if (pathname.startsWith("/assets/camp-") && pathname.endsWith("-scene.png")) {
     const safeName = path.basename(pathname);
     const allowed = new Set([
-      "camp-surface-scene.svg",
-      "camp-underground-scene.svg",
-      "camp-sky-scene.svg"
+      "camp-surface-scene.png",
+      "camp-underground-scene.png",
+      "camp-sky-scene.png"
     ]);
     if (!allowed.has(safeName)) return false;
     await serveFile(response, path.join(PUBLIC_DIR, "assets", safeName), "no-store");
