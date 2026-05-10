@@ -319,6 +319,7 @@ function buildPlayerPayload(user, playerInput, progressInput = {}) {
       area: getAreaLabel(player),
       cave: getCaveLabel(player),
       depthLabel: getDepthLabel(player),
+      zone: player.zone,
       runMode: getRunModeText(player),
       bagUsed: getBagUsedSlots(player),
       bagCapacity: getBagCapacity(player),
@@ -852,6 +853,7 @@ function getContentType(filePath) {
   if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
   if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
   if (filePath.endsWith(".png")) return "image/png";
+  if (filePath.endsWith(".svg")) return "image/svg+xml; charset=utf-8";
   if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
   if (filePath.endsWith(".webp")) return "image/webp";
   return "application/octet-stream";
@@ -882,6 +884,17 @@ async function handleStatic(url, response) {
   }
   if (pathname === "/assets/mine-scene-map.png") {
     await serveFile(response, path.join(PUBLIC_DIR, "assets", "mine-scene-map.png"), "no-store");
+    return true;
+  }
+  if (pathname.startsWith("/assets/camp-") && pathname.endsWith("-scene.svg")) {
+    const safeName = path.basename(pathname);
+    const allowed = new Set([
+      "camp-surface-scene.svg",
+      "camp-underground-scene.svg",
+      "camp-sky-scene.svg"
+    ]);
+    if (!allowed.has(safeName)) return false;
+    await serveFile(response, path.join(PUBLIC_DIR, "assets", safeName), "no-store");
     return true;
   }
   const fileName = pathname === "/" ? "index.html" : path.basename(pathname);

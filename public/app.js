@@ -336,6 +336,21 @@ function makeSceneIcon(type, label = "") {
   return `<span class="scene-icon scene-${type}"${title} aria-label="${label || type}"></span>`;
 }
 
+function getMineSceneImage(summary = {}, stateFlags = {}) {
+  const zone = summary.zone || "";
+  const text = `${summary.area || ""} ${summary.cave || ""}`;
+  if (zone === "undergroundCamp" || text.includes("地底營地")) {
+    return "/assets/camp-underground-scene.svg?v=20260510";
+  }
+  if (zone === "skyCamp" || text.includes("天域營地")) {
+    return "/assets/camp-sky-scene.svg?v=20260510";
+  }
+  if (zone === "surface" && stateFlags.needsTrait) {
+    return "/assets/camp-surface-scene.svg?v=20260510";
+  }
+  return "/assets/mine-scene-map.png?v=20260510b";
+}
+
 function renderMineScene(payload) {
   const { summary, stateFlags, digPathOptions } = payload;
   const art = $("mineArt");
@@ -363,7 +378,7 @@ function renderMineScene(payload) {
 
   art.innerHTML = `
     <div class="mine-map-stage ${stageState}">
-      <img class="mine-map-bg" src="/assets/mine-scene-map.png?v=20260510b" alt="">
+      <img class="mine-map-bg" src="${getMineSceneImage(summary, stateFlags)}" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
       <div class="stage-state-icon stage-camp-icon">${makeSceneIcon("camp", "營地")}</div>
       <div class="stage-state-icon stage-supply-icon">${makeSceneIcon("supply", "補給站")}</div>
