@@ -575,6 +575,7 @@ function renderMiningSystems(payload) {
   }
   if (chargeBox) {
     const value = Math.max(0, Math.min(100, Number(charge.value || 0)));
+    chargeBox.classList.toggle("is-ready", Boolean(charge.ready));
     const filled = Math.round(value / 10);
     const bar = `${"🟩".repeat(filled)}${"⬛".repeat(10 - filled)}`;
     const last = charge.lastUsed ? `<span>上次：${escapeHtml((charge.skills || []).find((skill) => skill.id === charge.lastUsed)?.label || charge.lastUsed)}</span>` : "";

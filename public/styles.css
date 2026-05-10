@@ -4558,3 +4558,257 @@ h1 {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 }
+
+/* Desktop shell compaction and cleaner mine composition. */
+@media (min-width: 901px) {
+  .shell {
+    width: min(100% - 24px, 1500px);
+  }
+
+  .hero {
+    min-height: 72px;
+    padding: 12px 16px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .hero .eyebrow {
+    margin-bottom: 4px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+
+  .hero h1 {
+    font-size: clamp(26px, 2.6vw, 38px);
+  }
+
+  .hero .sub,
+  .game-topbar::after {
+    display: none;
+  }
+
+  .hero-actions .button {
+    min-height: 42px;
+    padding: 9px 14px;
+  }
+
+  .dashboard {
+    margin-top: 0;
+    grid-template-columns: 188px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .tabs {
+    margin-top: -1px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .profile {
+    width: 188px;
+  }
+
+  .profile.panel {
+    padding: 7px;
+  }
+
+  .profile .user-row {
+    gap: 7px;
+  }
+
+  .profile .avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .profile .muted {
+    font-size: 11px;
+  }
+
+  .profile h2 {
+    max-width: 118px;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .profile .vital-card {
+    padding: 7px;
+  }
+
+  .profile .stats-grid div {
+    padding: 5px 7px;
+  }
+
+  .profile .stats-grid span,
+  .profile-charge-head,
+  .system-title,
+  .mini-choice-hint {
+    font-size: 10px;
+  }
+
+  .profile .stats-grid strong {
+    font-size: 13px;
+  }
+
+  .profile .bank-console input {
+    min-height: 30px;
+    padding: 5px 7px;
+    font-size: 11px;
+  }
+
+  .profile .bank-actions .mini-button,
+  .profile-run-actions .mini-button,
+  .profile-charge-actions .mini-button {
+    min-height: 28px;
+    padding: 5px 6px;
+    font-size: 10px;
+  }
+
+  .profile .mini-trait-summary {
+    margin-top: 7px;
+    padding: 7px;
+  }
+
+  .profile .system-chips {
+    gap: 4px;
+  }
+
+  .profile .system-chips span {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .action-panel {
+    width: 100%;
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 10px;
+  }
+
+  .action-panel .utility-tabs,
+  .action-panel .utility-page {
+    grid-column: 1;
+    width: 100%;
+  }
+
+  .web-shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  }
+
+  .mine-map-stage {
+    --scene-bag-space: clamp(112px, 8vw, 138px);
+  }
+
+  .mine-map-bg {
+    right: var(--scene-bag-space);
+    width: auto;
+    border-right: 1px solid rgba(241, 196, 95, 0.18);
+    border-radius: 0 14px 14px 0;
+  }
+
+  .mine-map-stage::before,
+  .mine-map-stage::after {
+    right: var(--scene-bag-space);
+  }
+
+  .stage-glow {
+    left: calc((100% - var(--scene-bag-space)) / 2);
+  }
+
+  .scene-bag-rail {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--scene-bag-space);
+    border-radius: 0 12px 12px 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .scene-control-panel {
+    right: calc(var(--scene-bag-space) + 18px);
+    bottom: clamp(18px, 3vh, 34px);
+  }
+
+  .scene-control-panel .trait-picker {
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 74px;
+  }
+
+  .scene-control-panel .trait-option,
+  .scene-control-panel .action-button {
+    min-height: 52px;
+    padding: 9px 10px;
+  }
+
+  .scene-control-panel .trait-option:not(.trait-reroll) {
+    min-height: 64px;
+  }
+
+  .scene-control-panel .trait-reroll {
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .scene-control-panel .trait-option strong {
+    font-size: 13px;
+  }
+
+  .scene-control-panel .trait-option span {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .mine-map-stage.is-camp .scene-status {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}
+
+.profile-charge-summary.is-ready {
+  position: relative;
+  border-color: rgba(74, 222, 128, 0.58);
+  background:
+    linear-gradient(135deg, rgba(22, 163, 74, 0.18), rgba(59, 130, 246, 0.12)),
+    rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 0 0 1px rgba(74, 222, 128, 0.18),
+    0 0 24px rgba(74, 222, 128, 0.22);
+  overflow: hidden;
+}
+
+.profile-charge-summary.is-ready::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(134, 239, 172, 0.42), transparent);
+  transform: translateX(-100%);
+  animation: chargeShine 1.8s linear infinite;
+  pointer-events: none;
+}
+
+.profile-charge-summary.is-ready .profile-charge-actions .mini-button:not(:disabled) {
+  border-color: rgba(134, 239, 172, 0.7);
+  color: #dcfce7;
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.36), rgba(21, 128, 61, 0.3)),
+    rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 18px rgba(74, 222, 128, 0.28);
+}
+
+@keyframes chargeShine {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard {
+    grid-template-columns: 188px minmax(0, 1fr);
+  }
+}
