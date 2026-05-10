@@ -877,7 +877,7 @@ async function handleStatic(url, response) {
     return true;
   }
   if (pathname === "/assets/inventory-items.png") {
-    await serveFile(response, path.join(PUBLIC_DIR, "assets", "inventory-items.png"), "public, max-age=86400");
+    await serveFile(response, path.join(PUBLIC_DIR, "assets", "inventory-items.png"), "no-store");
     return true;
   }
   const fileName = pathname === "/" ? "index.html" : path.basename(pathname);
