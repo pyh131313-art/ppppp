@@ -67,6 +67,7 @@ function setActiveTab(tab) {
     page.classList.toggle("hidden-page", page.dataset.page !== tab);
   });
   document.querySelector(".profile").classList.toggle("hidden-page", tab !== "overview");
+  if (state.data) renderMobileDock(state.data);
 }
 
 function setUtilityTab(tab) {
@@ -475,6 +476,32 @@ function hideSettlementModal() {
   setTimeout(() => modal.classList.add("hidden"), 160);
 }
 
+function getToastLines(message, ok = true) {
+  const text = String(message || "");
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const interesting = lines.filter((line) => (
+    /爆擊|連擊|JACKPOT|獲得|挖到|金幣|扣|死亡|復活|救援|成功|失敗|總獲得|總收益/.test(line)
+  ));
+  const picked = (interesting.length ? interesting : lines).slice(0, ok ? 3 : 2);
+  return picked.map((line) => line.replace(/^【.*?】\s*/, ""));
+}
+
+function showFloatingToast(message, ok = true) {
+  const stack = $("toastStack");
+  if (!stack || !message) return;
+  const lines = getToastLines(message, ok);
+  if (!lines.length) return;
+  const toast = document.createElement("div");
+  toast.className = `result-toast ${ok ? "" : "bad"}`.trim();
+  toast.innerHTML = lines.map((line) => `<span>${escapeHtml(line)}</span>`).join("");
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 220);
+  }, ok ? 2300 : 3000);
+}
+
 function isSettlementMessage(message) {
   return /總(?:獲得|收益)|探險結算|本次自動結算|礦石收益|寶石收益|特殊收益/.test(String(message || ""));
 }
@@ -592,6 +619,75 @@ function makeActionDivider(label) {
   return divider;
 }
 
+function makeDockButton(label, action, options = {}) {
+  const button = document.createElement("button");
+  button.className = `mobile-dock-button ${options.kind || ""}`.trim();
+  button.textContent = label;
+  button.dataset.action = action;
+  if (options.path) button.dataset.path = options.path;
+  if (options.choice) button.dataset.choice = options.choice;
+  if (options.itemId) button.dataset.itemId = options.itemId;
+  if (options.targetUserId) button.dataset.targetUserId = options.targetUserId;
+  if (options.disabled) button.disabled = true;
+  return button;
+}
+
+function renderMobileDock(payload) {
+  const dock = $("mobileActionDock");
+  if (!dock) return;
+  dock.innerHTML = "";
+  if (!payload || state.tab !== "overview") {
+    dock.classList.add("hidden");
+    return;
+  }
+
+  const { stateFlags, digPathOptions = [], pendingEvent, supplyStation, summary = {} } = payload;
+  const add = (button) => {
+    if (button) dock.appendChild(button);
+  };
+
+  if (pendingEvent) {
+    for (const choice of (pendingEvent.choices || []).slice(0, 3)) {
+      add(makeDockButton(choice.label, "eventChoice", {
+        kind: choice.kind || "primary",
+        choice: choice.id
+      }));
+    }
+  } else if (supplyStation) {
+    add(makeDockButton("🚪 離開補給站", "supplyLeave", { kind: "danger" }));
+    for (const item of (supplyStation.items || []).filter((item) => !item.disabled).slice(0, 2)) {
+      add(makeDockButton(`${item.emoji || "📦"} ${item.label}`, "supplyBuy", {
+        kind: item.type === "potion" ? "safe" : "primary",
+        itemId: item.id
+      }));
+    }
+  } else if (summary.dead) {
+    add(makeDockButton("💚 自己復活", "revive", { kind: "safe" }));
+  } else if (stateFlags.canMine && digPathOptions.length) {
+    const sideIcon = { left: "←", middle: "↓", right: "→" };
+    for (const path of digPathOptions.slice(0, 3)) {
+      add(makeDockButton(`${sideIcon[path.side] || "⛏"} ${path.label}`, "mine", {
+        kind: path.side === "right" ? "danger" : "primary",
+        path: path.side
+      }));
+    }
+  } else {
+    add(makeDockButton("⛏️ 挖礦", "mine", {
+      kind: "primary",
+      disabled: !stateFlags.canMine
+    }));
+  }
+
+  if (stateFlags.canDrinkPotion) {
+    add(makeDockButton("🧪 喝藥水", "drinkPotion", { kind: "safe" }));
+  }
+  if (stateFlags.canReturn && !summary.dead && !pendingEvent && !supplyStation) {
+    add(makeDockButton("↩️ 回地面", "returnSurface", { kind: "secondary" }));
+  }
+
+  dock.classList.toggle("hidden", dock.children.length === 0);
+}
+
 function clearEventCountdown() {
   if (state.eventCountdownTimer) {
     clearInterval(state.eventCountdownTimer);
@@ -684,6 +780,7 @@ function renderActions(payload) {
       button.dataset.choice = choice.id;
       actionGrid.appendChild(button);
     }
+    renderMobileDock(payload);
     return;
   }
 
@@ -730,6 +827,7 @@ function renderActions(payload) {
       actionGrid.appendChild(button);
     }
     actionGrid.appendChild(makeActionButton("🚪 離開補給站", "supplyLeave", { kind: "danger" }));
+    renderMobileDock(payload);
     return;
   }
 
@@ -791,11 +889,12 @@ function renderActions(payload) {
   }));
 
   if (stateFlags.hasPendingEvent) {
-    showActionMessage("目前遇到事件，事件選項仍需回 Discord 處理。", false);
+    showActionMessage("目前遇到事件，可以直接在網頁端處理。", false);
   }
   if (stateFlags.hasSupplyStation) {
-    showActionMessage("目前在補給站，購買或離開仍需回 Discord 處理。", false);
+    showActionMessage("目前在補給站，可以直接在網頁端購買或離開。", false);
   }
+  renderMobileDock(payload);
 }
 
 function renderCollection(collection, summary) {
@@ -920,6 +1019,7 @@ async function postAction(action, payload = {}, activeButton = null) {
     }
     const message = body.message || "完成。";
     showActionMessage(message, body.ok);
+    showFloatingToast(message, body.ok);
     if (body.ok) showSettlementModal(message);
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
