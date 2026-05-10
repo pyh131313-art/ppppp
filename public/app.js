@@ -9,6 +9,7 @@ const state = {
   loading: false,
   actionLoading: false,
   actionLockSnapshot: null,
+  selectedItemKey: "",
   autoSyncTimer: null,
   eventCountdownTimer: null,
   lastSyncAt: null
@@ -121,8 +122,10 @@ function renderInventory(items, used, capacity) {
     return;
   }
   for (const item of items) {
-    const card = document.createElement("div");
+    const card = document.createElement("button");
     card.className = "item-card";
+    card.type = "button";
+    card.dataset.itemKey = item.key;
     card.innerHTML = `${getItemIconHtml(item.key)}<strong>${item.label}</strong><span>x${formatNumber(item.count)}</span>`;
     grid.appendChild(card);
   }
@@ -149,6 +152,7 @@ function renderQuickBag(items, used, capacity) {
     cell.className = `quick-slot${item ? "" : " empty-slot"}`;
     if (item) {
       cell.title = `${item.label} x${formatNumber(item.count)}`;
+      cell.dataset.itemKey = item.key;
       cell.innerHTML = `${item.icon}<small>x${formatNumber(item.count)}</small>`;
     }
     grid.appendChild(cell);
@@ -257,6 +261,83 @@ function renderUndergroundInn(inn) {
     `;
     grid.appendChild(button);
   }
+}
+
+function getInventoryItem(key) {
+  const items = state.data && Array.isArray(state.data.inventory) ? state.data.inventory : [];
+  return items.find((item) => item.key === key) || null;
+}
+
+function getItemHint(item, payload = state.data) {
+  if (!item) return "";
+  const flags = payload && payload.stateFlags ? payload.stateFlags : {};
+  const summary = payload && payload.summary ? payload.summary : {};
+  const hints = {
+    healingPotion: flags.canDrinkPotion ? "可以在礦坑中恢復生命。" : "只能在礦坑中使用，且可能需要等待冷卻。",
+    magicCandy: "給自己的雞吃，立刻升 1 級。",
+    normalFeed: "養雞用品，可以在雞舍餵食。",
+    gourmetFeed: "高級養雞用品，能提升心情但別餵過頭。",
+    quickChickenBall: "捕捉野生雞用的特殊道具。",
+    thickSoleShoes: "可抵擋一次掉落傷害。",
+    guaranteedGemCaveTicket: "使用後下次下礦必定進入寶石洞窟。",
+    guaranteedRaptorCaveTicket: "使用後下次下礦可進入猛禽洞窟。",
+    junk: "破爛不能丟棄，只能想辦法帶出礦坑處理。",
+    platinumJunk: "白金破爛很重，不能主動丟棄。"
+  };
+  if (hints[item.key]) return hints[item.key];
+  if (flags.canUseStorage) return "目前在營地，可以存入倉庫。";
+  if (summary.zone && summary.zone !== "surface") return "特殊資源可能在客棧或天域交易中有用。";
+  return "點下方操作管理這個物品。";
+}
+
+function isDiscardBlocked(key) {
+  return key === "junk" || key === "platinumJunk";
+}
+
+function renderItemInspector() {
+  const overlay = $("itemInspector");
+  if (!overlay) return;
+  const item = getInventoryItem(state.selectedItemKey);
+  if (!item) {
+    overlay.classList.add("hidden");
+    return;
+  }
+  const flags = state.data && state.data.stateFlags ? state.data.stateFlags : {};
+  $("itemInspectorIcon").innerHTML = getItemIconHtml(item.key, "inspector-item-icon");
+  setText("itemInspectorTitle", item.label);
+  setText("itemInspectorCount", `x${formatNumber(item.count)}`);
+  setText("itemInspectorHint", getItemHint(item));
+  const actions = $("itemInspectorActions");
+  actions.innerHTML = "";
+  const add = (label, action, options = {}) => {
+    const button = document.createElement("button");
+    button.className = `mini-button ${options.kind || ""}`.trim();
+    button.type = "button";
+    button.dataset.action = action;
+    button.dataset.itemId = item.key;
+    button.disabled = Boolean(options.disabled);
+    button.textContent = label;
+    actions.appendChild(button);
+  };
+  if (item.key === "healingPotion") add("使用", "drinkPotion", { disabled: !flags.canDrinkPotion });
+  if (item.key === "magicCandy") add("餵雞", "eatCandy");
+  if (flags.canUseStorage) add("存倉庫", "storageDeposit");
+  add(isDiscardBlocked(item.key) ? "不能丟棄" : "丟棄", "discardItem", {
+    kind: "danger",
+    disabled: isDiscardBlocked(item.key)
+  });
+  overlay.classList.remove("hidden");
+}
+
+function openItemInspector(key) {
+  state.selectedItemKey = key || "";
+  $("itemInspectorAmount").value = "";
+  renderItemInspector();
+}
+
+function closeItemInspector() {
+  state.selectedItemKey = "";
+  $("itemInspector").classList.add("hidden");
 }
 
 function getItemIcon(key) {
@@ -664,7 +745,9 @@ function getActionLabel(action, button) {
     shopBuy: "商店購買",
     storageDeposit: "存入倉庫",
     storageWithdraw: "取出倉庫",
-    innBuy: "客棧購買"
+    innBuy: "客棧購買",
+    eatCandy: "餵糖果",
+    discardItem: "丟棄物品"
   };
   return labels[action] || "執行操作";
 }
@@ -1022,6 +1105,11 @@ function renderActions(payload) {
       button.innerHTML = `<strong>${trait.name}</strong><span>${trait.description || "選擇後開始本輪"}</span>`;
       traitPicker.appendChild(button);
     }
+    const rerollButton = document.createElement("button");
+    rerollButton.className = "trait-option trait-reroll";
+    rerollButton.dataset.action = "rerollTraits";
+    rerollButton.innerHTML = "<strong>刷新詞條 10</strong><span>花 10 金幣重新抽兩個詞條</span>";
+    traitPicker.appendChild(rerollButton);
   } else {
     traitPicker.classList.add("hidden");
   }
@@ -1203,6 +1291,7 @@ function renderDashboard(payload) {
   renderChicken(chicken);
   renderActions(payload);
   renderCollection(collection, summary);
+  renderItemInspector();
   state.lastSyncAt = new Date();
   setText("lastUpdated", `同步：${state.lastSyncAt.toLocaleTimeString("zh-Hant-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`);
   renderLeaderboard(state.leaderboard);
@@ -1325,6 +1414,11 @@ document.querySelectorAll("[data-utility-tab]").forEach((button) => {
 });
 
 $("dashboard").addEventListener("click", (event) => {
+  const itemButton = event.target.closest("[data-item-key]");
+  if (itemButton && !event.target.closest("[data-action]")) {
+    openItemInspector(itemButton.dataset.itemKey);
+    return;
+  }
   const button = event.target.closest("[data-action]");
   if (!button || button.disabled || state.actionLoading) return;
   const action = button.dataset.action;
@@ -1381,10 +1475,17 @@ $("dashboard").addEventListener("click", (event) => {
     return;
   }
   if (action === "storageDeposit" || action === "storageWithdraw") {
-    const itemId = $("storageItem").value || "";
-    const amount = $("storageAmount").value || null;
+    const itemId = button.dataset.itemId || $("storageItem").value || "";
+    const amount = button.dataset.itemId ? ($("itemInspectorAmount").value || null) : ($("storageAmount").value || null);
     postAction(action, { itemId, amount }, button);
     $("storageAmount").value = "";
+    if (button.dataset.itemId) $("itemInspectorAmount").value = "";
+    return;
+  }
+  if (action === "discardItem") {
+    const amount = $("itemInspectorAmount").value || null;
+    postAction(action, { itemId: button.dataset.itemId || state.selectedItemKey || "", amount }, button);
+    $("itemInspectorAmount").value = "";
     return;
   }
   if (action === "innBuy") {
@@ -1406,6 +1507,28 @@ $("settlementClose").addEventListener("click", hideSettlementModal);
 $("settlementOk").addEventListener("click", hideSettlementModal);
 $("settlementModal").addEventListener("click", (event) => {
   if (event.target && event.target.id === "settlementModal") hideSettlementModal();
+});
+$("itemInspectorClose").addEventListener("click", closeItemInspector);
+$("itemInspector").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (button && !button.disabled && !state.actionLoading) {
+    const action = button.dataset.action;
+    if (action === "storageDeposit" || action === "storageWithdraw") {
+      const amount = $("itemInspectorAmount").value || null;
+      postAction(action, { itemId: button.dataset.itemId || state.selectedItemKey || "", amount }, button);
+      $("itemInspectorAmount").value = "";
+      return;
+    }
+    if (action === "discardItem") {
+      const amount = $("itemInspectorAmount").value || null;
+      postAction(action, { itemId: button.dataset.itemId || state.selectedItemKey || "", amount }, button);
+      $("itemInspectorAmount").value = "";
+      return;
+    }
+    postAction(action, {}, button);
+    return;
+  }
+  if (event.target && event.target.id === "itemInspector") closeItemInspector();
 });
 
 document.addEventListener("visibilitychange", () => {

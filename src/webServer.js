@@ -17,7 +17,9 @@ const {
   chooseRunMode,
   depositBank,
   depositUndergroundStorage,
+  discardItem,
   drinkHealingPotion,
+  eatMagicCandy,
   getAreaLabel,
   getBagCapacity,
   getBagUsedSlots,
@@ -1037,6 +1039,36 @@ async function handleApiAction(request, response) {
       message = used.message;
       ok = used.ok !== false;
       return used.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "eatCandy") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const used = eatMagicCandy(player, Math.random);
+      resultPlayer = used.player;
+      message = used.message;
+      ok = used.ok !== false;
+      return used.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "discardItem") {
+    const itemId = String(body.itemId || "");
+    const amount = body.amount === null || body.amount === undefined || body.amount === ""
+      ? 1
+      : Number(body.amount);
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const discarded = discardItem(player, itemId, amount);
+      resultPlayer = discarded.player;
+      message = discarded.message;
+      ok = discarded.ok !== false;
+      return discarded.player;
     });
     resultPlayer = resultPlayer || result;
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));

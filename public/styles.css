@@ -1852,6 +1852,10 @@ h2 {
 }
 
 .item-card {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  cursor: pointer;
   min-height: 86px;
   aspect-ratio: 1;
   display: grid;
@@ -1859,6 +1863,17 @@ h2 {
   place-items: center;
   text-align: center;
   padding: 9px;
+  font: inherit;
+}
+
+.quick-slot:not(.empty-slot) {
+  cursor: pointer;
+}
+
+.item-card:hover,
+.quick-slot:not(.empty-slot):hover {
+  border-color: rgba(241, 196, 95, 0.42);
+  filter: brightness(1.08);
 }
 
 .item-icon {
@@ -1898,6 +1913,84 @@ h2 {
 .item-card span {
   color: var(--gold);
   font-weight: 800;
+}
+
+.item-inspector {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 3vw, 28px);
+  background: rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(5px);
+}
+
+.item-inspector.hidden {
+  display: none;
+}
+
+.item-inspector-card {
+  position: relative;
+  width: min(440px, 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(241, 196, 95, 0.32);
+  background:
+    radial-gradient(circle at top left, rgba(241, 196, 95, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(35, 38, 48, 0.98), rgba(14, 16, 22, 0.98));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  padding: 18px;
+}
+
+.item-inspector-head {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.inspector-item-icon {
+  width: 78px;
+  height: 78px;
+}
+
+.item-inspector-head h2 {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+#itemInspectorCount {
+  color: var(--gold);
+  font-weight: 950;
+}
+
+#itemInspectorHint {
+  margin: 14px 0;
+  color: #d1d5db;
+  line-height: 1.55;
+}
+
+#itemInspectorAmount {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  padding: 11px 12px;
+  font: inherit;
+  font-weight: 850;
+}
+
+.item-inspector-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mini-button.danger {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(127, 29, 29, 0.34);
 }
 
 .empty {

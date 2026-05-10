@@ -262,6 +262,23 @@
           <button class="button primary settlement-ok" id="settlementOk" type="button">收下</button>
         </div>
       </div>
+
+      <div class="item-inspector hidden" id="itemInspector" role="dialog" aria-modal="true" aria-labelledby="itemInspectorTitle">
+        <div class="item-inspector-card">
+          <button class="modal-close" id="itemInspectorClose" type="button" aria-label="關閉">×</button>
+          <div class="item-inspector-head">
+            <div id="itemInspectorIcon"></div>
+            <div>
+              <p class="eyebrow">物品欄</p>
+              <h2 id="itemInspectorTitle">物品</h2>
+              <span id="itemInspectorCount">x0</span>
+            </div>
+          </div>
+          <p id="itemInspectorHint"></p>
+          <input id="itemInspectorAmount" type="number" min="1" step="1" placeholder="數量，空白=1">
+          <div class="item-inspector-actions" id="itemInspectorActions"></div>
+        </div>
+      </div>
     </main>
     <script src="/app.js"></script>
   </body>
