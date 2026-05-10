@@ -1582,6 +1582,102 @@ h2 {
   }
 }
 
+@media (min-width: 901px) and (max-aspect-ratio: 4 / 5) {
+  body {
+    overflow: auto;
+  }
+
+  .shell {
+    width: min(100% - 20px, 1180px);
+    height: auto;
+    min-height: 100vh;
+    padding-bottom: 18px;
+  }
+
+  .dashboard {
+    flex: none;
+    min-height: auto;
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    align-items: start;
+  }
+
+  .tabs {
+    grid-column: 1 / -1;
+  }
+
+  .profile {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .mine-panel {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: clamp(430px, 42vh, 620px);
+  }
+
+  .status-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .quickbar-panel {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .action-panel {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+    align-items: start;
+  }
+
+  .action-panel .section-title,
+  .action-panel .action-message,
+  .action-panel .trait-picker {
+    grid-column: 1 / -1;
+  }
+
+  .action-panel .utility-tabs,
+  .action-panel .utility-page {
+    grid-column: 2;
+  }
+
+  .action-panel .support-actions {
+    margin-top: 0;
+  }
+
+  .profile,
+  .mine-panel,
+  .action-panel {
+    overflow: visible;
+  }
+
+  .mine-screen {
+    min-height: clamp(406px, 40vh, 590px);
+  }
+
+  .status-list,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quick-bag-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .storage-grid {
+    max-height: 150px;
+  }
+}
+
 @media (min-width: 901px) and (max-width: 1180px), (min-width: 901px) and (max-height: 760px) {
   body {
     overflow: auto;
