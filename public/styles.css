@@ -5271,24 +5271,29 @@ h1 {
 @media (min-width: 901px) {
   .mine-panel {
     display: block;
+    height: fit-content;
+    min-height: 0;
     padding: 10px;
   }
 
   .mine-screen {
+    --scene-h: clamp(380px, 46vh, 540px);
     display: grid;
     grid-template-columns: minmax(0, 1fr) clamp(126px, 8.6vw, 154px);
     gap: 12px;
-    height: auto;
+    height: calc(var(--scene-h) + 20px);
     min-height: 0;
+    max-height: calc(var(--scene-h) + 20px);
     padding: 10px;
     align-items: stretch;
+    overflow: hidden;
   }
 
   .mine-art,
   .mine-map-stage,
   .scene-bag-rail {
-    min-height: clamp(380px, 46vh, 540px);
-    max-height: 540px;
+    min-height: var(--scene-h);
+    max-height: var(--scene-h);
   }
 
   .mine-art {
@@ -5296,7 +5301,7 @@ h1 {
   }
 
   .mine-map-stage {
-    height: clamp(380px, 46vh, 540px);
+    height: var(--scene-h);
   }
 
   .scene-control-panel {
@@ -5323,7 +5328,7 @@ h1 {
   }
 
   .scene-bag-rail {
-    height: clamp(380px, 46vh, 540px);
+    height: var(--scene-h);
     padding: 8px;
   }
 
@@ -5345,15 +5350,21 @@ h1 {
 }
 
 @media (min-width: 1500px) {
+  .mine-screen {
+    --scene-h: clamp(400px, 48vh, 560px);
+    height: calc(var(--scene-h) + 20px);
+    max-height: calc(var(--scene-h) + 20px);
+  }
+
   .mine-art,
   .mine-map-stage,
   .scene-bag-rail {
-    min-height: clamp(400px, 48vh, 560px);
-    max-height: 560px;
+    min-height: var(--scene-h);
+    max-height: var(--scene-h);
   }
 
   .mine-map-stage,
   .scene-bag-rail {
-    height: clamp(400px, 48vh, 560px);
+    height: var(--scene-h);
   }
 }
