@@ -336,22 +336,6 @@ function makeSceneIcon(type, label = "") {
   return `<span class="scene-icon scene-${type}"${title} aria-label="${label || type}"></span>`;
 }
 
-function makeMinerHtml() {
-  return `
-    <div class="miner-character" aria-hidden="true">
-      <span class="miner-pick"></span>
-      <span class="miner-head"></span>
-      <span class="miner-helmet"></span>
-      <span class="miner-lamp"></span>
-      <span class="miner-body"></span>
-      <span class="miner-arm miner-arm-left"></span>
-      <span class="miner-arm miner-arm-right"></span>
-      <span class="miner-leg miner-leg-left"></span>
-      <span class="miner-leg miner-leg-right"></span>
-    </div>
-  `;
-}
-
 function renderMineScene(payload) {
   const { summary, stateFlags, digPathOptions } = payload;
   const art = $("mineArt");
@@ -381,21 +365,9 @@ function renderMineScene(payload) {
     <div class="mine-map-stage ${stageState}">
       <img class="mine-map-bg" src="/assets/mine-scene-map.png?v=20260510b" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
-      <div class="stage-loot stage-loot-left">${makeSceneIcon("coin", "金幣")}</div>
-      <div class="stage-loot stage-loot-mid">${makeSceneIcon("gem", "寶石")}</div>
-      <div class="stage-loot stage-loot-right">${makeSceneIcon("bomb", "炸彈")}</div>
-      <div class="stage-rocks stage-rocks-left" aria-hidden="true">
-        ${Array.from({ length: 3 }, () => makeSceneIcon("rock", "岩石")).join("")}
-      </div>
-      <div class="stage-rocks stage-rocks-right" aria-hidden="true">
-        ${Array.from({ length: 3 }, () => makeSceneIcon("rock", "岩石")).join("")}
-      </div>
-      <div class="stage-shadow" aria-hidden="true"></div>
-      ${makeMinerHtml()}
       <div class="stage-state-icon stage-camp-icon">${makeSceneIcon("camp", "營地")}</div>
       <div class="stage-state-icon stage-supply-icon">${makeSceneIcon("supply", "補給站")}</div>
       <div class="stage-state-icon stage-danger-icon">${makeSceneIcon("danger", "危險")}</div>
-      <div class="stage-hit-spark" aria-hidden="true"></div>
       <div class="scene-status">${statusLine}</div>
     </div>
   `;
