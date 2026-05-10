@@ -4223,3 +4223,194 @@ h1 {
     min-height: 48px;
   }
 }
+
+/* Final desktop composition: no empty right rail, wider game stage. */
+@media (min-width: 901px) {
+  .dashboard {
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, auto) auto;
+    align-items: start;
+  }
+
+  .tabs {
+    grid-column: 1 / -1;
+  }
+
+  .profile {
+    grid-column: 1;
+    grid-row: 2 / 4;
+  }
+
+  .mine-panel {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    min-height: clamp(560px, 64vh, 820px);
+  }
+
+  .action-panel {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    display: block;
+    width: min(760px, 100%);
+  }
+
+  .mine-screen {
+    min-height: clamp(530px, 60vh, 780px);
+  }
+
+  .mine-art {
+    min-height: clamp(390px, 48vh, 650px);
+    padding: 10px 12px 12px;
+  }
+
+  .mine-map-stage {
+    min-height: clamp(390px, 48vh, 650px);
+  }
+
+  .scene-control-panel {
+    left: clamp(32px, 5vw, 72px);
+    right: clamp(128px, 10vw, 168px);
+    top: auto;
+    bottom: clamp(34px, 5vh, 58px);
+    justify-items: start;
+  }
+
+  .scene-control-panel .trait-picker {
+    width: min(560px, 100%);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scene-control-panel .trait-option {
+    min-height: 86px;
+    padding: 14px 16px;
+  }
+
+  .scene-control-panel .trait-reroll {
+    min-height: 58px;
+  }
+
+  .scene-control-panel .trait-option strong {
+    font-size: 15px;
+  }
+
+  .scene-control-panel .trait-option span {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .scene-action-grid {
+    width: min(620px, 100%);
+  }
+
+  .scene-bag-rail {
+    top: clamp(118px, 17%, 158px);
+    bottom: clamp(82px, 11%, 118px);
+    right: 18px;
+    width: clamp(78px, 6.5vw, 104px);
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-auto-rows: 66px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 66px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(58px, 84%);
+    height: min(58px, 84%);
+  }
+
+  .mine-map-stage .stage-routes {
+    right: clamp(128px, 11vw, 170px);
+  }
+
+  .game-hud {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .game-hud strong {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .scene-control-panel .trait-picker {
+    width: min(640px, 100%);
+  }
+}
+
+/* Opening trait selection layout: prompt on top, cards along the bottom. */
+.mine-map-stage.is-camp .scene-status {
+  top: clamp(14px, 2vw, 24px);
+  bottom: auto;
+  width: auto;
+  max-width: min(78%, 440px);
+  padding: 8px 16px;
+  border-color: rgba(241, 196, 95, 0.28);
+  background: rgba(3, 7, 14, 0.48);
+  color: #fff7d6;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(12px);
+}
+
+.scene-control-panel .trait-picker {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(86px, 0.26fr);
+  align-items: stretch;
+}
+
+.scene-control-panel .trait-reroll {
+  grid-column: auto;
+  min-height: 58px;
+  align-self: stretch;
+  display: grid;
+  place-content: center;
+  padding: 10px;
+  text-align: center;
+}
+
+.scene-control-panel .trait-reroll span {
+  font-size: 11px;
+}
+
+@media (min-width: 901px) {
+  .scene-control-panel {
+    left: clamp(34px, 5vw, 76px);
+    right: clamp(124px, 10vw, 168px);
+    bottom: clamp(28px, 4vh, 48px);
+  }
+
+  .scene-control-panel .trait-picker {
+    width: min(820px, 100%);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(92px, 0.24fr);
+  }
+
+  .scene-control-panel .trait-option:not(.trait-reroll) {
+    min-height: 92px;
+  }
+
+  .scene-control-panel .trait-reroll {
+    min-height: 92px;
+  }
+}
+
+@media (max-width: 700px) {
+  .mine-map-stage.is-camp .scene-status {
+    top: 10px;
+    max-width: calc(100% - 20px);
+  }
+
+  .scene-control-panel .trait-picker {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .scene-control-panel .trait-reroll {
+    grid-column: 1 / -1;
+    min-height: 42px;
+  }
+}

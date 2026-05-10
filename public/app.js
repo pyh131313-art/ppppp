@@ -501,7 +501,7 @@ function renderMineScene(payload) {
     statusLine = "探險中斷";
     stageState = "is-danger";
   } else if (stateFlags.needsTrait) {
-    statusLine = "選一個詞條開始";
+    statusLine = "選擇一個詞條開始";
     stageState = "is-camp";
   } else if (stateFlags.hasPendingEvent) {
     statusLine = "事件發生中";
@@ -1181,7 +1181,7 @@ function renderActions(payload) {
     const rerollButton = document.createElement("button");
     rerollButton.className = "trait-option trait-reroll";
     rerollButton.dataset.action = "rerollTraits";
-    rerollButton.innerHTML = "<strong>刷新詞條 10</strong><span>花 10 金幣重新抽兩個詞條</span>";
+    rerollButton.innerHTML = "<strong>刷新 10</strong><span>重抽</span>";
     traitPicker.appendChild(rerollButton);
     renderMobileDock(payload);
     return;
