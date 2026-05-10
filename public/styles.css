@@ -398,6 +398,7 @@ h2 {
 }
 
 .mine-screen {
+  position: relative;
   min-height: 382px;
   height: 100%;
   border-radius: 8px;
@@ -409,6 +410,81 @@ h2 {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   overflow: hidden;
+}
+
+.mine-screen::before,
+.mine-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mine-screen::before {
+  background:
+    radial-gradient(circle at 50% 72%, rgba(241, 196, 95, 0.16), transparent 26%),
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.08), transparent 18%),
+    radial-gradient(circle at 82% 28%, rgba(0, 0, 0, 0.46), transparent 22%);
+  opacity: 0.9;
+}
+
+.mine-screen::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 18%, rgba(0, 0, 0, 0.4)),
+    repeating-linear-gradient(90deg, transparent 0 62px, rgba(255, 255, 255, 0.035) 62px 64px);
+  mix-blend-mode: screen;
+  opacity: 0.5;
+}
+
+.mine-screen > * {
+  position: relative;
+  z-index: 1;
+}
+
+.mine-screen.scene-normal {
+  background:
+    linear-gradient(180deg, rgba(13, 17, 23, 0.16), rgba(0, 0, 0, 0.36)),
+    radial-gradient(circle at 50% 120%, rgba(217, 119, 6, 0.22), transparent 50%),
+    repeating-linear-gradient(135deg, #2e261e 0 28px, #211d1b 28px 56px);
+}
+
+.mine-screen.scene-gem {
+  border-color: rgba(96, 165, 250, 0.38);
+  background:
+    radial-gradient(circle at 42% 66%, rgba(96, 165, 250, 0.26), transparent 30%),
+    radial-gradient(circle at 70% 38%, rgba(192, 132, 252, 0.24), transparent 24%),
+    repeating-linear-gradient(135deg, #171527 0 28px, #0e1323 28px 56px);
+}
+
+.mine-screen.scene-underground {
+  border-color: rgba(251, 113, 133, 0.34);
+  background:
+    radial-gradient(circle at 52% 86%, rgba(251, 113, 133, 0.28), transparent 32%),
+    linear-gradient(180deg, rgba(60, 17, 12, 0.82), rgba(10, 10, 12, 0.92)),
+    repeating-linear-gradient(135deg, #351c18 0 24px, #1c1718 24px 48px);
+}
+
+.mine-screen.scene-sky {
+  border-color: rgba(96, 165, 250, 0.34);
+  background:
+    radial-gradient(circle at 25% 28%, rgba(255, 255, 255, 0.28), transparent 20%),
+    radial-gradient(circle at 75% 18%, rgba(96, 165, 250, 0.22), transparent 22%),
+    linear-gradient(180deg, #111c32, #161720 72%, #0b0d12);
+}
+
+.mine-screen.scene-inverted {
+  border-color: rgba(192, 132, 252, 0.38);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.25), transparent 28%),
+    conic-gradient(from 180deg at 50% 50%, #241435, #10121d, #2a1728, #10121d, #241435);
+}
+
+.mine-screen.scene-raptor {
+  border-color: rgba(74, 222, 128, 0.28);
+  background:
+    radial-gradient(circle at 48% 78%, rgba(74, 222, 128, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(24, 36, 23, 0.9), rgba(11, 14, 12, 0.95)),
+    repeating-linear-gradient(135deg, #202617 0 26px, #151a12 26px 52px);
 }
 
 .game-hud {

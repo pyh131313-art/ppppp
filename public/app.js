@@ -321,11 +321,22 @@ function getAreaIcon(area = "", cave = "") {
   return "⛏️";
 }
 
+function getMineSceneClass(area = "", cave = "") {
+  const text = `${area} ${cave}`;
+  if (text.includes("猛禽")) return "scene-raptor";
+  if (text.includes("寶石")) return "scene-gem";
+  if (text.includes("天") || text.includes("天空")) return "scene-sky";
+  if (text.includes("地底") || text.includes("地下") || text.includes("岩漿")) return "scene-underground";
+  if (text.includes("顛倒") || text.includes("反轉")) return "scene-inverted";
+  return "scene-normal";
+}
+
 function renderMineScene(payload) {
   const { summary, stateFlags, digPathOptions } = payload;
   const art = $("mineArt");
   const routeStrip = $("routeStrip");
   const areaText = `${summary.area}｜${summary.cave}`;
+  $("mineScreen").className = `mine-screen ${getMineSceneClass(summary.area, summary.cave)}`;
   setText("sceneArea", areaText);
   setText("sceneDepth", summary.depthLabel || `${summary.depth} 層`);
 
