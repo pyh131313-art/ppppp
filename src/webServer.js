@@ -44,6 +44,7 @@ const {
   rescuePlayer,
   resolveEventChallenge,
   resolveRandomEvent,
+  rerollRunModeOptions,
   returnToSurface,
   sellSupplyStationBuff,
   withdrawBank,
@@ -609,6 +610,19 @@ async function handleApiAction(request, response) {
       message = chosen.message;
       ok = chosen.ok !== false;
       return chosen.player;
+    });
+    resultPlayer = resultPlayer || result;
+    sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));
+    return;
+  }
+
+  if (action === "rerollTraits") {
+    const result = await updatePlayer(sessionUser.id, (player) => {
+      const rerolled = rerollRunModeOptions(player, Math.random);
+      resultPlayer = rerolled.player;
+      message = rerolled.message;
+      ok = rerolled.ok !== false;
+      return rerolled.player;
     });
     resultPlayer = resultPlayer || result;
     sendJson(response, 200, buildActionResponse(sessionUser, resultPlayer, message, ok));

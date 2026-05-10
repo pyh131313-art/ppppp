@@ -3065,6 +3065,24 @@ h1 {
     gap: 8px;
   }
 
+  .action-panel.mobile-dock-controls-only .action-group {
+    display: none;
+  }
+
+  .action-panel.mobile-dock-active .action-grid > .action-button,
+  .action-panel.mobile-dock-active .trait-picker,
+  .action-panel.mobile-dock-active .action-message {
+    display: none;
+  }
+
+  .action-panel.mobile-dock-active .action-group-title {
+    display: none;
+  }
+
+  .action-panel.mobile-dock-active .action-grid {
+    gap: 0;
+  }
+
   .action-panel .section-title {
     display: none;
   }

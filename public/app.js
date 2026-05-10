@@ -562,6 +562,7 @@ function animateActionNumbers(root) {
 function getActionLabel(action, button) {
   const labels = {
     chooseTrait: "選擇詞條",
+    rerollTraits: "刷新詞條",
     mine: button && button.dataset.path ? "挖掘路線" : "挖礦",
     eventChoice: "處理事件",
     bankDeposit: "存入銀行",
@@ -636,6 +637,7 @@ function makeDockButton(label, action, options = {}) {
   if (options.path) button.dataset.path = options.path;
   if (options.choice) button.dataset.choice = options.choice;
   if (options.itemId) button.dataset.itemId = options.itemId;
+  if (options.traitId) button.dataset.traitId = options.traitId;
   if (options.targetUserId) button.dataset.targetUserId = options.targetUserId;
   if (options.disabled) button.disabled = true;
   return button;
@@ -644,13 +646,20 @@ function makeDockButton(label, action, options = {}) {
 function renderMobileDock(payload) {
   const dock = $("mobileActionDock");
   if (!dock) return;
+  const actionPanel = document.querySelector(".action-panel");
+  const setActionPanelDockState = (hasDockControls, hasInfoCard = false) => {
+    if (!actionPanel) return;
+    actionPanel.classList.toggle("mobile-dock-active", hasDockControls);
+    actionPanel.classList.toggle("mobile-dock-controls-only", hasDockControls && !hasInfoCard);
+  };
   dock.innerHTML = "";
   if (!payload || state.tab !== "overview") {
     dock.classList.add("hidden");
+    setActionPanelDockState(false);
     return;
   }
 
-  const { stateFlags, digPathOptions = [], pendingEvent, supplyStation, summary = {} } = payload;
+  const { stateFlags, runModeOptions = [], digPathOptions = [], pendingEvent, supplyStation, summary = {} } = payload;
   const add = (button) => {
     if (button) dock.appendChild(button);
   };
@@ -672,6 +681,14 @@ function renderMobileDock(payload) {
     }
   } else if (summary.dead) {
     add(makeDockButton("💚 自己復活", "revive", { kind: "safe" }));
+  } else if (stateFlags.needsTrait && runModeOptions.length) {
+    runModeOptions.slice(0, 2).forEach((trait, index) => {
+      add(makeDockButton(`${index + 1}. ${trait.name}`, "chooseTrait", {
+        kind: index === 0 ? "primary" : "safe",
+        traitId: trait.id
+      }));
+    });
+    add(makeDockButton("🔄 刷新 10", "rerollTraits", { kind: "secondary" }));
   } else if (stateFlags.canMine && digPathOptions.length) {
     const sideIcon = { left: "←", middle: "↓", right: "→" };
     for (const path of digPathOptions.slice(0, 3)) {
@@ -694,7 +711,9 @@ function renderMobileDock(payload) {
     add(makeDockButton("↩️ 回地面", "returnSurface", { kind: "secondary" }));
   }
 
-  dock.classList.toggle("hidden", dock.children.length === 0);
+  const hasDockControls = dock.children.length > 0;
+  dock.classList.toggle("hidden", !hasDockControls);
+  setActionPanelDockState(hasDockControls, Boolean(pendingEvent || supplyStation || summary.dead));
 }
 
 function clearEventCountdown() {
@@ -1121,6 +1140,10 @@ $("dashboard").addEventListener("click", (event) => {
   const action = button.dataset.action;
   if (action === "chooseTrait") {
     postAction(action, { traitId: button.dataset.traitId }, button);
+    return;
+  }
+  if (action === "rerollTraits") {
+    postAction(action, {}, button);
     return;
   }
   if (action === "feedChicken") {
