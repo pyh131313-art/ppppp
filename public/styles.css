@@ -4812,3 +4812,101 @@ h1 {
     grid-template-columns: 188px minmax(0, 1fr);
   }
 }
+
+/* Fix the oversized desktop scene and keep controls from colliding. */
+@media (min-width: 901px) {
+  .dashboard {
+    row-gap: 8px;
+  }
+
+  .tabs {
+    min-height: 58px;
+    padding: 5px 8px;
+  }
+
+  .tab {
+    min-height: 38px;
+    padding: 8px 12px;
+  }
+
+  .mine-panel {
+    min-height: clamp(500px, 58vh, 700px);
+    padding: 10px;
+  }
+
+  .mine-screen,
+  .mine-art,
+  .mine-map-stage {
+    min-height: clamp(480px, 56vh, 680px);
+  }
+
+  .scene-bag-rail {
+    padding: 7px;
+    overflow: hidden;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-auto-rows: 60px;
+    gap: 6px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 60px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(54px, 84%);
+    height: min(54px, 84%);
+  }
+
+  .mine-map-stage .stage-routes {
+    left: clamp(40px, 6vw, 86px);
+    right: calc(var(--scene-bag-space) + 38px);
+    bottom: 26px;
+    gap: 12px;
+  }
+
+  .stage-route-button {
+    min-height: 74px;
+    padding: 10px 12px;
+  }
+
+  .mine-screen:has(.stage-routes) .scene-control-panel {
+    bottom: 118px;
+  }
+
+  .scene-control-panel .action-message {
+    max-width: min(360px, 42vw);
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.28;
+  }
+
+  .mine-map-stage.has-routes .scene-status {
+    top: 20px;
+    bottom: auto;
+    max-width: min(48%, 480px);
+    padding: 6px 12px;
+    opacity: 0.9;
+  }
+
+  .action-panel {
+    margin-top: 8px;
+  }
+
+  .web-shop-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .mine-panel {
+    min-height: clamp(520px, 60vh, 740px);
+  }
+
+  .mine-screen,
+  .mine-art,
+  .mine-map-stage {
+    min-height: clamp(500px, 58vh, 720px);
+  }
+}
