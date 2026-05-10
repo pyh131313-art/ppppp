@@ -614,24 +614,6 @@ h2 {
   filter: blur(2px);
 }
 
-.stage-state-icon {
-  position: absolute;
-  z-index: 4;
-}
-
-.stage-state-icon {
-  left: 50%;
-  bottom: 34%;
-  transform: translateX(-50%);
-  display: none;
-}
-
-.mine-map-stage.is-camp .stage-camp-icon,
-.mine-map-stage.is-supply .stage-supply-icon,
-.mine-map-stage.is-danger .stage-danger-icon {
-  display: block;
-}
-
 .mine-map-stage.is-danger {
   border-color: rgba(251, 113, 133, 0.38);
 }
@@ -873,6 +855,52 @@ h2 {
   color: #bbf7d0;
   margin-bottom: 12px;
   font-weight: 700;
+}
+
+.action-message.settlement-message {
+  border-color: rgba(241, 196, 95, 0.36);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(241, 196, 95, 0.18), transparent 35%),
+    linear-gradient(135deg, rgba(74, 222, 128, 0.12), rgba(15, 23, 42, 0.46));
+  color: #fef3c7;
+  box-shadow:
+    inset 0 0 0 1px rgba(241, 196, 95, 0.08),
+    0 14px 30px rgba(0, 0, 0, 0.24);
+}
+
+.count-pop {
+  display: inline-block;
+  min-width: 2ch;
+  color: #facc15;
+  font-size: 1.12em;
+  font-weight: 1000;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 16px rgba(250, 204, 21, 0.35);
+  transform-origin: center bottom;
+  animation: count-pulse 0.22s ease-in-out infinite alternate;
+}
+
+.count-pop-done {
+  color: #fde68a;
+  animation: count-land 0.28s ease-out both;
+}
+
+@keyframes count-pulse {
+  from {
+    transform: translateY(0) scale(1);
+  }
+  to {
+    transform: translateY(-1px) scale(1.06);
+  }
+}
+
+@keyframes count-land {
+  0% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .action-message.bad {

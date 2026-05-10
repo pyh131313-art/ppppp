@@ -22,6 +22,16 @@ function formatNumber(value) {
   return new Intl.NumberFormat("zh-Hant-TW").format(Number(value || 0));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
 function showNotice(message) {
   const notice = $("notice");
   notice.textContent = message;
@@ -380,9 +390,6 @@ function renderMineScene(payload) {
     <div class="mine-map-stage ${stageState}">
       <img class="mine-map-bg" src="${getMineSceneImage(summary, stateFlags)}" alt="">
       <div class="stage-glow" aria-hidden="true"></div>
-      <div class="stage-state-icon stage-camp-icon">${makeSceneIcon("camp", "營地")}</div>
-      <div class="stage-state-icon stage-supply-icon">${makeSceneIcon("supply", "補給站")}</div>
-      <div class="stage-state-icon stage-danger-icon">${makeSceneIcon("danger", "危險")}</div>
       <div class="scene-status">${statusLine}</div>
     </div>
   `;
@@ -441,12 +448,62 @@ function showActionMessage(message, ok = true) {
   const box = $("actionMessage");
   if (!message) {
     box.classList.add("hidden");
-    box.textContent = "";
+    box.innerHTML = "";
     return;
   }
-  box.textContent = message;
+  box.innerHTML = formatActionMessage(message);
   box.classList.toggle("bad", !ok);
+  box.classList.toggle("settlement-message", isSettlementMessage(message));
   box.classList.remove("hidden");
+  animateActionNumbers(box);
+}
+
+function isSettlementMessage(message) {
+  return /總(?:獲得|收益)|探險結算|本次自動結算|礦石收益|寶石收益|特殊收益/.test(String(message || ""));
+}
+
+function formatActionMessage(message) {
+  const escaped = escapeHtml(message);
+  if (!isSettlementMessage(message)) return escaped;
+  return escaped
+    .split("\n")
+    .map((line) => line.replace(/([+＋-]?)(\d[\d,]*)(?=\s*(?:金幣|$|｜))/g, (match, sign, raw) => {
+      const value = Number(raw.replace(/,/g, ""));
+      if (!Number.isFinite(value)) return match;
+      const prefix = sign || "";
+      return `<span class="count-pop" data-count-to="${value}" data-count-prefix="${prefix}">0</span>`;
+    }))
+    .join("<br>");
+}
+
+function animateActionNumbers(root) {
+  const nodes = [...root.querySelectorAll("[data-count-to]")];
+  if (!nodes.length) return;
+  const duration = 850;
+  const start = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  const tick = (now) => {
+    const progress = Math.min(1, (now - start) / duration);
+    const eased = ease(progress);
+    for (const node of nodes) {
+      const target = Number(node.dataset.countTo || 0);
+      const prefix = node.dataset.countPrefix || "";
+      const jitter = progress < 0.86 ? Math.floor(Math.random() * Math.max(2, target * 0.045)) : 0;
+      const value = Math.min(target, Math.floor(target * eased + jitter));
+      node.textContent = `${prefix}${formatNumber(value)}`;
+    }
+    if (progress < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      for (const node of nodes) {
+        const target = Number(node.dataset.countTo || 0);
+        const prefix = node.dataset.countPrefix || "";
+        node.textContent = `${prefix}${formatNumber(target)}`;
+        node.classList.add("count-pop-done");
+      }
+    }
+  };
+  requestAnimationFrame(tick);
 }
 
 function getActionLabel(action, button) {
