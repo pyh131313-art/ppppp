@@ -548,19 +548,161 @@ h2 {
 .mine-art {
   align-self: center;
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  justify-items: center;
   text-align: center;
-  font-size: clamp(26px, 4vw, 42px);
   line-height: 1.25;
 }
 
 .mine-row {
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.5vw, 16px);
   text-shadow: 0 3px 12px rgba(0, 0, 0, 0.55);
 }
 
 .mine-row.tunnel {
-  font-size: clamp(34px, 5vw, 56px);
+  gap: clamp(10px, 1.8vw, 20px);
+}
+
+.scene-icon {
+  --icon-size: clamp(34px, 4.4vw, 58px);
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: 0 0 auto;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
+}
+
+.scene-icon::before,
+.scene-icon::after {
+  content: "";
+  display: block;
+}
+
+.scene-rock::before {
+  width: 82%;
+  height: 62%;
+  border-radius: 48% 52% 38% 42%;
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.5), transparent 18%),
+    linear-gradient(135deg, #b6b2a8, #5f6060 48%, #2f3235);
+  box-shadow: inset -8px -8px 12px rgba(0, 0, 0, 0.32);
+}
+
+.scene-shaft::before {
+  width: 76%;
+  height: 76%;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(180deg, #33363c, #020203 68%);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
+.scene-pickaxe::before {
+  width: 78%;
+  height: 12%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d8dde5, #5d6570);
+  transform: rotate(-36deg) translateY(-3px);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.18);
+}
+
+.scene-pickaxe::after {
+  position: absolute;
+  width: 12%;
+  height: 74%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9a6737, #4a2a17);
+  transform: rotate(38deg) translateY(6px);
+}
+
+.scene-gem::before {
+  width: 78%;
+  height: 68%;
+  clip-path: polygon(24% 0, 76% 0, 100% 38%, 50% 100%, 0 38%);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.75), transparent 22%),
+    linear-gradient(135deg, #93c5fd, #22d3ee 48%, #2563eb);
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.42);
+}
+
+.scene-bomb::before {
+  width: 68%;
+  height: 68%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.32), transparent 17%),
+    linear-gradient(135deg, #3f4650, #0b0d11 68%);
+}
+
+.scene-bomb::after {
+  position: absolute;
+  top: 2%;
+  right: 18%;
+  width: 24%;
+  height: 24%;
+  border-top: 4px solid #f1c45f;
+  border-right: 4px solid #f1c45f;
+  border-radius: 50%;
+}
+
+.scene-coin::before {
+  width: 62%;
+  height: 72%;
+  border-radius: 48% 48% 42% 42%;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.58), transparent 14%),
+    linear-gradient(180deg, #f8d77a, #a66b18);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.18);
+}
+
+.scene-coin::after {
+  position: absolute;
+  content: "$";
+  color: #5b3511;
+  font-size: calc(var(--icon-size) * 0.38);
+  font-weight: 900;
+}
+
+.scene-camp::before {
+  width: 78%;
+  height: 62%;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background:
+    linear-gradient(90deg, transparent 44%, rgba(255, 255, 255, 0.45) 44% 50%, transparent 50%),
+    linear-gradient(135deg, #f97316, #facc15);
+  box-shadow: 0 12px 0 -7px rgba(74, 222, 128, 0.55);
+}
+
+.scene-supply::before {
+  width: 76%;
+  height: 62%;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 42%, rgba(255, 255, 255, 0.38) 42% 58%, transparent 58%),
+    linear-gradient(180deg, #f1c45f 0 30%, #315f4b 30%);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.scene-danger::before {
+  width: 76%;
+  height: 68%;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #fb7185, #7f1d1d);
+}
+
+.scene-danger::after {
+  position: absolute;
+  content: "!";
+  color: #fff7ed;
+  font-size: calc(var(--icon-size) * 0.42);
+  font-weight: 900;
 }
 
 .scene-status {

@@ -331,6 +331,11 @@ function getMineSceneClass(area = "", cave = "") {
   return "scene-normal";
 }
 
+function makeSceneIcon(type, label = "") {
+  const title = label ? ` title="${label}"` : "";
+  return `<span class="scene-icon scene-${type}"${title} aria-label="${label || type}"></span>`;
+}
+
 function renderMineScene(payload) {
   const { summary, stateFlags, digPathOptions } = payload;
   const art = $("mineArt");
@@ -340,27 +345,42 @@ function renderMineScene(payload) {
   setText("sceneArea", areaText);
   setText("sceneDepth", summary.depthLabel || `${summary.depth} 層`);
 
-  const areaIcon = getAreaIcon(summary.area, summary.cave);
-  let statusLine = `${areaIcon} ${summary.runMode || "尚未選詞條"}`;
-  let center = "⛏️";
+  let statusLine = summary.runMode || "尚未選詞條";
+  let center = makeSceneIcon("pickaxe", "十字鎬");
   if (summary.dead) {
-    statusLine = "💀 探險中斷";
-    center = "💀";
+    statusLine = "探險中斷";
+    center = makeSceneIcon("danger", "探險中斷");
   } else if (stateFlags.needsTrait) {
-    statusLine = "🏕️ 選一個詞條開始";
-    center = "🏕️";
+    statusLine = "選一個詞條開始";
+    center = makeSceneIcon("camp", "營地");
   } else if (stateFlags.hasPendingEvent) {
-    statusLine = "⚠️ 事件發生中";
-    center = "⚠️";
+    statusLine = "事件發生中";
+    center = makeSceneIcon("danger", "事件");
   } else if (stateFlags.hasSupplyStation) {
-    statusLine = "🏪 補給站";
-    center = "🏪";
+    statusLine = "補給站";
+    center = makeSceneIcon("supply", "補給站");
   }
 
   art.innerHTML = `
-    <div class="mine-row ceiling">🪨 🪨 🪨 🪨 🪨 🪨 🪨</div>
-    <div class="mine-row tunnel">⬛ ⬛ ${center} ⬛ ⬛</div>
-    <div class="mine-row vein">💰 🪨 💎 🪨 💣 🪨 💰</div>
+    <div class="mine-row ceiling">
+      ${Array.from({ length: 7 }, () => makeSceneIcon("rock", "岩石")).join("")}
+    </div>
+    <div class="mine-row tunnel">
+      ${makeSceneIcon("shaft", "礦道")}
+      ${makeSceneIcon("shaft", "礦道")}
+      ${center}
+      ${makeSceneIcon("shaft", "礦道")}
+      ${makeSceneIcon("shaft", "礦道")}
+    </div>
+    <div class="mine-row vein">
+      ${makeSceneIcon("coin", "金幣")}
+      ${makeSceneIcon("rock", "岩石")}
+      ${makeSceneIcon("gem", "寶石")}
+      ${makeSceneIcon("rock", "岩石")}
+      ${makeSceneIcon("bomb", "炸彈")}
+      ${makeSceneIcon("rock", "岩石")}
+      ${makeSceneIcon("coin", "金幣")}
+    </div>
     <div class="scene-status">${statusLine}</div>
   `;
 
