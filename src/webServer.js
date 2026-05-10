@@ -1025,6 +1025,19 @@ async function handleStatic(url, response) {
     await serveFile(response, path.join(PUBLIC_DIR, "assets", safeName), "no-store");
     return true;
   }
+  if (pathname.startsWith("/assets/event-cg-") && pathname.endsWith(".png")) {
+    const safeName = path.basename(pathname);
+    const allowed = new Set([
+      "event-cg-bomb-defuse.png",
+      "event-cg-cave-collapse.png",
+      "event-cg-treasure-chest.png",
+      "event-cg-wild-chicken.png",
+      "event-cg-trait-swap.png"
+    ]);
+    if (!allowed.has(safeName)) return false;
+    await serveFile(response, path.join(PUBLIC_DIR, "assets", safeName), "no-store");
+    return true;
+  }
   const fileName = pathname === "/" ? "index.html" : path.basename(pathname);
   const allowed = new Set(["index.html", "app.js", "styles.css"]);
   if (!allowed.has(fileName)) return false;
