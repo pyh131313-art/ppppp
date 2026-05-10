@@ -803,18 +803,6 @@ function pulseMineScene(action, ok = true) {
   setTimeout(() => screen.classList.remove(className), 700);
 }
 
-function showSceneBurst(message, ok = true) {
-  const stage = document.querySelector(".mine-map-stage");
-  if (!stage || !message) return;
-  const line = getPrimaryActionLine(message, ok).replace(/[。！!]+$/g, "");
-  if (!line) return;
-  const burst = document.createElement("div");
-  burst.className = `scene-burst ${ok ? "" : "bad"}`.trim();
-  burst.textContent = line.length > 28 ? `${line.slice(0, 28)}...` : line;
-  stage.appendChild(burst);
-  setTimeout(() => burst.remove(), 1200);
-}
-
 function isSettlementMessage(message) {
   return /總(?:獲得|收益)|探險結算|本次自動結算|礦石收益|寶石收益|特殊收益/.test(String(message || ""));
 }
@@ -1440,7 +1428,6 @@ async function postAction(action, payload = {}, activeButton = null) {
       showSettlementModal(message);
     } else {
       showFloatingToast(message, body.ok);
-      showSceneBurst(message, body.ok);
     }
   } catch {
     showActionMessage("操作失敗，稍後再試。", false);
