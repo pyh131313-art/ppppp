@@ -743,7 +743,10 @@ function showSettlementModal(message) {
   const modal = $("settlementModal");
   const body = $("settlementBody");
   if (!modal || !body || !isSettlementMessage(message)) return;
-  body.innerHTML = formatActionMessage(message);
+  const parsed = parseSettlementMessage(message);
+  const title = $("settlementTitle");
+  if (title) title.textContent = parsed.title;
+  body.innerHTML = renderSettlementSummary(parsed, message);
   modal.classList.remove("hidden");
   requestAnimationFrame(() => modal.classList.add("show"));
   animateActionNumbers(body);
@@ -811,6 +814,94 @@ function isSettlementMessage(message) {
   return /總(?:獲得|收益)|探險結算|本次自動結算|礦石收益|寶石收益|特殊收益/.test(String(message || ""));
 }
 
+function parseSignedNumber(raw) {
+  const value = Number(String(raw || "0").replace(/[,+＋\s]/g, ""));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function pickNumber(text, pattern) {
+  const match = String(text || "").match(pattern);
+  return match ? parseSignedNumber(match[1]) : null;
+}
+
+function parseSettlementMessage(message) {
+  const text = String(message || "");
+  const bracketTitle = text.match(/^【(.+?)】/m)?.[1];
+  const title = bracketTitle || (text.includes("探險結算") ? "探險結算" : "本次收益");
+  const total = pickNumber(text, /總(?:收益|獲得)：\s*[+＋]?([\d,]+)\s*金幣/);
+  const rows = [];
+  const addRow = (label, value, tone = "normal") => {
+    if (value === null || value === undefined) return;
+    rows.push({ label, value, tone });
+  };
+
+  addRow("基礎收益", pickNumber(text, /基礎收益：\s*([\d,]+)/), "base");
+  addRow("爆擊加成", pickNumber(text, /爆擊加成：\s*[+＋]?([\d,]+)/), "crit");
+  addRow("連擊加成", pickNumber(text, /連擊加成：\s*[+＋]?([\d,]+)/), "combo");
+  addRow("風險加成", pickNumber(text, /風險加成：\s*[+＋]?([\d,]+)/), "risk");
+  addRow("爆發加成", pickNumber(text, /爆發加成：\s*[+＋]?([\d,]+)/), "burst");
+  addRow("礦石收益", pickNumber(text, /礦石收益：\s*([\d,]+)/), "base");
+  addRow("寶石收益", pickNumber(text, /寶石收益：\s*([\d,]+)/), "crit");
+  addRow("特殊收益", pickNumber(text, /特殊收益：\s*([\d,]+)/), "burst");
+
+  const fee = pickNumber(text, /扣除總資產\s*10%：\s*([\d,]+)\s*金幣/);
+  if (fee !== null) rows.push({ label: "電梯費用", value: -fee, tone: "cost" });
+
+  const stats = [];
+  const addStat = (label, value, suffix = "") => {
+    if (value === null || value === undefined) return;
+    stats.push({ label, value, suffix });
+  };
+  addStat("最高連擊", pickNumber(text, /最高連擊：\s*([\d,]+)/), "");
+  addStat("爆擊次數", pickNumber(text, /爆擊次數：\s*([\d,]+)/), "次");
+  addStat("Jackpot", pickNumber(text, /Jackpot：\s*([\d,]+)/), "次");
+  addStat("本趟深度", pickNumber(text, /深度\s*([\d,]+)\s*歸零/), "層");
+
+  const notes = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^【/.test(line))
+    .filter((line) => !/探險結算|本次自動結算|基礎收益|爆擊加成|連擊加成|風險加成|爆發加成|礦石收益|寶石收益|特殊收益|總收益|總獲得|最高連擊|付費電梯/.test(line))
+    .slice(0, 3);
+
+  return { title, total: total ?? 0, rows, stats, notes };
+}
+
+function renderSettlementSummary(parsed, rawMessage) {
+  if (!parsed.rows.length && !parsed.total) return formatActionMessage(rawMessage);
+  const total = Math.max(0, parsed.total || 0);
+  const rowHtml = parsed.rows.map((row) => {
+    const isCost = row.value < 0;
+    const sign = isCost ? "-" : "+";
+    return `
+      <div class="settlement-line-card ${escapeHtml(row.tone || "normal")}">
+        <span>${escapeHtml(row.label)}</span>
+        <strong><span class="count-pop" data-count-to="${Math.abs(row.value)}" data-count-prefix="${sign}">0</span></strong>
+      </div>
+    `;
+  }).join("");
+  const statHtml = parsed.stats.map((stat) => `
+    <div class="settlement-stat-chip">
+      <span>${escapeHtml(stat.label)}</span>
+      <strong><span class="count-pop" data-count-to="${stat.value}">0</span>${escapeHtml(stat.suffix || "")}</strong>
+    </div>
+  `).join("");
+  const notes = parsed.notes.length
+    ? `<div class="settlement-notes">${parsed.notes.map((note) => `<span>${escapeHtml(note)}</span>`).join("")}</div>`
+    : "";
+
+  return `
+    <section class="settlement-total-panel">
+      <span>總獲得</span>
+      <strong><span class="count-pop" data-count-to="${total}">0</span><small> 金幣</small></strong>
+    </section>
+    ${rowHtml ? `<section class="settlement-breakdown">${rowHtml}</section>` : ""}
+    ${statHtml ? `<section class="settlement-stat-row">${statHtml}</section>` : ""}
+    ${notes}
+  `;
+}
+
 function formatActionMessage(message) {
   const escaped = escapeHtml(message);
   if (!isSettlementMessage(message)) return escaped;
@@ -828,7 +919,7 @@ function formatActionMessage(message) {
 function animateActionNumbers(root) {
   const nodes = [...root.querySelectorAll("[data-count-to]")];
   if (!nodes.length) return;
-  const duration = 850;
+  const duration = 780;
   const start = performance.now();
   const ease = (t) => 1 - Math.pow(1 - t, 3);
   const tick = (now) => {
@@ -837,8 +928,7 @@ function animateActionNumbers(root) {
     for (const node of nodes) {
       const target = Number(node.dataset.countTo || 0);
       const prefix = node.dataset.countPrefix || "";
-      const jitter = progress < 0.86 ? Math.floor(Math.random() * Math.max(2, target * 0.045)) : 0;
-      const value = Math.min(target, Math.floor(target * eased + jitter));
+      const value = Math.min(target, Math.floor(target * eased));
       node.textContent = `${prefix}${formatNumber(value)}`;
     }
     if (progress < 1) {

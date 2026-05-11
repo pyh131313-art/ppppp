@@ -1672,7 +1672,7 @@ h2 {
 }
 
 .settlement-card {
-  width: min(560px, 100%);
+  width: min(640px, 100%);
   max-height: min(78vh, 720px);
   overflow: auto;
   border-radius: 12px;
@@ -1720,15 +1720,126 @@ h2 {
 
 .settlement-body {
   white-space: normal;
+  display: grid;
+  gap: 14px;
   padding: 18px 20px;
   color: #fef3c7;
   font-size: 16px;
   font-weight: 900;
-  line-height: 1.75;
+  line-height: 1.35;
 }
 
 .settlement-body .count-pop {
-  font-size: 1.28em;
+  font-variant-numeric: tabular-nums;
+}
+
+.settlement-total-panel {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-height: 132px;
+  border-radius: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.36);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(250, 204, 21, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(84, 54, 12, 0.58), rgba(12, 15, 22, 0.86));
+  box-shadow:
+    inset 0 0 32px rgba(250, 204, 21, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.settlement-total-panel > span {
+  color: #fde68a;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+.settlement-total-panel strong {
+  color: #fff7cc;
+  font-size: clamp(42px, 8vw, 72px);
+  line-height: 1;
+  text-shadow: 0 4px 28px rgba(250, 204, 21, 0.3);
+}
+
+.settlement-total-panel small {
+  font-size: 18px;
+  color: #facc15;
+}
+
+.settlement-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settlement-line-card,
+.settlement-stat-chip {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.settlement-line-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 12px;
+}
+
+.settlement-line-card span,
+.settlement-stat-chip span {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.settlement-line-card strong {
+  color: #fef3c7;
+  font-size: 20px;
+}
+
+.settlement-line-card.crit strong,
+.settlement-line-card.combo strong,
+.settlement-line-card.burst strong {
+  color: #86efac;
+}
+
+.settlement-line-card.risk strong {
+  color: #fbbf24;
+}
+
+.settlement-line-card.cost strong {
+  color: #fda4af;
+}
+
+.settlement-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settlement-stat-chip {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.settlement-stat-chip strong {
+  color: #fef3c7;
+  font-size: 18px;
+}
+
+.settlement-notes {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.62);
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .settlement-ok {
@@ -6255,5 +6366,174 @@ h1 {
     left: 10px;
     width: 24px;
     height: 24px;
+  }
+}
+
+/* Main stage pass: keep the illustrated scene as the primary play surface. */
+@media (min-width: 901px) {
+  .mine-panel.tab-page[data-page="overview"] {
+    display: block;
+  }
+
+  .mine-screen {
+    --stage-bag-w: clamp(92px, 7vw, 118px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--stage-bag-w);
+    gap: 12px;
+    min-height: clamp(600px, 70vh, 860px);
+    max-height: none;
+    padding: 10px;
+    overflow: visible;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(241, 196, 95, 0.12), transparent 28%),
+      rgba(4, 6, 10, 0.42);
+  }
+
+  .mine-art {
+    grid-column: 1;
+    min-height: clamp(580px, 68vh, 840px);
+    height: clamp(580px, 68vh, 840px);
+  }
+
+  .mine-map-stage {
+    min-height: 100%;
+    height: 100%;
+    border-radius: 18px;
+    box-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.46),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .mine-map-stage::before {
+    background:
+      radial-gradient(circle at 50% 62%, rgba(241, 196, 95, 0.08), transparent 28%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.1), transparent 24%, rgba(0, 0, 0, 0.2));
+  }
+
+  .mine-map-stage::after {
+    height: 24%;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.28));
+  }
+
+  .scene-bag-rail {
+    grid-column: 2;
+    position: relative;
+    inset: auto;
+    width: auto;
+    min-height: clamp(580px, 68vh, 840px);
+    height: clamp(580px, 68vh, 840px);
+    max-height: clamp(580px, 68vh, 840px);
+    padding: 10px;
+    border-radius: 18px;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-auto-rows: minmax(78px, 1fr);
+    gap: 10px;
+  }
+
+  .scene-bag-rail .quick-slot {
+    min-height: 78px;
+    height: 78px;
+  }
+
+  .scene-bag-rail .quick-item-icon {
+    width: min(62px, 84%);
+    height: min(62px, 84%);
+  }
+
+  .mine-map-stage .scene-status {
+    top: 20px;
+    bottom: auto;
+    left: 50%;
+    max-width: min(520px, 54%);
+    min-height: 38px;
+    padding: 8px 18px;
+    border-radius: 12px;
+    background: rgba(5, 12, 18, 0.58);
+    transform: translateX(-50%);
+    backdrop-filter: blur(12px);
+  }
+
+  .scene-control-panel {
+    top: auto;
+    left: clamp(48px, 5vw, 88px);
+    right: clamp(48px, 5vw, 88px);
+    bottom: clamp(28px, 4.2vh, 58px);
+    z-index: 20;
+    justify-items: center;
+  }
+
+  .scene-control-panel .action-message {
+    display: none;
+  }
+
+  .scene-control-panel .trait-picker {
+    width: min(980px, 100%);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) clamp(92px, 8vw, 128px);
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .scene-control-panel .trait-option:not(.trait-reroll) {
+    min-height: 82px;
+    padding: 14px 18px;
+  }
+
+  .scene-control-panel .trait-reroll {
+    grid-column: auto;
+    min-height: 82px;
+    padding: 12px;
+  }
+
+  .mine-screen.is-minor-choice .scene-control-panel {
+    left: clamp(44px, 4.8vw, 82px);
+    right: clamp(44px, 4.8vw, 82px);
+    bottom: clamp(26px, 3.8vh, 52px);
+  }
+
+  .mine-screen.is-minor-choice .scene-control-panel .trait-picker.minor-choice-picker {
+    width: min(1040px, 100%);
+  }
+
+  .mine-map-stage .stage-routes,
+  .stage-routes,
+  .stage-routes-1,
+  .stage-routes-2 {
+    left: clamp(48px, 5vw, 88px);
+    right: clamp(48px, 5vw, 88px);
+    bottom: clamp(30px, 4vh, 58px);
+    gap: 14px;
+  }
+
+  .stage-route-button {
+    min-height: clamp(86px, 9vh, 116px);
+    padding: 14px 18px;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.62), rgba(4, 8, 14, 0.82)),
+      rgba(0, 0, 0, 0.36);
+    backdrop-filter: blur(14px);
+  }
+
+  .stage-route-button strong {
+    font-size: clamp(18px, 1.7vw, 28px);
+  }
+
+  .mine-screen:has(.stage-routes) .scene-control-panel {
+    bottom: clamp(154px, 18vh, 192px);
+  }
+}
+
+@media (min-width: 1500px) and (min-height: 850px) {
+  .mine-screen {
+    min-height: clamp(680px, 74vh, 920px);
+  }
+
+  .mine-art,
+  .scene-bag-rail {
+    min-height: clamp(660px, 72vh, 900px);
+    height: clamp(660px, 72vh, 900px);
+    max-height: clamp(660px, 72vh, 900px);
   }
 }
