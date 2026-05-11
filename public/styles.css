@@ -6800,3 +6800,115 @@ h1 {
     display: none;
   }
 }
+
+@media (min-width: 901px) {
+  .tabs {
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .top-player-card {
+    flex: 0 0 clamp(360px, 33vw, 560px);
+    grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.1fr) auto;
+    grid-template-areas:
+      "user stats actions"
+      "vital vital vital";
+    align-items: center;
+    min-width: 0;
+    padding: 5px;
+  }
+
+  .top-player-card .user-row {
+    padding: 4px 6px;
+  }
+
+  .top-player-card .avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .top-player-card h2 {
+    max-width: 160px;
+    font-size: 12px;
+  }
+
+  .top-player-card .muted {
+    font-size: 9px;
+  }
+
+  .top-player-card .vital-card {
+    grid-area: vital;
+    margin: 0;
+    padding: 5px;
+    display: none;
+  }
+
+  .top-player-card:has(.profile-charge-summary.is-ready) .vital-card,
+  .top-player-card:has(.mini-trait-summary:not(.hidden)) .vital-card {
+    display: block;
+  }
+
+  .top-player-card .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .top-player-card .stats-grid div {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .top-player-card .stats-grid span {
+    font-size: 8px;
+  }
+
+  .top-player-card .stats-grid strong {
+    font-size: 11px;
+  }
+
+  .top-player-card .profile-run-actions {
+    grid-template-columns: 1fr;
+    width: 92px;
+  }
+
+  .top-player-card .profile-run-actions .mini-button {
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .top-player-card .profile-rescue-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .top-player-card .profile-rescue-actions:empty {
+    display: none;
+  }
+
+  .last-updated {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .mine-screen {
+    --stage-rail-w: 14px;
+  }
+
+  .scene-bag-rail {
+    padding-right: calc(var(--stage-rail-w) + 13px);
+  }
+
+  .scene-vital-rails {
+    right: 5px;
+    width: var(--stage-rail-w);
+    gap: 2px;
+  }
+
+  .scene-vital-rail {
+    border-color: rgba(255, 255, 255, 0.1);
+    opacity: 0.88;
+  }
+}
