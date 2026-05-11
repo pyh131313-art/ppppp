@@ -6743,3 +6743,60 @@ h1 {
     padding-right: 0;
   }
 }
+
+@media (min-width: 901px) {
+  .mine-screen {
+    --stage-rail-w: 22px;
+  }
+
+  .top-player-card .vital-row,
+  .top-player-card .hp-track {
+    display: none;
+  }
+
+  .top-player-card .vital-card {
+    display: none;
+  }
+
+  .top-player-card:has(.profile-charge-summary.is-ready) .vital-card,
+  .top-player-card:has(.mini-trait-summary:not(.hidden)) .vital-card {
+    display: block;
+  }
+
+  .scene-bag-rail {
+    position: relative;
+    display: flex;
+    padding: 9px calc(var(--stage-rail-w) + 17px) 9px 9px;
+  }
+
+  .scene-bag-rail .quick-bag-title,
+  .scene-bag-rail .quick-bag-grid {
+    width: 100%;
+  }
+
+  .scene-vital-rails {
+    position: absolute;
+    top: 9px;
+    right: 7px;
+    bottom: 9px;
+    width: var(--stage-rail-w);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    pointer-events: none;
+  }
+
+  .scene-vital-rail {
+    min-width: 0;
+    border-radius: 999px;
+  }
+
+  .scene-vital-rail::before,
+  .scene-vital-rail strong {
+    display: none;
+  }
+}
