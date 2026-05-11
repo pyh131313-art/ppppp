@@ -6638,6 +6638,7 @@ h1 {
   .mine-screen {
     --stage-hp: 0%;
     --stage-charge: 0%;
+    --stage-rail-w: 18px;
   }
 
   .top-player-card .hp-track {
@@ -6658,5 +6659,87 @@ h1 {
     margin-top: 8px;
     padding-top: 0;
     border-top: 0;
+  }
+
+  .hero {
+    min-height: 58px;
+    padding: 8px 12px;
+  }
+
+  .hero .eyebrow {
+    margin-bottom: 2px;
+    font-size: 10px;
+  }
+
+  .hero h1 {
+    font-size: clamp(22px, 2.15vw, 32px);
+  }
+
+  .hero-actions .button {
+    min-height: 34px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .dashboard {
+    margin-top: 8px;
+  }
+
+  .tabs {
+    min-height: 46px;
+    padding: 4px 6px;
+  }
+
+  .tabs .tab {
+    min-height: 32px;
+    padding: 6px 10px;
+  }
+
+  .scene-bag-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--stage-rail-w);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 8px;
+    padding: 9px 7px 9px 9px;
+  }
+
+  .scene-bag-rail .quick-bag-title {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .scene-vital-rails {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    min-height: 0;
+    height: 100%;
+    padding: 0;
+    border: 0;
+  }
+
+  .scene-vital-rail {
+    border-radius: 999px;
+  }
+
+  .scene-vital-rail::before {
+    top: 5px;
+    font-size: 8px;
+  }
+
+  .scene-vital-rail strong {
+    display: none;
+  }
+
+  .scene-bag-rail .quick-bag-grid {
+    padding-right: 0;
   }
 }
