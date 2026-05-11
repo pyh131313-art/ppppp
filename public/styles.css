@@ -3983,6 +3983,87 @@ h1 {
   font-size: 11px;
 }
 
+.scene-vital-rails {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  min-height: 88px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.scene-vital-rail {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent),
+    rgba(0, 0, 0, 0.42);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.36),
+    0 10px 22px rgba(0, 0, 0, 0.2);
+}
+
+.scene-vital-rail::before {
+  position: absolute;
+  top: 7px;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.58);
+}
+
+.scene-vital-rail.hp::before {
+  content: "HP";
+}
+
+.scene-vital-rail.charge::before {
+  content: "EN";
+}
+
+.scene-vital-rail span {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--rail-fill, 0%);
+  border-radius: inherit;
+  transition: height 0.28s ease;
+}
+
+.scene-vital-rail.hp span {
+  --rail-fill: var(--stage-hp, 0%);
+  background:
+    linear-gradient(180deg, #fda4af, #fb7185 58%, #be123c);
+  box-shadow: 0 -8px 18px rgba(251, 113, 133, 0.28);
+}
+
+.scene-vital-rail.charge span {
+  --rail-fill: var(--stage-charge, 0%);
+  background:
+    linear-gradient(180deg, #86efac, #22c55e 58%, #15803d);
+  box-shadow: 0 -8px 18px rgba(34, 197, 94, 0.28);
+}
+
+.scene-vital-rail strong {
+  position: relative;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+}
+
 .scene-bag-rail .quick-bag-grid {
   flex: 1 1 auto;
   min-height: 0;
@@ -4112,6 +4193,21 @@ h1 {
 
   .scene-bag-rail .quick-bag-title {
     padding-bottom: 5px;
+  }
+
+  .scene-vital-rails {
+    min-height: 48px;
+    grid-template-columns: repeat(2, 52px);
+    justify-content: start;
+    padding: 0 6px 0 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 0;
+  }
+
+  .scene-vital-rail strong {
+    writing-mode: horizontal-tb;
+    transform: none;
+    font-size: 9px;
   }
 
   .scene-bag-rail .quick-bag-grid {
@@ -6535,5 +6631,32 @@ h1 {
     min-height: clamp(660px, 72vh, 900px);
     height: clamp(660px, 72vh, 900px);
     max-height: clamp(660px, 72vh, 900px);
+  }
+}
+
+@media (min-width: 901px) {
+  .mine-screen {
+    --stage-hp: 0%;
+    --stage-charge: 0%;
+  }
+
+  .top-player-card .hp-track {
+    display: none;
+  }
+
+  .top-player-card .profile-charge-summary:not(.is-ready) {
+    display: none;
+  }
+
+  .top-player-card .profile-charge-summary.is-ready .profile-charge-head,
+  .top-player-card .profile-charge-summary.is-ready .charge-bar-text,
+  .top-player-card .profile-charge-summary.is-ready .system-chips {
+    display: none;
+  }
+
+  .top-player-card .profile-charge-summary.is-ready {
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: 0;
   }
 }

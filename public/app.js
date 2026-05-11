@@ -601,6 +601,9 @@ function renderMiningSystems(payload) {
   }
   if (chargeBox) {
     const value = Math.max(0, Math.min(100, Number(charge.value || 0)));
+    const screen = $("mineScreen");
+    if (screen) screen.style.setProperty("--stage-charge", `${value}%`);
+    setText("stageChargeValue", `${formatNumber(value)}`);
     chargeBox.classList.toggle("is-ready", Boolean(charge.ready));
     const filled = Math.round(value / 10);
     const bar = `${"🟩".repeat(filled)}${"⬛".repeat(10 - filled)}`;
@@ -1478,7 +1481,11 @@ function renderDashboard(payload) {
   setText("bankGold", formatNumber(summary.bankGold));
   setText("totalAsset", formatNumber(summary.totalAsset));
   setText("hp", summary.dead ? "死亡" : summary.hp);
-  $("hpBar").style.width = `${Math.round(getHpRatio(summary.dead ? "0/1" : summary.hp) * 100)}%`;
+  const hpRatio = getHpRatio(summary.dead ? "0/1" : summary.hp);
+  $("hpBar").style.width = `${Math.round(hpRatio * 100)}%`;
+  const screen = $("mineScreen");
+  if (screen) screen.style.setProperty("--stage-hp", `${Math.round(hpRatio * 100)}%`);
+  setText("stageHpValue", summary.dead ? "死亡" : summary.hp);
   setText("hudHp", summary.dead ? "死亡" : summary.hp);
   setText("hudGold", formatNumber(summary.gold));
   setText("hudDepth", summary.depthLabel || `${summary.depth}`);
