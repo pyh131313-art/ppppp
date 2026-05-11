@@ -503,6 +503,7 @@ function getRunImmersionClasses(payload = {}) {
   if (stateFlags.hasPendingEvent) classes.push("is-event-active");
   if (stateFlags.hasSupplyStation) classes.push("is-supply-active");
   if (stateFlags.needsTrait) classes.push("is-at-camp");
+  if (stateFlags.needsMinorBuff) classes.push("is-minor-choice");
   return classes.join(" ");
 }
 
@@ -524,6 +525,9 @@ function renderMineScene(payload) {
   } else if (stateFlags.needsTrait) {
     statusLine = "選擇一個詞條開始";
     stageState = "is-camp";
+  } else if (stateFlags.needsMinorBuff) {
+    statusLine = "選擇小詞條";
+    stageState = "is-supply";
   } else if (stateFlags.hasPendingEvent) {
     statusLine = "事件發生中";
     stageState = "is-danger";
@@ -1261,15 +1265,16 @@ function renderActions(payload) {
     prompt.className = "trait-choice-prompt";
     prompt.innerHTML = `
       <strong>${minorBuffs.breakthrough ? "✨ 突破小詞條出現" : "✨ 小詞條三選一"}</strong>
-      <span>${minorBuffs.breakthrough ? "已滿上限，突破成長會遞減。" : "選 1 個，立刻套用本輪效果。"}</span>
+      <span>${minorBuffs.breakthrough ? "已滿上限，突破成長會遞減。" : "選 1 個，選完才會出現後續路線。"}</span>
     `;
     traitPicker.appendChild(prompt);
-    for (const buff of minorBuffs.options.slice(0, 3)) {
+    for (const [index, buff] of minorBuffs.options.slice(0, 3).entries()) {
       const button = document.createElement("button");
       button.className = `trait-option minor-buff-option ${buff.breakthrough ? "is-breakthrough" : ""}`.trim();
       button.dataset.action = "chooseMinorBuff";
       button.dataset.buff = buff.id;
       button.innerHTML = `
+        <em>${index + 1}</em>
         <strong>${buff.breakthrough ? "✨ " : ""}${escapeHtml(buff.label)} +1</strong>
         <span>${escapeHtml(getMinorBuffDescription(buff))}</span>
         <small>目前 ${formatNumber(buff.currentStacks || 0)} 層</small>

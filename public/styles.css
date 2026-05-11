@@ -6096,12 +6096,49 @@ h1 {
 }
 
 .scene-control-panel .minor-buff-option {
+  position: relative;
+  overflow: hidden;
   min-height: 74px;
+  padding-left: 48px;
   align-content: center;
   background:
     radial-gradient(circle at 12% 0%, rgba(134, 239, 172, 0.18), transparent 40%),
     linear-gradient(180deg, rgba(16, 185, 129, 0.24), rgba(6, 78, 59, 0.44)),
     rgba(0, 0, 0, 0.56);
+}
+
+.scene-control-panel .minor-buff-option::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.12) 42%, transparent 64%);
+  transform: translateX(-120%);
+  transition: transform 0.45s ease;
+  pointer-events: none;
+}
+
+.scene-control-panel .minor-buff-option:hover::after,
+.scene-control-panel .minor-buff-option:focus-visible::after {
+  transform: translateX(120%);
+}
+
+.minor-buff-option em {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(241, 196, 95, 0.42);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  color: #ffe7a6;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 1000;
+  transform: translateY(-50%);
 }
 
 .scene-control-panel .minor-buff-option.is-breakthrough {
@@ -6139,5 +6176,84 @@ h1 {
 
   .scene-control-panel .minor-buff-option {
     min-height: 48px;
+  }
+}
+
+/* Three-choice mini trait moment: make it read like a game card pick. */
+.mine-screen.is-minor-choice .scene-control-panel {
+  left: clamp(28px, 4vw, 64px);
+  right: clamp(132px, 10vw, 172px);
+  bottom: clamp(22px, 3.4vh, 44px);
+  justify-items: stretch;
+}
+
+.mine-screen.is-minor-choice .scene-control-panel .trait-picker.minor-choice-picker {
+  width: min(920px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mine-screen.is-minor-choice .trait-choice-prompt {
+  min-height: 42px;
+  padding: 8px 12px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(241, 196, 95, 0.18), transparent 42%),
+    rgba(4, 8, 14, 0.68);
+}
+
+.mine-screen.is-minor-choice .minor-buff-option {
+  min-height: 96px;
+  border-color: rgba(74, 222, 128, 0.36);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.mine-screen.is-minor-choice .minor-buff-option:hover,
+.mine-screen.is-minor-choice .minor-buff-option:focus-visible {
+  border-color: rgba(134, 239, 172, 0.78);
+  transform: translateY(-3px);
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.42),
+    0 0 22px rgba(74, 222, 128, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 700px) {
+  .mine-screen.is-minor-choice {
+    grid-template-rows: minmax(480px, calc(100svh - 210px));
+  }
+
+  .mine-screen.is-minor-choice .mine-map-stage .scene-status {
+    top: 8px;
+    min-height: 30px;
+    padding: 6px 10px;
+  }
+
+  .mine-screen.is-minor-choice .scene-control-panel {
+    left: 7px;
+    right: 7px;
+    bottom: 7px;
+  }
+
+  .mine-screen.is-minor-choice .scene-control-panel .trait-picker.minor-choice-picker {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .mine-screen.is-minor-choice .trait-choice-prompt {
+    min-height: 0;
+    padding: 7px 9px;
+  }
+
+  .mine-screen.is-minor-choice .minor-buff-option {
+    min-height: 56px;
+    padding: 8px 9px 8px 42px;
+  }
+
+  .mine-screen.is-minor-choice .minor-buff-option em {
+    left: 10px;
+    width: 24px;
+    height: 24px;
   }
 }
