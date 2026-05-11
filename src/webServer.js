@@ -454,7 +454,11 @@ function buildPlayerPayload(user, playerInput, progressInput = {}, playersInput 
       hasSupplyStation: Boolean(player.supplyStation),
       canUseBank: Boolean(!player.dead && (!player.runMode || player.zone === "undergroundCamp")),
       canUseShop: Boolean(!player.dead && !player.runMode),
-      canUseStorage: Boolean(!player.dead && ["surface", "undergroundCamp", "skyCamp"].includes(player.zone)),
+      canUseStorage: Boolean(!player.dead && (
+        (!player.runMode && player.zone === "surface")
+        || player.zone === "undergroundCamp"
+        || player.zone === "skyCamp"
+      )),
       canUseUndergroundInn: Boolean(!player.dead && player.zone === "undergroundCamp"),
       canMine: Boolean(player.runMode && !player.dead && !player.pendingEvent && !player.supplyStation && !minorBuffs.needsChoice),
       needsTrait: Boolean(!player.runMode && !player.dead),

@@ -1600,7 +1600,7 @@ function chooseRunMode(playerInput, mode, random = null) {
   player.minorBuffOptions = [];
   player.minorBuffSelections = [];
   player.minorBuffBreakthroughMode = false;
-  player.nextBuffDepth = SUPPLY_STATION_INTERVAL;
+  player.nextBuffDepth = 5;
   player.nextSupplyDepth = SUPPLY_STATION_INTERVAL;
   player.supplyStation = null;
   player.pendingEvent = null;
@@ -1976,6 +1976,27 @@ function refreshMinorBuffOptions(playerInput, random = Math.random) {
   return player;
 }
 
+function shouldOpenMinorBuffChoice(playerInput) {
+  const player = getPlayer(playerInput);
+  const depth = Math.abs(player.depth || 0);
+  return !player.dead
+    && !player.pendingEvent
+    && !player.supplyStation
+    && Boolean(player.runMode)
+    && depth > 0
+    && depth >= (player.nextBuffDepth || 5)
+    && depth % 5 === 0
+    && (!Array.isArray(player.minorBuffOptions) || player.minorBuffOptions.length === 0);
+}
+
+function openMinorBuffChoice(playerInput, random = Math.random) {
+  const player = refreshMinorBuffOptions(playerInput, random);
+  if (player.minorBuffOptions.length === 0) {
+    player.nextBuffDepth = Math.abs(player.depth || 0) + 5;
+  }
+  return player;
+}
+
 function getMinorBuffOptions(playerInput) {
   const player = getPlayer(playerInput);
   const supplemented = supplementMinorBuffOptions(player);
@@ -2063,6 +2084,9 @@ function chooseMinorBuff(playerInput, buff) {
     player.minorBuffOptions = [];
     player.minorBuffSelections = [];
     player.minorBuffBreakthroughMode = false;
+    if (canOpenSupplyStation(player)) {
+      Object.assign(player, createSupplyStation(player));
+    }
   }
 
   return {
@@ -3359,10 +3383,15 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
   if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
     advanceEventTypeMissCounters(player, 1);
   }
-  const eventMessage = kind === "blocked" || kind === "full" || player.dead
+  const shouldTryMinorBuff = kind !== "blocked" && kind !== "full" && shouldOpenMinorBuffChoice(player);
+  if (shouldTryMinorBuff) {
+    Object.assign(player, openMinorBuffChoice(player, random));
+  }
+  const shouldPauseForMinorBuff = shouldTryMinorBuff && player.minorBuffOptions.length > 0;
+  const eventMessage = kind === "blocked" || kind === "full" || player.dead || shouldPauseForMinorBuff
     ? ""
     : maybeTriggerRandomEvent(player, random);
-  if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode) {
+  if (kind !== "blocked" && kind !== "full" && !player.dead && player.runMode && !shouldPauseForMinorBuff) {
     tickTempEffects(player);
     player.digPathOptions = refreshDigPathOptions(player, random).digPathOptions;
     if (canOpenSupplyStation(player)) {
@@ -3375,7 +3404,7 @@ function buildOutcome(kind, player, title, message, recordMessage = "", random =
     kind,
     player,
     title,
-    message: `${message}${tensionHint ? `\n${tensionHint}` : ""}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${eventMessage}${player.supplyStation ? `\n\n${formatSupplyStation(player)}` : ""}`,
+    message: `${message}${tensionHint ? `\n${tensionHint}` : ""}${funMessage ? `\n${funMessage}` : ""}${recordMessage ? `\n${recordMessage}` : ""}${shouldPauseForMinorBuff && player.minorBuffOptions.length > 0 ? "\n\n✨ 抵達小詞條層，先選 1 個小詞條再繼續。" : ""}${eventMessage}${player.supplyStation ? `\n\n${formatSupplyStation(player)}` : ""}`,
     recordMessage
   };
 }
@@ -3955,6 +3984,14 @@ function mine(playerInput, random = Math.random, now = Date.now(), digPath = nul
       player,
       title: "猛禽洞窟底層",
       message: "你已經抵達猛禽洞窟第 50 層。下面只剩灼熱羽灰與鳳凰爪痕，不能再繼續往下，只能返回地面。"
+    };
+  }
+  if (canChooseMinorBuff(player)) {
+    return {
+      kind: "blocked",
+      player,
+      title: "小詞條選擇",
+      message: "抵達小詞條層，請先三選一，選完才會出現後續路線。"
     };
   }
   recordDigPathVisit(player, digPath);

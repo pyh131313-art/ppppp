@@ -616,7 +616,7 @@ test("玩家修復會把地表但仍在挖礦的狀態修回礦坑", () => {
   assert.match(result.message, /修正礦坑區域狀態/);
 });
 
-test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
+test("事件與小詞條同層出現時會先停下來選小詞條", () => {
   const player = {
     ...createPlayer(),
     runMode: "eventBody",
@@ -628,18 +628,10 @@ test("事件與小詞條同層出現時會先處理事件避免卡住", () => {
   };
   const result = mine(player, () => 0);
 
-  assert.ok(result.player.pendingEvent);
+  assert.equal(result.player.pendingEvent, null);
   assert.equal(result.player.supplyStation, null);
-  assert.equal(canChooseMinorBuff(result.player), false);
-
-  const resolved = resolveRandomEvent({
-    ...result.player,
-    pendingEvent: "lost_backpack",
-    depth: 25,
-    nextSupplyDepth: 25
-  }, "safe");
-  assert.equal(resolved.player.pendingEvent, null);
-  assert.equal(resolved.player.supplyStation, null);
+  assert.equal(canChooseMinorBuff(result.player), true);
+  assert.match(result.message, /先選 1 個小詞條/);
 });
 
 test("QTE 炸彈拆除會建立限時互動並依答案結算", () => {
@@ -2630,6 +2622,28 @@ test("火龍十字鎬每次深入會跳兩層並錯過部分小磁條層", () =>
   assert.equal(canChooseMinorBuff(third.player), false);
 });
 
+test("每五層會先停下來三選一小詞條", () => {
+  let player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    nextEventDepth: 99
+  };
+  for (let i = 0; i < 5; i += 1) {
+    player = mine(player, () => 0.2).player;
+  }
+  const blocked = mine(player, () => 0.2);
+  const options = getMinorBuffOptions(player);
+  const picked = chooseMinorBuff(player, options[0].id);
+
+  assert.equal(player.depth, 5);
+  assert.equal(canChooseMinorBuff(player), true);
+  assert.equal(options.length, 3);
+  assert.equal(blocked.kind, "blocked");
+  assert.match(blocked.message, /先三選一/);
+  assert.equal(picked.ok, true);
+  assert.equal(canChooseMinorBuff(picked.player), false);
+  assert.equal(picked.player.nextBuffDepth, 10);
+});
+
 test("小詞條候選不足三個時會補滿給網頁選擇", () => {
   const player = {
     ...chooseRunMode(createPlayer(), "safe").player,
@@ -2739,10 +2753,12 @@ test("每二十五層會出現補給站並暫停挖礦", () => {
     forcedNextResult: "empty"
   };
   const result = mine(player, () => 0.99);
-  const blocked = mine(result.player, () => 0.99);
-  const station = getSupplyStationView(result.player);
+  const picked = chooseMinorBuff(result.player, getMinorBuffOptions(result.player)[0].id);
+  const blocked = mine(picked.player, () => 0.99);
+  const station = getSupplyStationView(picked.player);
 
-  assert.equal(Boolean(result.player.supplyStation), true);
+  assert.equal(canChooseMinorBuff(result.player), true);
+  assert.equal(Boolean(picked.player.supplyStation), true);
   assert.equal(station.items.some((item) => item.type === "potion"), true);
   assert.equal(blocked.kind, "blocked");
   assert.match(blocked.message, /補給站/);
