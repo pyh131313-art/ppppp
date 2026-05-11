@@ -1939,6 +1939,31 @@ function pickMinorBuffOptions(pool, random = Math.random, breakthrough = false) 
   return options;
 }
 
+function supplementMinorBuffOptions(playerInput) {
+  const player = getPlayer(playerInput);
+  const currentOptions = Array.isArray(player.minorBuffOptions)
+    ? player.minorBuffOptions.filter((id) => CONFIG.minorBuffs[id])
+    : [];
+  if (currentOptions.length === 0) {
+    return {
+      options: [],
+      breakthrough: Boolean(player.minorBuffBreakthroughMode)
+    };
+  }
+  const selected = new Set(Array.isArray(player.minorBuffSelections) ? player.minorBuffSelections : []);
+  const selectable = getSelectableMiniTraitIds(player);
+  const breakthrough = currentOptions.length > 0
+    ? Boolean(player.minorBuffBreakthroughMode)
+    : selectable.length === 0;
+  const pool = (breakthrough ? getBreakthroughMiniTraitIds(player) : selectable)
+    .filter((id) => !currentOptions.includes(id) && !selected.has(id));
+
+  return {
+    options: [...currentOptions, ...pool].slice(0, 3),
+    breakthrough
+  };
+}
+
 function refreshMinorBuffOptions(playerInput, random = Math.random) {
   const player = getPlayer(playerInput);
   const selectablePool = getSelectableMiniTraitIds(player);
@@ -1953,13 +1978,9 @@ function refreshMinorBuffOptions(playerInput, random = Math.random) {
 
 function getMinorBuffOptions(playerInput) {
   const player = getPlayer(playerInput);
-  let ids = player.minorBuffOptions.filter((id) => CONFIG.minorBuffs[id]);
-  let breakthrough = player.minorBuffBreakthroughMode;
-  if (ids.length === 0 && canChooseMinorBuff(player)) {
-    const selectable = getSelectableMiniTraitIds(player);
-    breakthrough = selectable.length === 0;
-    ids = (breakthrough ? getBreakthroughMiniTraitIds(player) : selectable).slice(0, 3);
-  }
+  const supplemented = supplementMinorBuffOptions(player);
+  const ids = supplemented.options;
+  const breakthrough = supplemented.breakthrough;
   return ids
     .map((id) => ({
       id,
@@ -1981,6 +2002,12 @@ function chooseMinorBuff(playerInput, buff) {
       player,
       message: "沒有這個小磁條。"
     };
+  }
+
+  const supplemented = supplementMinorBuffOptions(player);
+  if (player.minorBuffOptions.length > 0 && supplemented.options.length > player.minorBuffOptions.length) {
+    player.minorBuffOptions = supplemented.options;
+    player.minorBuffBreakthroughMode = supplemented.breakthrough && supplemented.options.length > 0;
   }
 
   if (!canChooseMinorBuff(player)) {

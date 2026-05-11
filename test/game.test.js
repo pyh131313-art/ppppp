@@ -2630,6 +2630,19 @@ test("火龍十字鎬每次深入會跳兩層並錯過部分小磁條層", () =>
   assert.equal(canChooseMinorBuff(third.player), false);
 });
 
+test("小詞條候選不足三個時會補滿給網頁選擇", () => {
+  const player = {
+    ...chooseRunMode(createPlayer(), "safe").player,
+    minorBuffOptions: ["gold"]
+  };
+  const options = getMinorBuffOptions(player);
+  const selectedThird = chooseMinorBuff(player, options[2].id);
+
+  assert.equal(options.length, 3);
+  assert.equal(selectedThird.ok, true);
+  assert.equal(selectedThird.player.minorBuffs[options[2].id], 1);
+});
+
 test("火龍十字鎬會把金幣和礦物燒成更高地表價值的物品", () => {
   const goldRun = chooseRunMode(
     { ...createPlayer(), runModeOptions: ["fireDragonPickaxe", "safe"] },
