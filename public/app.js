@@ -925,6 +925,22 @@ function makeActionDivider(label) {
   return divider;
 }
 
+function getMinorBuffDescription(buff = {}) {
+  const descriptions = {
+    gold: "金幣收益 +5%",
+    bomb: "炸彈率 -5%",
+    bag: "包包 +2 格",
+    ore: "礦石收益 +8%",
+    sustain: "每 10 層回血",
+    luck: "爆擊率 +3%",
+    event: "事件率 +5%",
+    reverse: "顛倒資源 +5%"
+  };
+  if (descriptions[buff.id]) return descriptions[buff.id];
+  if (buff.breakthrough) return "突破上限，成長遞減";
+  return "本輪小幅強化";
+}
+
 function makeDockButton(label, action, options = {}) {
   const button = document.createElement("button");
   button.className = `mobile-dock-button ${options.kind || ""}`.trim();
@@ -1141,6 +1157,7 @@ function renderActions(payload) {
   const supportActionGrid = $("supportActionGrid");
   clearEventCountdown();
   traitPicker.innerHTML = "";
+  traitPicker.classList.remove("minor-choice-picker");
   actionGrid.innerHTML = "";
   supportActionGrid.innerHTML = "";
   supportActions.classList.remove("hidden");
@@ -1238,23 +1255,26 @@ function renderActions(payload) {
   }
 
   if (stateFlags.needsMinorBuff && minorBuffs.options && minorBuffs.options.length) {
-    const buffBox = document.createElement("div");
-    buffBox.className = "web-event-card minor-buff-card";
-    buffBox.innerHTML = `
-      <div class="web-event-head">
-        <strong>${minorBuffs.breakthrough ? "✨ 突破小詞條" : "✨ 小詞條"}</strong>
-        <span>選 1 個</span>
-      </div>
-      <p>${minorBuffs.breakthrough ? "所有可選小詞條已滿，上限突破會遞減成長。" : "選完後可以繼續挖。"} </p>
+    traitPicker.classList.remove("hidden");
+    traitPicker.classList.add("minor-choice-picker");
+    const prompt = document.createElement("div");
+    prompt.className = "trait-choice-prompt";
+    prompt.innerHTML = `
+      <strong>${minorBuffs.breakthrough ? "✨ 突破小詞條出現" : "✨ 小詞條三選一"}</strong>
+      <span>${minorBuffs.breakthrough ? "已滿上限，突破成長會遞減。" : "選 1 個，立刻套用本輪效果。"}</span>
     `;
-    actionGrid.appendChild(buffBox);
-    for (const buff of minorBuffs.options) {
-      const label = `${buff.breakthrough ? "✨ " : ""}${buff.label} +1`;
-      const button = makeActionButton(label, "chooseMinorBuff", {
-        kind: buff.breakthrough ? "hero-action safe" : "hero-action primary"
-      });
+    traitPicker.appendChild(prompt);
+    for (const buff of minorBuffs.options.slice(0, 3)) {
+      const button = document.createElement("button");
+      button.className = `trait-option minor-buff-option ${buff.breakthrough ? "is-breakthrough" : ""}`.trim();
+      button.dataset.action = "chooseMinorBuff";
       button.dataset.buff = buff.id;
-      actionGrid.appendChild(button);
+      button.innerHTML = `
+        <strong>${buff.breakthrough ? "✨ " : ""}${escapeHtml(buff.label)} +1</strong>
+        <span>${escapeHtml(getMinorBuffDescription(buff))}</span>
+        <small>目前 ${formatNumber(buff.currentStacks || 0)} 層</small>
+      `;
+      traitPicker.appendChild(button);
     }
     supportActions.classList.add("hidden");
     renderMobileDock(payload);
